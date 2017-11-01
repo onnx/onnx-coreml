@@ -185,28 +185,30 @@ class SingleOperatorTest(unittest.TestCase):
         epsilon = 1e-5
         momentum = 0.001
 
-        _test_single_node(
-            "BatchNormalization",
-            [(1, 3, 224, 224)],
-            [(1, 3, 224, 224)],
-            initializer=[scale, bias, mean, var],
-            is_test=1,
-            epsilon=epsilon,
-            momentum=momentum,
-            consumed_inputs=[0, 0, 0, 1, 1]
-        )
+        op_types = ["BatchNormalization", "SpatialBN"]
+        for op_type in op_types:
+            _test_single_node(
+                "BatchNormalization",
+                [(1, 3, 224, 224)],
+                [(1, 3, 224, 224)],
+                initializer=[scale, bias, mean, var],
+                is_test=1,
+                epsilon=epsilon,
+                momentum=momentum,
+                consumed_inputs=[0, 0, 0, 1, 1]
+            )
 
-        # epsilon by default
-        _test_single_node(
-            "BatchNormalization",
-            [(1, 3, 224, 224)],
-            [(1, 3, 224, 224)],
-            initializer=[scale, bias, mean, var],
-            is_test=1,
-            # epsilon=epsilon,
-            momentum=momentum,
-            consumed_inputs=[0, 0, 0, 1, 1]
-        )
+            # epsilon by default
+            _test_single_node(
+                "BatchNormalization",
+                [(1, 3, 224, 224)],
+                [(1, 3, 224, 224)],
+                initializer=[scale, bias, mean, var],
+                is_test=1,
+                # epsilon=epsilon,
+                momentum=momentum,
+                consumed_inputs=[0, 0, 0, 1, 1]
+            )
 
     def test_add(self):
         _test_single_node(

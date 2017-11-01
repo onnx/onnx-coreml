@@ -366,6 +366,7 @@ _ONNX_NODE_REGISTRY = {
     "AveragePool": _convert_pool,
     "FC": _convert_fc,
     "BatchNormalization": _convert_bn,
+    "SpatialBN": _convert_bn,
     "Add": _convert_add,
     "Sum": _convert_add,
     "Mul": _convert_mul,
