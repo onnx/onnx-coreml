@@ -9,7 +9,7 @@ import numpy.testing as npt
 
 from PIL import Image
 
-from onnx_coreml._onnx_converter import convert
+from onnx_coreml import convert
 from tests._test_utils import _onnx_create_single_node_model
 
 

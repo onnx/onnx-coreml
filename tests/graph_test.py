@@ -27,7 +27,7 @@ class NodeTest(unittest.TestCase):
         self.assertTrue(len(node_.inputs) == 1)
         self.assertTrue(len(node_.outputs) == 1)
         self.assertTrue(len(node_.attrs) == 1)
-        self.assertTrue(node_.attrs["alpha"].f == 0.5)
+        self.assertTrue(node_.attrs["alpha"] == 0.5)
 
 
 class GraphTest(unittest.TestCase):

@@ -6,6 +6,46 @@ from __future__ import unicode_literals
 from onnx import numpy_helper
 
 
+def _input_from_onnx_input(input):
+    name = input.name
+    type = input.type.tensor_type.elem_type
+    shape = tuple([d.dim_value for d in input.type.tensor_type.shape.dim])
+    return (name, type, shape)
+
+
+def _convertAttributeProto(onnx_arg):
+    """
+    Convert an ONNX AttributeProto into an appropriate Python object
+    for the type.
+    NB: Tensor attribute gets returned as numpy array
+    """
+    if onnx_arg.HasField('f'):
+        return onnx_arg.f
+    elif onnx_arg.HasField('i'):
+        return onnx_arg.i
+    elif onnx_arg.HasField('s'):
+        return onnx_arg.s
+    elif onnx_arg.HasField('t'):
+        return numpy_helper.to_array(onnx_arg.t)
+    elif len(onnx_arg.floats):
+        return list(onnx_arg.floats)
+    elif len(onnx_arg.ints):
+        return list(onnx_arg.ints)
+    elif len(onnx_arg.strings):
+        return list(onnx_arg.strings)
+    else:
+        raise ValueError("Unsupported ONNX attribute: {}".format(onnx_arg))
+
+
+class Attributes(dict):
+    @staticmethod
+    def from_onnx(args):
+        d = Attributes()
+        for arg in args:
+            d[arg.name] = _convertAttributeProto(arg)
+        return d
+
+
 class Node(object):
     def __init__(self, name, op_type, attrs, inputs, outputs):
         self.name = name
@@ -38,7 +78,7 @@ class Node(object):
 
     @staticmethod
     def from_onnx(node):
-        attrs = {attr.name: attr for attr in node.attribute}
+        attrs = Attributes.from_onnx(node.attribute)
         name = str(node.name)
         if len(name) == 0:
             name = "_".join(node.output)
@@ -52,13 +92,6 @@ class Graph(object):
         self.nodes = nodes
         self.inputs = inputs
         self.outputs = outputs
-
-    @staticmethod
-    def _input_from_onnx_input(input):
-        name = input.name
-        type = input.type.tensor_type.elem_type
-        shape = tuple([d.dim_value for d in input.type.tensor_type.shape.dim])
-        return (name, type, shape)
 
     def transformed(self, transformers):
         graph = self
@@ -93,11 +126,11 @@ class Graph(object):
         inputs = []
         for i in graph.input:
             if i.name not in input_tensors:
-                inputs.append(Graph._input_from_onnx_input(i))
+                inputs.append(_input_from_onnx_input(i))
 
         outputs = []
         for o in graph.output:
-            outputs.append(Graph._input_from_onnx_input(o))
+            outputs.append(_input_from_onnx_input(o))
 
         for node_ in nodes_:
             for input_ in node_.inputs:

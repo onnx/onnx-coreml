@@ -20,18 +20,13 @@ def _convert_conv(builder, node):
         bias_node = node.metadata['bias_node']
         b = bias_node.input_tensors[bias_node.inputs[1]]
 
-    dilations = [1, 1]
-    if "dilations" in node.attrs:
-        dilations = node.attrs["dilations"].ints
+    dilations = node.attrs.get("dilations", [1, 1])
     groups = 1
-    if "group" in node.attrs:
-        groups = node.attrs["group"].i
-    kernel_shape = node.attrs["kernel_shape"].ints
+    groups = node.attrs.get("group", 1)
+    kernel_shape = node.attrs["kernel_shape"]
 
-    pads = [0, 0, 0, 0]
-    if "pads" in node.attrs:
-        pads = node.attrs["pads"].ints
-    strides = node.attrs["strides"].ints
+    pads = node.attrs.get("pads", [0, 0, 0, 0])
+    strides = node.attrs["strides"]
 
     builder.add_convolution(
         name=node.name,
@@ -68,7 +63,7 @@ def _convert_relu(builder, node):
 
 
 def _convert_reshape(builder, node):
-    shape = tuple(node.attrs["shape"].ints)
+    shape = tuple(node.attrs["shape"])
 
     def get_coreml_target_shape(target_shape):
         if len(target_shape) == 1:  # (D,)
@@ -106,21 +101,17 @@ def _convert_reshape(builder, node):
 
 
 def _convert_transpose(builder, node):
-    perm = node.attrs.get("perm")
-    if perm is not None:
-        perm = perm.ints
-        if len(perm) > 4:
-            diff = len(perm) - 4
-            if all([perm[i] == i for i in range(diff)]):
-                perm = [p - diff for p in perm[diff:]]
-            else:
-                raise ValueError("Supports only 4d tensors")
-        elif len(perm) < 4:
-            diff = 4 - len(perm)
-            perm = [d for d in range(diff)] + [d + diff for d in perm]
-        perm = tuple(perm)
-    else:
-        perm = (0, 3, 2, 1)
+    perm = node.attrs.get("perm", [0, 3, 2, 1])
+    if len(perm) > 4:
+        diff = len(perm) - 4
+        if all([perm[i] == i for i in range(diff)]):
+            perm = [p - diff for p in perm[diff:]]
+        else:
+            raise ValueError("Supports only 4d tensors")
+    elif len(perm) < 4:
+        diff = 4 - len(perm)
+        perm = [d for d in range(diff)] + [d + diff for d in perm]
+    perm = tuple(perm)
 
     builder.add_permute(
         name=node.name,
@@ -136,7 +127,7 @@ def _convert_pool(builder, node):
         is_global = True
 
     if "dilations" in node.attrs:
-        dilations = node.attrs["dilations"].ints
+        dilations = node.attrs["dilations"]
         if not all([d == 1 for d in dilations]):
             raise ValueError(
                 "Only [1, 1] dilations are supported now"
@@ -157,18 +148,18 @@ def _convert_pool(builder, node):
         height, width = 0, 0
         stride_height, stride_width = 1, 1
     else:
-        kernel_shape = node.attrs["kernel_shape"].ints
+        kernel_shape = node.attrs["kernel_shape"]
         height = kernel_shape[0]
         width = kernel_shape[1]
 
         if "pads" in node.attrs:
-            pads = node.attrs["pads"].ints
+            pads = node.attrs["pads"]
             pad_t = pads[0]
             pad_l = pads[1]
             pad_b = pads[2]
             pad_r = pads[3]
 
-        strides = node.attrs["strides"].ints
+        strides = node.attrs["strides"]
         stride_height = strides[0]
         stride_width = strides[1]
 
@@ -208,13 +199,12 @@ def _convert_fc(builder, node):
 
 
 def _convert_bn(builder, node):
-    if node.attrs["is_test"].i == 0:
+    if node.attrs["is_test"] == 0:
         raise ValueError(
             "BatchNormalization supports only test mode"
         )
-    epsilon = 1e-5
-    if "epsilon" in node.attrs:
-        epsilon = node.attrs["epsilon"].f
+
+    epsilon = node.attrs.get("epsilon", 1e-5)
     scale = node.input_tensors[node.inputs[1]]
     bias = node.input_tensors[node.inputs[2]]
     mean = node.input_tensors[node.inputs[3]]
@@ -235,7 +225,7 @@ def _convert_bn(builder, node):
 
 def _convert_add(builder, node):
     if 'broadcast' in node.attrs:
-        if node.attrs['broadcast'].i == 1:
+        if node.attrs['broadcast'] == 1:
             raise ValueError('Broadcast Add is not supported now')
     builder.add_elementwise(
         name=node.name,
@@ -247,7 +237,7 @@ def _convert_add(builder, node):
 
 def _convert_mul(builder, node):
     if 'broadcast' in node.attrs:
-        if node.attrs['broadcast'].i == 1:
+        if node.attrs['broadcast'] == 1:
             raise ValueError('Broadcast Add is not supported now')
 
     builder.add_elementwise(
@@ -259,7 +249,7 @@ def _convert_mul(builder, node):
 
 
 def _convert_leaky_relu(builder, node):
-    alpha = node.attrs['alpha'].f
+    alpha = node.attrs['alpha']
     builder.add_activation(
         name=node.name,
         non_linearity='LEAKYRELU',
@@ -270,9 +260,7 @@ def _convert_leaky_relu(builder, node):
 
 
 def _convert_concat(builder, node):
-    axis = 1
-    if "axis" in node.attrs:
-        axis = node.attrs["axis"].i
+    axis = node.attrs.get("axis", 1)
     if axis != 0 and axis != 1:
         raise ValueError(
             "Unsupported axis {}. Only sequence or "
@@ -294,7 +282,7 @@ def _convert_concat(builder, node):
 
 def _convert_softmax(builder, node):
     if "axis" in node.attrs:
-        axis = node.attrs["axis"].i
+        axis = node.attrs["axis"]
         if axis != 1:
             raise ValueError(
                 "Unsupported axis {} for softmax".format(axis,)
@@ -307,7 +295,7 @@ def _convert_softmax(builder, node):
 
 
 def _convert_gemm(builder, node):
-    if node.attrs["broadcast"].i != 1 or node.attrs["transB"].i != 1:
+    if node.attrs["broadcast"] != 1 or node.attrs["transB"] != 1:
         raise ValueError(
             "Gemm is supported only for inner_product layer"
         )
@@ -342,10 +330,10 @@ def _convert_gemm(builder, node):
 
 
 def _convert_lrn(builder, node):
-    alpha = node.attrs["alpha"].f
-    beta = node.attrs["beta"].f
-    bias = node.attrs["bias"].f
-    size = node.attrs["size"].i
+    alpha = node.attrs["alpha"]
+    beta = node.attrs["beta"]
+    bias = node.attrs["bias"]
+    size = node.attrs["size"]
     builder.add_lrn(
         name=node.name,
         input_name=node.inputs[0],

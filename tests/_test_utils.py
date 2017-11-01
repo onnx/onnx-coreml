@@ -8,7 +8,7 @@ import numpy.testing as npt
 from onnx import checker, helper, TensorProto
 import onnx_caffe2.backend
 
-from onnx_coreml._onnx_converter import convert
+from onnx_coreml import convert
 
 
 def _onnx_create_model(nodes, inputs, outputs, initializer=[]):
@@ -64,16 +64,19 @@ def _onnx_create_single_node_model(op_type, input_shapes, output_shapes,
     return _onnx_create_model([node], inputs, outputs, initializer)
 
 
+def _shape_from_onnx_value_info(v):
+    return tuple([d.dim_value for d in v.type.tensor_type.shape.dim])
+
+
 def _forward_onnx_model(model, input_dict):
     prepared_backend = onnx_caffe2.backend.prepare(model)
     out = prepared_backend.run(input_dict)
-    result = []
-    for v in model.graph.output:
-        value = out[v.name]
-        while len(value.shape) > 3:
-            assert(value.shape[0] == 1)
-            value = value[0]
-        result.append(value)
+    result = [out[v.name] for v in model.graph.output]
+    output_shapes = [
+        _shape_from_onnx_value_info(o) for o in model.graph.output
+    ]
+    for i, output in enumerate(result):
+        result[i] = output.reshape(output_shapes[i])
     return np.array(result)
 
 
@@ -81,9 +84,6 @@ def _coreml_forward_model(model, input_dict, output_names):
     for k, arr in input_dict.items():
         if len(arr.shape) == 4:
             input_dict[k] = arr[0]
-        elif len(arr.shape) == 2:
-            input_dict[k] = np.array(arr)
-
     coreml_out = model.predict(input_dict, useCPUOnly=True)
     return np.array([coreml_out[name] for name in output_names])
 

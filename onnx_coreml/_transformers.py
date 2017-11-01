@@ -66,11 +66,11 @@ class ConvAddFuser(SubNodeFuser):
             # bias blob is already presented in conv inputs
             return False
 
-        broadcast = child.attrs['broadcast'].i
+        broadcast = child.attrs['broadcast']
         if broadcast != 1:
             return False
 
-        axis = child.attrs['axis'].i
+        axis = child.attrs['axis']
         if axis != 1:
             return False
 
@@ -91,11 +91,11 @@ class BNBroadcastedMulFuser(SubNodeFuser):
             return False
         if "broadcast" not in child.attrs:
             return False
-        if child.attrs["broadcast"].i != 1:
+        if child.attrs["broadcast"] != 1:
             return False
         if "axis" not in child.attrs:
             return False
-        if child.attrs["axis"].i != 1:
+        if child.attrs["axis"] != 1:
             return False
         if child.inputs[1] not in child.input_tensors:
             return False
@@ -120,11 +120,11 @@ class BNBroadcastedAddFuser(SubNodeFuser):
             return False
         if "broadcast" not in child.attrs:
             return False
-        if child.attrs["broadcast"].i != 1:
+        if child.attrs["broadcast"] != 1:
             return False
         if "axis" not in child.attrs:
             return False
-        if child.attrs["axis"].i != 1:
+        if child.attrs["axis"] != 1:
             return False
         if len(child.inputs) != 2:
             return False
@@ -172,7 +172,7 @@ class ReshapeInitTensorFuser(object):
             output_name = node.outputs[0]
 
             tensor = node.input_tensors[tensor_name]
-            shape = tuple(node.attrs["shape"].ints)
+            shape = tuple(node.attrs["shape"])
             reshaped_tensor = tensor.reshape(shape)
 
             for child in node.children:
