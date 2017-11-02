@@ -10,9 +10,8 @@ from ._graph import Graph
 
 class SubNodeFuser(object):
     '''
-    An abstract helper for merging a single-child with its single-parent.
+    An abstract helper for merging a children with its parent.
     '''
-
     def __call__(self, graph):
         nodes = graph.nodes
         fused_nodes = []
@@ -62,9 +61,6 @@ class ConvAddFuser(SubNodeFuser):
             return False
         if 'axis' not in child.attrs:
             return False
-        if len(parent.inputs) > 2:
-            # bias blob is already presented in conv inputs
-            return False
 
         broadcast = child.attrs['broadcast']
         if broadcast != 1:
@@ -77,7 +73,19 @@ class ConvAddFuser(SubNodeFuser):
         return True
 
     def merge(self, parent, child):
-        parent.metadata['bias_node'] = child
+        output_channels = parent.input_tensors[parent.inputs[1]].shape[0]
+        if len(parent.inputs) > 2:
+            bias_input_name = parent.inputs[2]
+            bias = parent.input_tensors[bias_input_name]
+        else:
+            bias_input_name = "{}_bias".format(parent.name,)
+            parent.inputs.append(bias_input_name)
+            bias = np.zeros(
+                (output_channels,), dtype=np.float32
+            )
+            parent.input_tensors[bias_input_name] = bias
+        bias = bias + child.input_tensors[child.inputs[1]]
+        parent.input_tensors[bias_input_name] = bias
 
 
 class BNBroadcastedMulFuser(SubNodeFuser):

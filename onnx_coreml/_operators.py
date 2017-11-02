@@ -16,10 +16,6 @@ def _convert_conv(builder, node):
     if len(node.inputs) > 2:
         b = node.input_tensors[node.inputs[2]]
 
-    if 'bias_node' in node.metadata:
-        bias_node = node.metadata['bias_node']
-        b = bias_node.input_tensors[bias_node.inputs[1]]
-
     dilations = node.attrs.get("dilations", [1, 1])
     groups = 1
     groups = node.attrs.get("group", 1)
