@@ -4,7 +4,6 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import onnx
-import uuid
 import numpy as np
 
 from onnx import TensorProto
@@ -17,7 +16,8 @@ from ._operators import _convert_node
 from ._graph import Graph
 from ._transformers import ConvAddFuser, DropoutRemover, \
     DanglingOutputsRemover, ReshapeInitTensorFuser, \
-    BNBroadcastedMulFuser, BNBroadcastedAddFuser, OutputRenamer
+    BNBroadcastedMulFuser, BNBroadcastedAddFuser, PixelShuffleFuser, \
+    OutputRenamer
 
 
 def _features(inputs, adapt_shape=True):
@@ -53,6 +53,14 @@ def _convert_multiarray_output_to_image(spec, feature_name, is_bgr=False):
             output.type.imageType.colorSpace = \
                 ft.ImageFeatureType.ColorSpace.Value('GRAYSCALE')
         else:
+            if len(array_shape) == 4:
+                if array_shape[0] != 1:
+                    raise ValueError(
+                        "Shape {} is not supported for image output"
+                        .format(array_shape,)
+                    )
+                array_shape = array_shape[1:]
+
             channels, height, width = array_shape
 
             if channels == 1:
@@ -67,7 +75,7 @@ def _convert_multiarray_output_to_image(spec, feature_name, is_bgr=False):
                         ft.ImageFeatureType.ColorSpace.Value('RGB')
             else:
                 raise ValueError(
-                    "Channel Value {} not supported for image inputs"
+                    "Channel Value {} is not supported for image output"
                     .format(channels,)
                 )
 
@@ -176,6 +184,7 @@ def convert(model,
         ConvAddFuser(),
         BNBroadcastedMulFuser(),
         BNBroadcastedAddFuser(),
+        PixelShuffleFuser(),
         DanglingOutputsRemover()
     ]
 
@@ -194,10 +203,7 @@ def convert(model,
         mapping = {}
         for f in output_features:
             output_name = f[0]
-            mapping[output_name] = "{}_{}".format(
-                output_name,
-                str(uuid.uuid4())[:8]
-            )
+            mapping[output_name] = graph.get_unique_edge_name(output_name)
         graph = OutputRenamer(mapping)(graph)
 
     builder = NeuralNetworkBuilder(input_features, output_features, mode)

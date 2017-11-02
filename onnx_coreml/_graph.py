@@ -99,6 +99,29 @@ class Graph(object):
             graph = transformer(graph)
         return graph
 
+    def has_edge_name(self, name):
+        '''
+        Check if name is already used for graph inputs/outputs or for nodes
+        inputs/outputs
+        '''
+        names = set()
+        for input in self.inputs:
+            names.add(input[0])
+        for output in self.outputs:
+            names.add(output[0])
+        for node in self.nodes:
+            names.update(node.inputs)
+            names.update(node.outputs)
+        return name in names
+
+    def get_unique_edge_name(self, name):
+        n_ = name
+        i = 0
+        while self.has_edge_name(n_):
+            n_ = "{}_{}".format(name, i)
+            i += 1
+        return n_
+
     @staticmethod
     def from_onnx(graph):
         input_tensors = {
