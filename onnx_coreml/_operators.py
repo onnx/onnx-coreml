@@ -66,9 +66,9 @@ def _convert_reshape(builder, node):
             coreml_shape = (1, target_shape[0], 1, 1)
         elif len(target_shape) == 2:  # (S,D)
             coreml_shape = target_shape + (1, 1)
-        elif len(target_shape) == 3:  # (H,W,C)
+        elif len(target_shape) == 3:  # (C,H,W)
             coreml_shape = (
-                1, target_shape[2], target_shape[0], target_shape[1]
+                1, target_shape[0], target_shape[1], target_shape[2]
             )
         elif len(target_shape) == 4:
             coreml_shape = target_shape
