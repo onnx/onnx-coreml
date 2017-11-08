@@ -341,6 +341,15 @@ def _convert_lrn(builder, node):
     )
 
 
+def _convert_sigmoid(builder, node):
+    builder.add_activation(
+        name=node.name,
+        non_linearity='SIGMOID',
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
+
 _ONNX_NODE_REGISTRY = {
     "Conv": _convert_conv,
     "Relu": _convert_relu,
@@ -361,6 +370,7 @@ _ONNX_NODE_REGISTRY = {
     "Softmax": _convert_softmax,
     "Gemm": _convert_gemm,
     "LRN": _convert_lrn,
+    "Sigmoid": _convert_sigmoid,
 }
 
 

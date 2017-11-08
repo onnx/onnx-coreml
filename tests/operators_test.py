@@ -268,6 +268,13 @@ class SingleOperatorTest(unittest.TestCase):
             size=5
         )
 
+    def test_sigmoid(self):
+        _test_single_node(
+            "Sigmoid",
+            [(1, 3, 224, 224)],
+            [(1, 3, 224, 224)]
+        )
+
 
 if __name__ == '__main__':
     unittest.main()
