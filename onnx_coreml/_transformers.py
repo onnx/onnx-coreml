@@ -122,6 +122,8 @@ class ConvAddFuser(NodesFuser):
         bias = bias + child.input_tensors[child.inputs[1]]
         parent.input_tensors[bias_input_name] = bias
         parent.outputs = child.outputs
+        parent.children.remove(child)
+        child.parents.remove(parent)
         return [parent]
 
 
@@ -158,6 +160,8 @@ class BNBroadcastedMulFuser(NodesFuser):
         parent.input_tensors[parent.inputs[1]] = np.multiply(weight, W)
         parent.input_tensors[parent.inputs[2]] = np.multiply(bias, W)
         parent.outputs = child.outputs
+        parent.children.remove(child)
+        child.parents.remove(parent)
         return [parent]
 
 
@@ -194,6 +198,8 @@ class BNBroadcastedAddFuser(NodesFuser):
         b = child.input_tensors[child.inputs[1]]
         parent.input_tensors[parent.inputs[2]] = bias + b
         parent.outputs = child.outputs
+        parent.children.remove(child)
+        child.parents.remove(parent)
         return [parent]
 
 
@@ -210,6 +216,8 @@ class DropoutRemover(NodesFuser):
 
     def merge(self, graph, nodes):
         parent, child = nodes[0], nodes[1]
+        parent.children.remove(child)
+        child.parents.remove(parent)
         parent.outputs = child.outputs
         return [parent]
 

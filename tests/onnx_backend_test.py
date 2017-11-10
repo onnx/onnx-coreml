@@ -11,12 +11,12 @@ from onnx_coreml.backend import CoreMLBackend
 
 
 # import all test cases at global scope to make them visible to python.unittest
-test_cases = onnx.backend.test.BackendTest(CoreMLBackend, __name__).test_cases
-# TODO: support node tests
-del test_cases['OnnxBackendNodeTest']
 globals().update(
-    test_cases
+    onnx.backend.test.BackendTest(CoreMLBackend).test_cases
 )
+
+OnnxBackendNodeTest = \
+    unittest.skip("node tests are not supported now")(OnnxBackendNodeTest) # noqa
 
 
 if __name__ == '__main__':
