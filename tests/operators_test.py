@@ -93,14 +93,13 @@ class SingleOperatorTest(unittest.TestCase):
         )
 
     def test_max_pool(self):
-        dilations = (1, 1)
         kernel_shape = (5, 3)
         pads = (2, 1, 2, 1)
         strides = (1, 2)
 
         input_shape = (1, 3, 224, 224)
 
-        output_size = _conv_pool_output_size(input_shape, dilations,
+        output_size = _conv_pool_output_size(input_shape, [1, 1],
                                              kernel_shape, pads, strides)
 
         output_shape = (1, 3, output_size[0], output_size[1])
@@ -109,13 +108,12 @@ class SingleOperatorTest(unittest.TestCase):
             "MaxPool",
             [input_shape],
             [output_shape],
-            dilations=dilations,
             kernel_shape=kernel_shape,
             pads=pads,
             strides=strides
         )
 
-        output_size = _conv_pool_output_size(input_shape, dilations,
+        output_size = _conv_pool_output_size(input_shape, [1, 1],
                                              kernel_shape, [0, 0, 0, 0],
                                              strides)
         output_shape = (1, 3, output_size[0], output_size[1])
@@ -123,7 +121,6 @@ class SingleOperatorTest(unittest.TestCase):
             "MaxPool",
             [input_shape],
             [output_shape],
-            dilations=dilations,
             kernel_shape=kernel_shape,
             strides=strides
         )

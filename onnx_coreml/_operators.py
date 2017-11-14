@@ -350,6 +350,77 @@ def _convert_sigmoid(builder, node):
     )
 
 
+def _convert_abs(builder, node):
+    builder.add_unary(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode='abs'
+    )
+
+
+def _convert_pad(builder, node):
+    mode = node.attrs['mode']
+    if mode == 'reflect':
+        mode = 'reflection'
+    elif mode == 'edge':
+        mode = 'replication'
+    paddings = node.attrs['paddings']
+    if len(paddings) > 4:
+        diff = len(paddings) - 4
+        if paddings[:diff].count(0) != diff:
+            raise NotImplementedError(
+                "Paddings value {} not supported".format(paddings,)
+            )
+        paddings = paddings[diff:]
+    pad_t = paddings[0]
+    pad_b = paddings[1]
+    pad_l = 0
+    pad_r = 0
+    if len(paddings) > 2:
+        pad_l = paddings[2]
+    if len(paddings) > 3:
+        pad_r = paddings[3]
+    value = node.attrs.get('value', 0.0)
+    builder.add_padding(
+        name=node.name,
+        left=pad_l,
+        right=pad_r,
+        top=pad_t,
+        bottom=pad_b,
+        value=value,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        padding_type=mode
+    )
+
+
+def _convert_slice(builder, node):
+    # TODO: support multi-axis slice
+    axes = node.attrs.get('axes', [])
+    if len(axes) != 1:
+        raise NotImplementedError("Only single axis Slice is supported now")
+    starts = node.attrs['starts']
+    ends = node.attrs['ends']
+    if axes[0] == 0:
+        axis = 'channel'
+    elif axes[0] == 1:
+        axis = 'height'
+    elif axes[0] == 2:
+        axis = 'width'
+    else:
+        raise NotImplementedError("Slice is supported only for 3d tensors")
+    builder.add_slice(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        axis=axis,
+        start_index=starts[0],
+        end_index=ends[0],
+        stride=1
+    )
+
+
 _ONNX_NODE_REGISTRY = {
     "Conv": _convert_conv,
     "Relu": _convert_relu,
@@ -371,6 +442,9 @@ _ONNX_NODE_REGISTRY = {
     "Gemm": _convert_gemm,
     "LRN": _convert_lrn,
     "Sigmoid": _convert_sigmoid,
+    "Abs": _convert_abs,
+    "Pad": _convert_pad,
+    "Slice": _convert_slice,
 }
 
 

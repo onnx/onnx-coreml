@@ -26,7 +26,9 @@ class CoreMLRep(BackendRep):
             if len(shape) == 4:
                 # reshape to [seq, batch, channels, height, width]
                 inputs_[i] = input_[np.newaxis, :]
-        input_dict = dict(zip(self.input_names, inputs_))
+        input_dict = dict(
+            zip(self.input_names,
+                map(np.array, inputs_)))
         prediction = self.model.predict(input_dict, self.useCPUOnly)
         output_values = [prediction[name] for name in self.output_names]
         return namedtupledict('Outputs',

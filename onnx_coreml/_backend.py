@@ -16,15 +16,7 @@ class CoreMLBackend(Backend):
         return CoreMLRep(coreml_model, device == 'CPU')
 
     @classmethod
-    def run_node(cls, node, inputs, device='CPU'):
-        super(CoreMLBackend, cls).run_node(node, inputs, device)
-        # TODO: implement single node run
-        raise NotImplementedError('Not implemented')
-
-    @classmethod
     def supports_device(cls, device):
-        # supports only CPU for testing as GPU CoreML generates different
-        # results as of fp16 usage
         return device == 'CPU'
 
 

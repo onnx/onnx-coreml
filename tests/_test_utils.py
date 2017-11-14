@@ -5,7 +5,7 @@ from __future__ import unicode_literals
 
 import numpy as np
 import numpy.testing as npt
-from onnx import checker, helper, TensorProto
+from onnx import helper, TensorProto
 import onnx_caffe2.backend
 
 from onnx_coreml import convert
@@ -40,7 +40,6 @@ def _onnx_create_model(nodes, inputs, outputs, initializer=[]):
         initializer=initializer
     )
     onnx_model = helper.make_model(graph)
-    checker.check_model(onnx_model)
     return onnx_model
 
 
