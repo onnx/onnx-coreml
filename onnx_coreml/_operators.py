@@ -365,22 +365,22 @@ def _convert_pad(builder, node):
         mode = 'reflection'
     elif mode == 'edge':
         mode = 'replication'
-    paddings = node.attrs['paddings']
-    if len(paddings) > 4:
-        diff = len(paddings) - 4
-        if paddings[:diff].count(0) != diff:
+    pads = node.attrs['pads']
+    if len(pads) > 4:
+        diff = len(pads) - 4
+        if pads[:diff].count(0) != diff:
             raise NotImplementedError(
-                "Paddings value {} not supported".format(paddings,)
+                "Paddings value {} not supported".format(pads,)
             )
-        paddings = paddings[diff:]
-    pad_t = paddings[0]
-    pad_b = paddings[1]
+        pads = pads[diff:]
+    pad_t = pads[0]
+    pad_b = pads[1]
     pad_l = 0
     pad_r = 0
-    if len(paddings) > 2:
-        pad_l = paddings[2]
-    if len(paddings) > 3:
-        pad_r = paddings[3]
+    if len(pads) > 2:
+        pad_l = pads[2]
+    if len(pads) > 3:
+        pad_r = pads[3]
     value = node.attrs.get('value', 0.0)
     builder.add_padding(
         name=node.name,
