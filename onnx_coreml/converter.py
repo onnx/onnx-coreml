@@ -34,10 +34,13 @@ def _features(inputs, adapt_shape=True, strip_batch=False):
             else:
                 shape = (1,) + shape[1:]
         if adapt_shape:
+            if len(shape) == 2:
+                shape = (1, shape[0], shape[1])
             while len(shape) > 3:
                 if shape[0] != 1:
                     raise ValueError(
-                        "Can't squeeze dimension. CoreML support max 3 dims. " + str(input_)
+                        "Can't squeeze dimension. "
+                        "CoreML support max 3 dims. " + str(input_)
                     )
                 shape = shape[1:]
         features.append((str(input_[0]), datatypes.Array(*shape)))
@@ -174,7 +177,7 @@ def convert(model,
     -------
     model: A coreml model.
     """
-    if isinstance(model, basestring):
+    if isinstance(model, str):
         onnx_model = onnx.load(model)
     elif isinstance(model, onnx.ModelProto):
         onnx_model = model
@@ -202,8 +205,13 @@ def convert(model,
        len(graph.inputs[0][2]) == 4 and len(graph.outputs[0][2]) == 4
        and graph.inputs[0][2][0] == graph.outputs[0][2][0])
 
-    input_features = _features(graph.inputs, strip_batch=strip_batch)
-    output_features = _features(graph.outputs, adapt_shape=False, strip_batch=strip_batch)
+    input_features = _features(
+        graph.inputs,
+        strip_batch=strip_batch)
+    output_features = _features(
+        graph.outputs,
+        adapt_shape=False,
+        strip_batch=strip_batch)
 
     is_deprocess_bgr_only = (len(deprocessing_args) == 1) and \
                             ("is_bgr" in deprocessing_args)

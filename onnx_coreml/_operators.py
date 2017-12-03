@@ -350,6 +350,37 @@ def _convert_sigmoid(builder, node):
     )
 
 
+def _convert_elu(builder, node):
+    alpha = node.attrs["alpha"]
+    builder.add_activation(
+        name=node.name,
+        non_linearity='ELU',
+        params=alpha,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
+
+def _convert_prelu(builder, node):
+    slope = node.input_tensors[node.inputs[1]]
+    builder.add_activation(
+        name=node.name,
+        non_linearity='PRELU',
+        params=slope,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
+
+def _convert_tanh(builder, node):
+    builder.add_activation(
+        name=node.name,
+        non_linearity='TANH',
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
+
 def _convert_abs(builder, node):
     builder.add_unary(
         name=node.name,
@@ -378,7 +409,7 @@ def _convert_pad(builder, node):
 
     if not _all_zero(start[:-2]) and not _all_zero(end[:-2]):
         raise NotImplementedError(
-	    "Paddings value {} not supported".format(pads,)
+            "Paddings value {} not supported".format(pads,)
         )
     pad_t = start[-2]
     pad_b = end[-2]
@@ -424,6 +455,81 @@ def _convert_slice(builder, node):
     )
 
 
+def _convert_exp(builder, node):
+    builder.add_unary(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode='exp'
+    )
+
+
+def _convert_flatten(builder, node):
+    builder.add_flatten(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode=0
+    )
+
+
+def _convert_max(builder, node):
+    builder.add_elementwise(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=node.outputs[0],
+        mode='MAX'
+    )
+
+
+def _convert_softsign(builder, node):
+    builder.add_activation(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        non_linearity='SOFTSIGN'
+    )
+
+
+def _convert_softplus(builder, node):
+    builder.add_activation(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        non_linearity='SOFTPLUS'
+    )
+
+
+def _convert_neg(builder, node):
+    builder.add_elementwise(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=node.outputs[0],
+        mode='MULTIPLY',
+        alpha=-1.0
+    )
+
+
+def _convert_split(builder, node):
+    axis = node.attrs["axis"]
+    if axis != 1:
+        raise NotImplementedError("Split is supported for axis = 1 only")
+    builder.add_split(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_names=node.outputs
+    )
+
+
+def _convert_log(builder, node):
+    builder.add_unary(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode='log'
+    )
+
+
 _ONNX_NODE_REGISTRY = {
     "Conv": _convert_conv,
     "Relu": _convert_relu,
@@ -448,6 +554,17 @@ _ONNX_NODE_REGISTRY = {
     "Abs": _convert_abs,
     "Pad": _convert_pad,
     "Slice": _convert_slice,
+    "Elu": _convert_elu,
+    "PRelu": _convert_prelu,
+    "Tanh": _convert_tanh,
+    "Exp": _convert_exp,
+    "Flatten": _convert_flatten,
+    "Max": _convert_max,
+    "Softsign": _convert_softsign,
+    "Softplus": _convert_softplus,
+    "Neg": _convert_neg,
+    "Split": _convert_split,
+    "Log": _convert_log,
 }
 
 

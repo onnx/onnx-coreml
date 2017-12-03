@@ -61,11 +61,40 @@ class CoreMLTestingBackend(CoreMLBackend):
 
 # import all test cases at global scope to make them visible to python.unittest
 backend_test = onnx.backend.test.BackendTest(CoreMLTestingBackend, __name__)
+
 backend_test.exclude('test_constant')
 backend_test.exclude('test_matmul')
 backend_test.exclude('test_slice')
 backend_test.exclude('test_default_axes')
 backend_test.exclude('test_add_bcast')
+
+# unsupported tests
+backend_test.exclude('test_clip')
+backend_test.exclude('test_softmax_lastdim')
+backend_test.exclude('test_softmax_functional_dim3')
+backend_test.exclude('test_log_softmax_dim3')
+backend_test.exclude('test_log_softmax_lastdim')
+backend_test.exclude('test_ZeroPad2d_negative_dims')
+backend_test.exclude('test_Softsign')  # test uses broadcasted add
+backend_test.exclude('test_Softmax')  # arbitrary dimensional
+backend_test.exclude('test_Softmin')  # arbitrary dimensional
+backend_test.exclude('test_Embedding')  # Gather op
+
+# input of unsupported shape is used. coreml currently
+# supports 1d or 3d (shape (C, H, W) only)
+backend_test.exclude('test_PReLU')
+backend_test.exclude('test_Conv3d')
+backend_test.exclude('test_BatchNorm3d')
+backend_test.exclude('test_BatchNorm1d')
+backend_test.exclude('test_AvgPool2d')
+backend_test.exclude('test_AvgPool3d')
+backend_test.exclude('test_GLU')
+backend_test.exclude('test_Linear')
+backend_test.exclude('test_LogSoftmax')
+backend_test.exclude('test_MaxPool1d')
+backend_test.exclude('test_MaxPool2d')
+backend_test.exclude('test_MaxPool3d')
+
 # big models tests
 # backend_test.exclude('test_bvlc_alexnet')
 # backend_test.exclude('test_resnet50')
@@ -74,6 +103,8 @@ backend_test.exclude('test_add_bcast')
 # backend_test.exclude('test_densenet121')
 # backend_test.exclude('test_inception_v1')
 # backend_test.exclude('test_inception_v2')
+# backend_test.exclude('test_shufflenet')
+# backend_test.exclude('test_squeezenet')
 
 globals().update(backend_test
                  .enable_report()

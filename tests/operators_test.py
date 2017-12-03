@@ -272,6 +272,13 @@ class SingleOperatorTest(unittest.TestCase):
             [(1, 3, 224, 224)]
         )
 
+    def test_softmax(self):
+        _test_single_node(
+            "Softmax",
+            [(1, 100, 1, 1)],
+            [(1, 100, 1, 1)]
+        )
+
 
 if __name__ == '__main__':
     unittest.main()

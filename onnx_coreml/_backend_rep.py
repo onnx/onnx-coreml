@@ -24,8 +24,7 @@ class CoreMLRep(BackendRep):
         _reshaped = False
         for i, input_ in enumerate(inputs_):
             shape = input_.shape
-            if len(shape) == 4:
-                # reshape to [seq, batch, channels, height, width]
+            if len(shape) == 4 or len(shape) == 2:
                 inputs_[i] = input_[np.newaxis, :]
                 _reshaped = True
         input_dict = dict(
