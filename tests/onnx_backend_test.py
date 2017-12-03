@@ -66,7 +66,14 @@ backend_test.exclude('test_matmul')
 backend_test.exclude('test_slice')
 backend_test.exclude('test_default_axes')
 backend_test.exclude('test_add_bcast')
-
+# big models tests
+# backend_test.exclude('test_bvlc_alexnet')
+# backend_test.exclude('test_resnet50')
+# backend_test.exclude('test_vgg16')
+# backend_test.exclude('test_vgg19')
+# backend_test.exclude('test_densenet121')
+# backend_test.exclude('test_inception_v1')
+# backend_test.exclude('test_inception_v2')
 
 globals().update(backend_test
                  .enable_report()

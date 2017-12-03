@@ -366,21 +366,24 @@ def _convert_pad(builder, node):
     elif mode == 'edge':
         mode = 'replication'
     pads = node.attrs['pads']
-    if len(pads) > 4:
-        diff = len(pads) - 4
-        if pads[:diff].count(0) != diff:
-            raise NotImplementedError(
-                "Paddings value {} not supported".format(pads,)
-            )
-        pads = pads[diff:]
-    pad_t = pads[0]
-    pad_b = pads[1]
-    pad_l = 0
-    pad_r = 0
-    if len(pads) > 2:
-        pad_l = pads[2]
-    if len(pads) > 3:
-        pad_r = pads[3]
+    assert len(pads) % 2 == 0 and len(pads) >= 2
+    start = pads[:len(pads)//2]
+    end = pads[len(pads)//2:]
+    if len(start) < 2:
+        start.append(0)
+        end.append(0)
+
+    def _all_zero(x):
+        return x.count(0) == len(x)
+
+    if not _all_zero(start[:-2]) and not _all_zero(end[:-2]):
+        raise NotImplementedError(
+	    "Paddings value {} not supported".format(pads,)
+        )
+    pad_t = start[-2]
+    pad_b = end[-2]
+    pad_l = start[-1]
+    pad_r = end[-1]
     value = node.attrs.get('value', 0.0)
     builder.add_padding(
         name=node.name,

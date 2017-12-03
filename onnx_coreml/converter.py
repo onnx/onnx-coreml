@@ -20,7 +20,7 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
     OutputRenamer
 
 
-def _features(inputs, adapt_shape=True):
+def _features(inputs, adapt_shape=True, strip_batch=False):
     features = []
     for input_ in inputs:
         if input_[1] != TensorProto.FLOAT:
@@ -28,11 +28,16 @@ def _features(inputs, adapt_shape=True):
                 "Inputs/outputs supports only TensorProto.FLOAT type"
             )
         shape = input_[2]
+        if strip_batch:
+            if adapt_shape:
+                shape = shape[1:]
+            else:
+                shape = (1,) + shape[1:]
         if adapt_shape:
             while len(shape) > 3:
                 if shape[0] != 1:
                     raise ValueError(
-                        "Can't squeeze dimension. CoreML support max 3 dims."
+                        "Can't squeeze dimension. CoreML support max 3 dims. " + str(input_)
                     )
                 shape = shape[1:]
         features.append((str(input_[0]), datatypes.Array(*shape)))
@@ -190,8 +195,15 @@ def convert(model,
 
     graph = _prepare_onnx_graph(onnx_model.graph, transformers)
 
-    input_features = _features(graph.inputs)
-    output_features = _features(graph.outputs, adapt_shape=False)
+    # Some image models have hard-coded batch dimension that needs to be
+    # discarded for CoreML input/output description. Trying to guess it.
+    strip_batch = (
+       len(graph.inputs) == 1 and len(graph.outputs) == 1 and
+       len(graph.inputs[0][2]) == 4 and len(graph.outputs[0][2]) == 4
+       and graph.inputs[0][2][0] == graph.outputs[0][2][0])
+
+    input_features = _features(graph.inputs, strip_batch=strip_batch)
+    output_features = _features(graph.outputs, adapt_shape=False, strip_batch=strip_batch)
 
     is_deprocess_bgr_only = (len(deprocessing_args) == 1) and \
                             ("is_bgr" in deprocessing_args)
