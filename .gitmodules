@@ -3,4 +3,4 @@
 	url = https://github.com/onnx/onnx.git
 [submodule "third_party/caffe2"]
 	path = third_party/caffe2
-	url = git@github.com:caffe2/caffe2.git
+	url = https://github.com/caffe2/caffe2.git
