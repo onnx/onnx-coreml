@@ -113,3 +113,6 @@ example/fast-neural-style/fast-neural-style/
 
 # CoreML models
 *.mlmodel
+
+virtualenv
+.pytest_cache

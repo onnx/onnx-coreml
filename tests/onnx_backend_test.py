@@ -8,19 +8,19 @@ import unittest
 import onnx
 
 import onnx.backend.test
-import onnx_caffe2.backend
+import caffe2.python.onnx.backend
 
 from onnx_coreml._backend import CoreMLBackend
 
 
-# TODO: don't use onnx_caffe2 to infer output shapes
+# TODO: don't use caffe2 to infer output shapes
 class CoreMLTestingBackend(CoreMLBackend):
     @classmethod
     def run_node(cls, node, inputs, device='CPU'):
         '''
         CoreML requires full model for prediction, not just single layer.
         Also input/output shapes are required to build CoreML spec for model.
-        As a temporary decision we use onnx_caffe2 backend for shape inference
+        As a temporary decision we use caffe2 backend for shape inference
         task to build the appropriate ONNX model and convert it to
         CoreML model.
         '''
@@ -36,7 +36,7 @@ class CoreMLTestingBackend(CoreMLBackend):
             )
             graph_inputs.append(value_info)
 
-        c2_result = onnx_caffe2.backend.run_node(node, inputs, device)
+        c2_result = caffe2.python.onnx.backend.run_node(node, inputs, device)
 
         graph_outputs = []
         for i in range(len(node.output)):

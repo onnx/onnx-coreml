@@ -6,7 +6,7 @@ from __future__ import unicode_literals
 import numpy as np
 import numpy.testing as npt
 from onnx import helper, TensorProto
-import onnx_caffe2.backend
+import caffe2.python.onnx.backend
 
 from onnx_coreml import convert
 
@@ -68,7 +68,7 @@ def _shape_from_onnx_value_info(v):
 
 
 def _forward_onnx_model(model, input_dict):
-    prepared_backend = onnx_caffe2.backend.prepare(model)
+    prepared_backend = caffe2.python.onnx.backend.prepare(model)
     out = prepared_backend.run(input_dict)
     result = [out[v.name] for v in model.graph.output]
     output_shapes = [
