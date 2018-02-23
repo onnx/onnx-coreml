@@ -13,6 +13,7 @@ try:
 except(IOError, ImportError):
     long_description = open('README.md').read()
 
+
 setup(
     name='onnx-coreml',
     version=VERSION,
@@ -46,6 +47,9 @@ setup(
         'pytest-cov',
         'Pillow'
     ],
+    extras_require={
+        'mypy': ['mypy==0.560'],
+    },
     entry_points={
         'console_scripts': [
             'convert-onnx-to-coreml = onnx_coreml.bin.convert:onnx_to_coreml'

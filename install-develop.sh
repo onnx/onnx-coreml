@@ -57,4 +57,4 @@ _pip_install -b "$BUILD_DIR/caffe2" "file://$REPOS_DIR/caffe2#egg=caffe2"
 _pip_install -e "$REPOS_DIR/onnx"
 
 # Install onnx-coreml
-_pip_install -e .
+_pip_install -e .[mypy]
