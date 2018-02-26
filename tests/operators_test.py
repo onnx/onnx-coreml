@@ -232,7 +232,8 @@ class SingleOperatorTest(unittest.TestCase):
         _test_single_node(
             "Concat",
             [(1, 3, 128, 256), (1, 3, 128, 256)],
-            [(6, 128, 256)]
+            [(6, 128, 256)],
+            axis = 1
         )
 
     def test_gemm(self):
