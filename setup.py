@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages  # type: ignore
 # from codecs import open
 from os import path
 
@@ -8,7 +8,7 @@ VERSION = '0.0.2'
 here = path.abspath(path.dirname(__file__))
 
 try:
-    import pypandoc
+    import pypandoc  # type: ignore
     long_description = pypandoc.convert('README.md', 'rst')
 except(IOError, ImportError):
     long_description = open('README.md').read()

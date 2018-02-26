@@ -5,9 +5,9 @@ from __future__ import unicode_literals
 
 import unittest
 import numpy as np
-import numpy.testing as npt
+import numpy.testing as npt  # type: ignore
 
-from PIL import Image
+from PIL import Image  # type: ignore
 
 from onnx_coreml import convert
 from tests._test_utils import _onnx_create_single_node_model
