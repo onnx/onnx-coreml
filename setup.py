@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages  # type: ignore
-# from codecs import open
 from os import path
+import sys
 
 
 VERSION = '0.0.2'
@@ -12,6 +12,12 @@ try:
     long_description = pypandoc.convert('README.md', 'rst')
 except(IOError, ImportError):
     long_description = open('README.md').read()
+
+
+if sys.version_info[0] == 2:
+    mypy = []  # Mypy doesn't work with Python 2
+elif sys.version_info[0] == 3:
+    mypy = ['mypy==0.560']
 
 
 setup(
@@ -48,7 +54,7 @@ setup(
         'Pillow'
     ],
     extras_require={
-        'mypy': ['mypy==0.560'],
+        'mypy': mypy,
     },
     entry_points={
         'console_scripts': [
