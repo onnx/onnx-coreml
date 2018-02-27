@@ -8,9 +8,9 @@ import numpy as np
 
 from onnx import TensorProto
 
-from coremltools.models.neural_network import NeuralNetworkBuilder
-from coremltools.models import datatypes, MLModel
-from coremltools.proto import FeatureTypes_pb2 as ft
+from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
+from coremltools.models import datatypes, MLModel  #type: ignore
+from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
 
 from ._operators import _convert_node
 from ._graph import Graph
