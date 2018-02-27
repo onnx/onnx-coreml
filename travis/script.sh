@@ -13,8 +13,7 @@ fi
 #time python setup.py test
 time python tests/transformers_test.py
 time python tests/convert_test.py
-time python test/graph_test.py
-time python test/transformers_test.py
-time python test/operators_test.py
-time python test/onnx_backend_models_test.py 
+time python tests/graph_test.py
+time python tests/operators_test.py
+time python tests/onnx_backend_models_test.py 
 

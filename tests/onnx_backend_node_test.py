@@ -95,7 +95,7 @@ backend_test.exclude('test_MaxPool1d')
 backend_test.exclude('test_MaxPool2d')
 backend_test.exclude('test_MaxPool3d')
 
-# Exclude big models tests
+# Exclude big model zoo tests
 backend_test.exclude('test_bvlc_alexnet')
 backend_test.exclude('test_resnet50')
 backend_test.exclude('test_vgg16')
