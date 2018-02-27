@@ -4,7 +4,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import numpy as np
-import numpy.testing as npt
+import numpy.testing as npt  # type: ignore
 from onnx import helper, TensorProto
 import caffe2.python.onnx.backend
 
