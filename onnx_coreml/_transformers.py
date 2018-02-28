@@ -236,7 +236,7 @@ class ReshapeInitTensorFuser(object):
                 continue
             if len(node.input_tensors) != 1:
                 continue
-            tensor_name = node.input_tensors.keys()[0]
+            tensor_name = list(node.input_tensors.keys())[0]
             if tensor_name != node.inputs[0]:
                 continue
             assert len(node.parents) == 0
