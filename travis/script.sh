@@ -11,9 +11,9 @@ if [ "${PYTHON_VERSION}" != "python2" ]; then
 fi
 
 #time python setup.py test
-time python tests/transformers_test.py
-time python tests/convert_test.py
-time python tests/graph_test.py
-time python tests/operators_test.py
-time python tests/onnx_backend_models_test.py 
+time python setup.py test -m tests.transformers_test
+time python setup.py test -m tests.convert_test
+time python setup.py test -m tests.graph_test
+time python setup.py test -m tests.operators_test
+time python setup.py test -m tests.onnx_backend_models_test
 
