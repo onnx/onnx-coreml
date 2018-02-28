@@ -1,13 +1,24 @@
-os: osx
-osx_image: xcode9.3beta
+language: generic
+
+matrix:
+  include:
+    - os: linux
+      sudo: required
+      env: PYTHON_VERSION=python2
+    - os: linux
+      sudo: required
+      env: PYTHON_VERSION=python3
+    - os: osx
+      osx_image: xcode9.3beta
+      env: PYTHON_VERSION=python2
+    - os: osx
+      osx_image: xcode9.3beta
+      env: PYTHON_VERSION=python3
 
 env:
   global:
     - BUILD_CCACHE_DIR=~/build/ccache
     - BUILD_NINJA_DIR=~/build/ninja
-  matrix:
-    - PYTHON_VERSION=python2
-    - PYTHON_VERSION=python3
 
 before_install:
   - ./travis/before_install.sh
