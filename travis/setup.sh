@@ -6,5 +6,12 @@ source "${HOME}/virtualenv/bin/activate"
 python --version
 
 # setup ccache
-export PATH="/usr/local/opt/ccache/libexec:$PATH"
+if [ "$TRAVIS_OS_NAME" == "linux" ]; then
+  export PATH="/usr/lib/ccache:$PATH"
+elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
+  export PATH="/usr/local/opt/ccache/libexec:$PATH"
+else
+  echo Unknown OS: $TRAVIS_OS_NAME
+  exit 1
+fi
 ccache --max-size 1G

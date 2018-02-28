@@ -1,5 +1,7 @@
 # Convert ONNX models into Apple CoreML format.
 
+[![Build Status](https://travis-ci.org/onnx/onnx-coreml.svg?branch=master)](https://travis-ci.org/onnx/onnx-coreml)
+
 This tool converts [ONNX](https://onnx.ai/) models to Apple CoreML format.
 
 ## Installation
