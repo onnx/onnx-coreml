@@ -15,14 +15,16 @@ from onnx_coreml._backend import CoreMLBackend
 backend_test = onnx.backend.test.BackendTest(CoreMLBackend, __name__)
 
 # Only include the big models tests
-backend_test.include('test_bvlc_alexnet')
 backend_test.include('test_resnet50')
-backend_test.include('test_vgg16')
-backend_test.include('test_vgg19')
 backend_test.include('test_inception_v1')
 backend_test.include('test_inception_v2')
 backend_test.include('test_shufflenet')
 backend_test.include('test_squeezenet')
+
+#Slow tests. Skipping for now.
+backend_test.exclude('test_vgg16')
+backend_test.exclude('test_vgg19')
+backend_test.exclude('test_bvlc_alexnet')
 
 #Fails due to too strict tolerance, skipping for now:
 backend_test.exclude('test_densenet121')

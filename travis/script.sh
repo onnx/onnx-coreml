@@ -15,4 +15,4 @@ time python setup.py test --addopts tests/transformers_test.py
 time python setup.py test --addopts tests/convert_test.py
 time python setup.py test --addopts tests/graph_test.py
 time python setup.py test --addopts tests/operators_test.py
-time travis_wait python setup.py test --addopts tests/onnx_backend_models_test.py
+time python setup.py test --addopts tests/onnx_backend_models_test.py
