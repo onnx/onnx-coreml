@@ -25,6 +25,8 @@ before_install:
 
 install:
   - ./travis/install.sh
+  - pip install pytest-cov
+  - pip install Pillow
 
 script:
   - ./travis/script.sh
