@@ -25,6 +25,9 @@ elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
 
   # Setup Python.
   export PYTHON_DIR="/usr/local/bin"
+  if [ "${PYTHON_VERSION}" == "python3" ]; then
+    brew upgrade python
+  fi
   brew install ${PYTHON_VERSION}
 else
   echo Unknown OS: $TRAVIS_OS_NAME
