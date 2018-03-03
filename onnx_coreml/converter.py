@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
+from typing import Text, Union, Optional, Dict, Any, Iterable, Sequence, Callable
 
 import onnx
 import numpy as np
@@ -12,15 +13,21 @@ from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignor
 from coremltools.models import datatypes, MLModel  #type: ignore
 from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
 
+from typing import Tuple
+
 from ._operators import _convert_node
-from ._graph import Graph
-from ._transformers import ConvAddFuser, DropoutRemover, \
+from ._graph import Graph, EdgeInfo
+from ._transformers import Transformer, ConvAddFuser, DropoutRemover, \
     DanglingOutputsRemover, ReshapeInitTensorFuser, \
     BNBroadcastedMulFuser, BNBroadcastedAddFuser, PixelShuffleFuser, \
     OutputRenamer
 
 
-def _features(inputs, adapt_shape=True, strip_batch=False):
+def _features(inputs,  # type: Sequence[EdgeInfo]
+              adapt_shape=True,  # type: bool
+              strip_batch=False,  # type: bool
+              ):
+    # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
     for input_ in inputs:
         if input_[1] != TensorProto.FLOAT:
@@ -43,11 +50,15 @@ def _features(inputs, adapt_shape=True, strip_batch=False):
                         "CoreML support max 3 dims. " + str(input_)
                     )
                 shape = shape[1:]
-        features.append((str(input_[0]), datatypes.Array(*shape)))
+        features.append((Text(input_[0]), datatypes.Array(*shape)))
     return features
 
 
-def _convert_multiarray_output_to_image(spec, feature_name, is_bgr=False):
+def _convert_multiarray_output_to_image(spec,  # type: Any
+                                        feature_name,  # type: Text
+                                        is_bgr=False,  # type: bool
+                                        ):
+    # type: (...) -> None
     for output in spec.description.output:
         if output.name != feature_name:
             continue
@@ -91,11 +102,13 @@ def _convert_multiarray_output_to_image(spec, feature_name, is_bgr=False):
         output.type.imageType.height = height
 
 
-def _set_deprocessing(is_grayscale,
-                      builder,
-                      deprocessing_args,
-                      input_name,
-                      output_name):
+def _set_deprocessing(is_grayscale,  # type: bool
+                      builder,  # type: NeuralNetworkBuilder
+                      deprocessing_args,  # type: Dict[Text, Any]
+                      input_name,  # type: Text
+                      output_name,  # type: Text
+                      ):
+    # type: (...) -> None
     is_bgr = deprocessing_args.get('is_bgr', False)
 
     image_scale = deprocessing_args.get('image_scale', 1.0)
@@ -135,49 +148,51 @@ def _set_deprocessing(is_grayscale,
     )
 
 
-def _prepare_onnx_graph(graph, transformers):
+def _prepare_onnx_graph(graph, transformers):  # type: (Graph, Iterable[Transformer]) -> Graph
     graph_ = Graph.from_onnx(graph)
     return graph_.transformed(transformers)
 
 
-def convert(model,
-            mode=None,
-            image_input_names=[],
-            preprocessing_args={},
-            image_output_names=[],
-            deprocessing_args={},
-            class_labels=None,
-            predicted_feature_name='classLabel'):
+def convert(model,  # type: Union[onnx.ModelProto, Text]
+            mode=None,  # type: Optional[Text]
+            image_input_names=[],  # type: Sequence[Text]
+            preprocessing_args={},  # type: Dict[Text, Any]
+            image_output_names=[],  # type: Sequence[Text]
+            deprocessing_args={},  # type: Dict[Text, Any]
+            class_labels=None,  # type: Union[Text, Iterable[Text], None]
+            predicted_feature_name='classLabel',  # type: Text
+            ):
+    # type: (...) -> MLModel
     """
     Convert ONNX model to CoreML.
     Parameters
     ----------
-    model: ONNX model | str
+    model:
         An ONNX model with parameters loaded in onnx package or path to file
         with models.
-    mode: str ('classifier', 'regressor' or None)
+    mode: 'classifier', 'regressor' or None
         Mode of the converted coreml model:
         'classifier', a NeuralNetworkClassifier spec will be constructed.
         'regressor', a NeuralNetworkRegressor spec will be constructed.
-    preprocessing_args: dict
+    preprocessing_args:
         'is_bgr', 'red_bias', 'green_bias', 'blue_bias', 'gray_bias',
         'image_scale' keys with the same meaning as
         https://apple.github.io/coremltools/generated/coremltools.models.neural_network.html#coremltools.models.neural_network.NeuralNetworkBuilder.set_pre_processing_parameters
-    deprocessing_args: dict
+    deprocessing_args:
         Same as 'preprocessing_args' but for deprocessing.
-    class_labels: A string or list of strings.
+    class_labels:
         As a string it represents the name of the file which contains
         the classification labels (one per line).
         As a list of strings it represents a list of categories that map
         the index of the output of a neural network to labels in a classifier.
-    predicted_feature_name: str
+    predicted_feature_name:
         Name of the output feature for the class labels exposed in the Core ML
         model (applies to classifiers only). Defaults to 'classLabel'
     Returns
     -------
     model: A coreml model.
     """
-    if isinstance(model, str):
+    if isinstance(model, Text):
         onnx_model = onnx.load(model)
     elif isinstance(model, onnx.ModelProto):
         onnx_model = model
@@ -194,7 +209,7 @@ def convert(model,
         BNBroadcastedAddFuser(),
         PixelShuffleFuser(),
         DanglingOutputsRemover()
-    ]
+    ]  # type: Iterable[Transformer]
 
     graph = _prepare_onnx_graph(onnx_model.graph, transformers)
 
@@ -272,9 +287,9 @@ def convert(model,
             )
 
     if class_labels is not None:
-        if type(class_labels) is str:
-            labels = [l.strip() for l in open(class_labels).readlines()]
-        elif type(class_labels) is list:
+        if isinstance(class_labels, Text):
+            labels = [l.strip() for l in open(class_labels).readlines()]  # type: Sequence[Text]
+        elif isinstance(class_labels, list):
             labels = class_labels
         else:
             raise TypeError(
