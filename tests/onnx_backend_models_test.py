@@ -20,11 +20,11 @@ backend_test.include('test_inception_v1')
 backend_test.include('test_inception_v2')
 backend_test.include('test_shufflenet')
 backend_test.include('test_squeezenet')
+backend_test.include('test_vgg16')
+backend_test.include('test_bvlc_alexnet')
 
-#Slow tests. Skipping for now.
-backend_test.exclude('test_vgg16')
+#Slow test. Skipping for now. Similar to vgg16.
 backend_test.exclude('test_vgg19')
-backend_test.exclude('test_bvlc_alexnet')
 
 #Fails due to too strict tolerance, skipping for now:
 backend_test.exclude('test_densenet121')
