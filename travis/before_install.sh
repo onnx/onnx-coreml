@@ -11,10 +11,9 @@ echo Using $NUMCORES cores
 # Install dependencies
 if [ "$TRAVIS_OS_NAME" == "linux" ]; then
   # Install protobuf
-  pb_version="2.6.1"
   pb_dir="~/.cache/pb"
   mkdir -p "$pb_dir"
-  wget -qO- "https://github.com/google/protobuf/releases/download/v$pb_version/protobuf-$pb_version.tar.gz" | tar -xz -C "$pb_dir" --strip-components 1
+  wget -qO- "https://github.com/google/protobuf/releases/download/v${PB_VERSION}/protobuf-${PB_VERSION}.tar.gz" | tar -xz -C "$pb_dir" --strip-components 1
   ccache -z
   cd "$pb_dir" && ./configure && make -j${NUMCORES} && make check && sudo make install && sudo ldconfig
   ccache -s
@@ -27,8 +26,9 @@ elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
   # Setup Python.
   export PYTHON_DIR="/usr/local/bin"
   if [ "${PYTHON_VERSION}" == "python3" ]; then
-    brew install ${PYTHON_VERSION}
+    brew upgrade python
   fi
+  brew install ${PYTHON_VERSION}
 else
   echo Unknown OS: $TRAVIS_OS_NAME
   exit 1

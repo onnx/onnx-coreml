@@ -3,23 +3,32 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+from typing import Sequence, Text, Dict, List
+from typing_extensions import Protocol
 import numpy as np
 
 from ._graph import Graph, Node
+
+class Transformer(Protocol):
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        pass
 
 
 class NodesFuser(object):
     '''
     An abstract helper for merging nodes
     '''
-    def __init__(self, num_nodes):
+    def __init__(self,
+                 num_nodes,  # type: int
+                 ):
+        # type: (...) -> None
         self.num_nodes = num_nodes
 
-    def __call__(self, graph):
+    def __call__(self, graph):  # type: (Graph) -> Graph
         nodes = graph.nodes
         merged_nodes = {}
         for node in nodes:
-            nodes_window = []
+            nodes_window = []  # type: List[Node]
             n = node
             for _ in range(self.num_nodes - 1):
                 if len(n.parents) != 1:
@@ -56,7 +65,7 @@ class NodesFuser(object):
                 merged_nodes[n.name] = merged
 
         transformed_nodes = []
-        added_merged = []
+        added_merged = []  # type: List[Node]
         for node in nodes:
             if node.name in merged_nodes:
                 merged = merged_nodes[node.name]
@@ -68,11 +77,11 @@ class NodesFuser(object):
                 transformed_nodes.append(node)
         return Graph(transformed_nodes, graph.inputs, graph.outputs)
 
-    def is_eligible(self, graph, nodes):
+    def is_eligible(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> bool
         '''Returns true if this subset of nodes is eligible for fusion.'''
         raise NotImplementedError('Must be implemented by subclass.')
 
-    def merge(self, graph, nodes):
+    def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
         '''Merge nodes'''
         nodes[0].outputs = nodes[-1].outputs
         return [nodes[0]]
@@ -82,10 +91,10 @@ class ConvAddFuser(NodesFuser):
     '''
     Fuses Add layer into parent convolution layer.
     '''
-    def __init__(self):
+    def __init__(self):  # type: () -> None
         super(ConvAddFuser, self).__init__(2)
 
-    def is_eligible(self, graph, nodes):
+    def is_eligible(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> bool
         parent, child = nodes[0], nodes[1]
         if parent.op_type != 'Conv':
             return False
@@ -106,7 +115,7 @@ class ConvAddFuser(NodesFuser):
 
         return True
 
-    def merge(self, graph, nodes):
+    def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
         parent, child = nodes[0], nodes[1]
         output_channels = parent.input_tensors[parent.inputs[1]].shape[0]
         if len(parent.inputs) > 2:
@@ -131,10 +140,10 @@ class BNBroadcastedMulFuser(NodesFuser):
     '''
     Fuses Mul into BatchNorm
     '''
-    def __init__(self):
+    def __init__(self):  # type: () -> None
         super(BNBroadcastedMulFuser, self).__init__(2)
 
-    def is_eligible(self, graph, nodes):
+    def is_eligible(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> bool
         parent, child = nodes[0], nodes[1]
         if parent.op_type != 'BatchNormalization':
             return False
@@ -152,13 +161,13 @@ class BNBroadcastedMulFuser(NodesFuser):
             return False
         return True
 
-    def merge(self, graph, nodes):
+    def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
         parent, child = nodes[0], nodes[1]
         weight = parent.input_tensors[parent.inputs[1]]
         bias = parent.input_tensors[parent.inputs[2]]
         W = child.input_tensors[child.inputs[1]]
-        parent.input_tensors[parent.inputs[1]] = np.multiply(weight, W)
-        parent.input_tensors[parent.inputs[2]] = np.multiply(bias, W)
+        parent.input_tensors[parent.inputs[1]] = np.multiply(weight, W)  # type: ignore
+        parent.input_tensors[parent.inputs[2]] = np.multiply(bias, W)  # type: ignore
         parent.outputs = child.outputs
         parent.children.remove(child)
         child.parents.remove(parent)
@@ -169,10 +178,10 @@ class BNBroadcastedAddFuser(NodesFuser):
     '''
     Fuses Add into BatchNorm
     '''
-    def __init__(self):
+    def __init__(self):  # type: () -> None
         super(BNBroadcastedAddFuser, self).__init__(2)
 
-    def is_eligible(self, graph, nodes):
+    def is_eligible(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> bool
         parent, child = nodes[0], nodes[1]
         if parent.op_type != 'BatchNormalization':
             return False
@@ -192,7 +201,7 @@ class BNBroadcastedAddFuser(NodesFuser):
             return False
         return True
 
-    def merge(self, graph, nodes):
+    def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
         parent, child = nodes[0], nodes[1]
         bias = parent.input_tensors[parent.inputs[2]]
         b = child.input_tensors[child.inputs[1]]
@@ -207,14 +216,14 @@ class DropoutRemover(NodesFuser):
     '''
     Removes Dropout layer
     '''
-    def __init__(self):
+    def __init__(self):  # type: () -> None
         super(DropoutRemover, self).__init__(2)
 
-    def is_eligible(self, graph, nodes):
+    def is_eligible(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> bool
         child = nodes[1]
         return child.op_type == "Dropout"
 
-    def merge(self, graph, nodes):
+    def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
         parent, child = nodes[0], nodes[1]
         parent.children.remove(child)
         child.parents.remove(parent)
@@ -228,7 +237,10 @@ class ReshapeInitTensorFuser(object):
     graph initializer. We can reshape here instead of runtime.
     '''
 
-    def __call__(self, graph):
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        # TODO ONNX spec supports setting dimension to '0', in which case
+        #      it should be taken from old dimension. This isn't supported in
+        #      numpy I think, so we'd have to handle this case here separately.
         nodes = graph.nodes
         removed = []
         for node in nodes:
@@ -261,7 +273,7 @@ class DanglingOutputsRemover(object):
     Removes unused outputs
     '''
 
-    def __call__(self, graph):
+    def __call__(self, graph):  # type: (Graph) -> Graph
         nodes = graph.nodes
         graph_output_names = set([o[0] for o in graph.outputs])
         for node in nodes:
@@ -285,10 +297,13 @@ class OutputRenamer(object):
     '''
     Rename outputs according to mapping
     '''
-    def __init__(self, mapping):
+    def __init__(self,
+                 mapping,  # type: Dict[Text, Text]
+                 ):
+        # type: (...) -> None
         self.mapping = mapping
 
-    def __call__(self, graph):
+    def __call__(self, graph):  # type: (Graph) -> Graph
         mapping = self.mapping.copy()
         nodes = graph.nodes
         for node in nodes:
@@ -314,11 +329,11 @@ class PixelShuffleFuser(NodesFuser):
     Fuses 3 operators reshape->transpose->reshape which is equivalent to
     pytorch's pixel_shuffle layer
     '''
-    def __init__(self):
+    def __init__(self):  # type: () -> None
         super(PixelShuffleFuser, self).__init__(3)
         self.num_added = 0
 
-    def is_eligible(self, graph, nodes):
+    def is_eligible(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> bool
         if nodes[0].op_type != 'Reshape':
             return False
         if nodes[1].op_type != 'Transpose':
@@ -356,11 +371,11 @@ class PixelShuffleFuser(NodesFuser):
 
         return True
 
-    def get_unique_edge_name(self, graph, name):
+    def get_unique_edge_name(self, graph, name):  # type: (Graph, Text) -> Text
         self.num_added += 1
         return graph.get_unique_edge_name(name + '_' + str(self.num_added))
 
-    def merge(self, graph, nodes):
+    def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
         '''
         Pixel shuffle is implemented using 3 operators:
             - Reshape(1, channels, scale, scale, height, width)

@@ -17,8 +17,7 @@ matrix:
 
 env:
   global:
-    - BUILD_CCACHE_DIR=~/build/ccache
-    - BUILD_NINJA_DIR=~/build/ninja
+    - PB_VERSION=2.6.1
 
 before_install:
   - ./travis/before_install.sh
@@ -38,7 +37,5 @@ after_failure:
 cache:
   - timeout: 300
   - directories:
-    - $BUILD_CCACHE_DIR
-    - $BUILD_NINJA_DIR
     - $HOME/.ccache
     - $HOME/.cache/pb

@@ -1,4 +1,4 @@
-set -ex
+set -exv
 
 export top_dir=$(dirname ${0%/*})
 
