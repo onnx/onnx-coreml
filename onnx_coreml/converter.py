@@ -248,7 +248,8 @@ def convert(model,
                     builder.spec, f_name, is_bgr=is_bgr
                 )
 
-    for node in graph.nodes:
+    for i, node in enumerate(graph.nodes):
+        print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
         _convert_node(builder, node)
 
     if add_deprocess:

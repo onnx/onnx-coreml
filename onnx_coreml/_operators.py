@@ -5,10 +5,16 @@ from __future__ import unicode_literals
 
 
 def _convert_conv(builder, node):
-    W = node.input_tensors[node.inputs[1]]
+    #get weights for convolution
+    weight_name = node.inputs[1]
+    W = None
+    if weight_name in node.input_tensors:
+        W = node.input_tensors[weight_name]
     if W is None:
         raise ValueError(
-            "Weight tensor not found in graph initializer"
+            "For Convoltuion layer, with input name = '%s', "
+            "output name = '%s' and weight name = '%s', Weight tensor not found in graph initializer"
+            %(node.inputs[0], node.outputs[0], weight_name)
         )
 
     W = W.transpose((2, 3, 1, 0))
@@ -396,6 +402,8 @@ def _convert_pad(builder, node):
         mode = 'reflection'
     elif mode == 'edge':
         mode = 'replication'
+    else:
+        mode = 'constant'
     pads = node.attrs['pads']
     assert len(pads) % 2 == 0 and len(pads) >= 2
     start = pads[:len(pads)//2]
