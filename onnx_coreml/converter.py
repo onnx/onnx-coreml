@@ -20,32 +20,55 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
     OutputRenamer
 
 
-def _features(inputs, adapt_shape=True, strip_batch=False):
+'''
+inputs: list of tuples. 
+      [Tuple]: [(name, type, shape)]
+'''
+def _make_coreml_input_features(inputs):
     features = []
     for input_ in inputs:
         if input_[1] != TensorProto.FLOAT:
-            raise TypeError(
-                "Inputs/outputs supports only TensorProto.FLOAT type"
-            )
+            raise TypeError("Input must be of of type TensorProto.FLOAT")
         shape = input_[2]
-        if strip_batch:
-            if adapt_shape:
-                shape = shape[1:]
-            else:
-                shape = (1,) + shape[1:]
-        if adapt_shape:
-            if len(shape) == 2:
-                shape = (1, shape[0], shape[1])
-            while len(shape) > 3:
-                if shape[0] != 1:
-                    raise ValueError(
-                        "Can't squeeze dimension. "
-                        "CoreML support max 3 dims. " + str(input_)
-                    )
-                shape = shape[1:]
+        if len(shape) == 0:
+            shape = [1, 1, 1]
+        elif len(shape) == 1:
+            pass
+        elif len(shape) == 2:
+            # assume [H,W], so map to [1,H,W]
+            shape = [1,shape[0],shape[1]]
+        elif len(shape) == 3:
+            pass #[C,H,W]
+        elif len(shape) == 4:  # (B,C,H,W) --> (C,H,W)
+            shape = shape[1:]
+        else:
+            raise ValueError("Unrecognized input shape %s, for input '%s' " % (str(shape), str(input_[0])))
         features.append((str(input_[0]), datatypes.Array(*shape)))
     return features
 
+'''
+outputs: list of tuples. 
+      [Tuple]: [(name, type, shape)]
+'''
+def _make_coreml_output_features(outputs):
+    features = []
+    for output_ in outputs:
+        if output_[1] != TensorProto.FLOAT:
+            raise TypeError("Output must be of of type TensorProto.FLOAT")
+        shape = output_[2]
+        if len(shape) == 0:
+            shape = [1, 1, 1]
+        elif len(shape) == 1:
+            pass
+        elif len(shape) == 3:
+            pass
+        else:
+            shape = None #output shape need not be specified for CoreML.
+        if shape is None:
+            features.append((str(output_[0]), shape))
+        else:
+            features.append((str(output_[0]), datatypes.Array(*shape)))
+    return features
 
 def _convert_multiarray_output_to_image(spec, feature_name, is_bgr=False):
     for output in spec.description.output:
@@ -198,20 +221,10 @@ def convert(model,
 
     graph = _prepare_onnx_graph(onnx_model.graph, transformers)
 
-    # Some image models have hard-coded batch dimension that needs to be
-    # discarded for CoreML input/output description. Trying to guess it.
-    strip_batch = (
-       len(graph.inputs) == 1 and len(graph.outputs) == 1 and
-       len(graph.inputs[0][2]) == 4 and len(graph.outputs[0][2]) == 4
-       and graph.inputs[0][2][0] == graph.outputs[0][2][0])
-
-    input_features = _features(
-        graph.inputs,
-        strip_batch=strip_batch)
-    output_features = _features(
-        graph.outputs,
-        adapt_shape=False,
-        strip_batch=strip_batch)
+    #Make CoreML input and output features by gathering shape info and
+    #interpreting it for CoreML
+    input_features = _make_coreml_input_features(graph.inputs)
+    output_features = _make_coreml_output_features(graph.outputs)
 
     is_deprocess_bgr_only = (len(deprocessing_args) == 1) and \
                             ("is_bgr" in deprocessing_args)

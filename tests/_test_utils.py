@@ -114,10 +114,9 @@ def _conv_pool_output_size(input_shape, dilations,
 def _assert_outputs(output1, output2, decimal=7):
     npt.assert_equal(len(output1), len(output2))
     for o1, o2 in zip(output1, output2):
-        npt.assert_equal(o1.shape, o2.shape)
         npt.assert_almost_equal(
-            o2,
-            o1,
+            o2.flatten(),
+            o1.flatten(),
             decimal=decimal
         )
 
