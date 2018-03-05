@@ -372,7 +372,10 @@ def _convert_sigmoid(builder, node):
 
 
 def _convert_elu(builder, node):
-    alpha = node.attrs["alpha"]
+    if 'alpha' in node.attrs:
+        alpha = node.attrs['alpha']
+    else:
+        alpha = 1.0
     builder.add_activation(
         name=node.name,
         non_linearity='ELU',
@@ -413,9 +416,9 @@ def _convert_abs(builder, node):
 
 def _convert_pad(builder, node):
     mode = node.attrs['mode']
-    if mode == 'reflect':
+    if mode == 'reflect' or mode == b'reflect':
         mode = 'reflection'
-    elif mode == 'edge':
+    elif mode == 'edge' or mode == b'edge':
         mode = 'replication'
     else:
         mode = 'constant'
