@@ -240,7 +240,7 @@ def _convert_add(builder, node):
 def _convert_mul(builder, node):
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
-            raise ValueError('Broadcast Add is not supported now')
+            raise ValueError('Broadcast Multiply is not supported now')
 
     builder.add_elementwise(
         name=node.name,
@@ -249,6 +249,21 @@ def _convert_mul(builder, node):
         mode="MULTIPLY"
     )
 
+def _convert_div(builder, node):
+    if 'broadcast' in node.attrs:
+        if node.attrs['broadcast'] == 1:
+            raise ValueError('Broadcast Div is not supported now')
+
+    builder.add_unary(name=node.name + '_inverse',
+                      input_name=node.inputs[1],
+                      output_name=node.inputs[1] + '_inverse',
+                      mode='inverse')
+    builder.add_elementwise(
+        name=node.name,
+        input_names=[node.inputs[0], node.inputs[1] + '_inverse'],
+        output_name=node.outputs[0],
+        mode="MULTIPLY"
+    )
 
 def _convert_leaky_relu(builder, node):
     alpha = node.attrs['alpha']
@@ -438,20 +453,20 @@ def _convert_pad(builder, node):
 
 
 def _convert_slice(builder, node):
-    # TODO: support multi-axis slice
-    axes = node.attrs.get('axes', [])
-    if len(axes) != 1:
-        raise NotImplementedError("Only single axis Slice is supported now")
     starts = node.attrs['starts']
     ends = node.attrs['ends']
-    if axes[0] == 0:
-        axis = 'channel'
-    elif axes[0] == 1:
-        axis = 'height'
-    elif axes[0] == 2:
-        axis = 'width'
+    axes = node.attrs.get('axes', [])
+    if len(axes) == 0: axes = range(len(starts))
+    if len(axes) == 1:
+        if axes[0] == 0:
+            axis = 'channel'
+        elif axes[0] == 1:
+            axis = 'height'
+        elif axes[0] == 2:
+            axis = 'width'
+        raise NotImplementedError("Slice is supported only along H, W or C dimensions")
     else:
-        raise NotImplementedError("Slice is supported only for 3d tensors")
+        raise NotImplementedError("Slice is supported only along one axis for 3D or 4D Tensors")
     builder.add_slice(
         name=node.name,
         input_name=node.inputs[0],
@@ -573,6 +588,7 @@ _ONNX_NODE_REGISTRY = {
     "Neg": _convert_neg,
     "Split": _convert_split,
     "Log": _convert_log,
+    "Div": _convert_div,
 }
 
 
