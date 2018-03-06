@@ -9,7 +9,7 @@ from onnx.backend.base import BackendRep, namedtupledict
 
 
 class CoreMLRep(BackendRep):
-    def __init__(self, coreml_model, useCPUOnly=False):
+    def __init__(self, coreml_model, onnx_outputs, useCPUOnly=False):
         super(CoreMLRep, self).__init__()
         self.model = coreml_model
         self.useCPUOnly = useCPUOnly
@@ -17,6 +17,8 @@ class CoreMLRep(BackendRep):
         spec = coreml_model.get_spec()
         self.input_names = [str(i.name) for i in spec.description.input]
         self.output_names = [str(o.name) for o in spec.description.output]
+
+        self.onnx_outputs = onnx_outputs #{str:Tuple}, i.e. {name:shape}
 
     def run(self, inputs, **kwargs):
         super(CoreMLRep, self).run(inputs, **kwargs)
@@ -34,8 +36,12 @@ class CoreMLRep(BackendRep):
         output_values = [prediction[name] for name in self.output_names]
         for i, output_ in enumerate(output_values):
             shape = output_.shape
-            if _reshaped and len(shape) == 5 and shape[1] == 1:
-                # get rid of batch dimension
-                output_values[i] = np.squeeze(output_, axis=1)
+            #reshape the CoreML output to matcj Onnx's in shape
+            try:
+                output_values[i] = np.reshape(output_, self.onnx_outputs[self.output_names[i]])
+            except RuntimeError:
+                print("Output '%s' shape incompatible between CoreML (%s) and onnx (%s)"
+                      %(self.output_names[i], output_.shape,
+                        self.onnx_outputs[self.output_names[i]]))
         return namedtupledict('Outputs',
                               self.output_names)(*output_values)
