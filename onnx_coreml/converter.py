@@ -50,7 +50,7 @@ def _features(inputs,  # type: Sequence[EdgeInfo]
                         "CoreML support max 3 dims. " + str(input_)
                     )
                 shape = shape[1:]
-        features.append((Text(input_[0]), datatypes.Array(*shape)))
+        features.append((str(input_[0]), datatypes.Array(*shape)))
     return features
 
 
