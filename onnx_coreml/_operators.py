@@ -388,6 +388,30 @@ def _convert_elu(builder, node):
     )
 
 
+def _convert_selu(builder, node):
+    alpha = 1.6732
+    gamma = 1.0507
+    if 'alpha' in node.attrs:
+        alpha = node.attrs['alpha']
+    if 'gamma' in node.attrs:
+        gamma = node.attrs['gamma']
+    builder.add_activation(
+        name=node.name + '_elu',
+        non_linearity='ELU',
+        params=alpha,
+        input_name=node.inputs[0],
+        output_name=node.inputs[0] + '_elu'
+    )
+    builder.add_elementwise(
+        name=node.name,
+        input_names=node.inputs[0] + '_elu',
+        output_name=node.outputs[0],
+        mode='MULTIPLY',
+        alpha=gamma
+    )
+
+
+
 def _convert_prelu(builder, node):
     slope = node.input_tensors[node.inputs[1]]
     builder.add_activation(
@@ -661,6 +685,7 @@ _ONNX_NODE_REGISTRY = {
     "HardSigmoid": _convert_hardsigmoid,
     "LogSoftmax": _convert_logsoftmax,
     "Reciprocal": _convert_reciprocal,
+    "Selu": _convert_selu,
 }
 
 
