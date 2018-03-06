@@ -39,11 +39,7 @@ class CoreMLBackend(Backend):
                 ):
         # type: (...) -> CoreMLRep
         super(CoreMLBackend, cls).prepare(model, device, **kwargs)
-        with open('/tmp/node_model.onnx', 'wb') as f:
-            s = model.SerializeToString()
-            f.write(s)
         coreml_model = convert(model)
-        coreml_model.save('/tmp/node_model.mlmodel')
         onnx_outputs = _get_onnx_outputs(model)
         return CoreMLRep(coreml_model, onnx_outputs, device == 'CPU')
 
