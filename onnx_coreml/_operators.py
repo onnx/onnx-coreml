@@ -63,6 +63,17 @@ def _convert_relu(builder, node):
         output_name=node.outputs[0]
     )
 
+def _convert_thresholdedrelu(builder, node):
+    alpha = 1.0
+    if 'alpha' in node.attrs:
+        alpha = node.attrs['alpha']
+    builder.add_activation(
+        name=node.name,
+        non_linearity='THRESHOLDEDRELU',
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        params = alpha
+    )
 
 def _convert_reshape(builder, node):
     shape = tuple(node.attrs["shape"])
@@ -695,6 +706,7 @@ _ONNX_NODE_REGISTRY = {
     "Reciprocal": _convert_reciprocal,
     "Selu": _convert_selu,
     "Sqrt": _convert_sqrt,
+    "ThresholdedRelu": _convert_thresholdedrelu,
 }
 
 
