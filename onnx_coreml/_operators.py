@@ -612,6 +612,15 @@ def _convert_log(builder, node):
     )
 
 
+def _convert_reciprocal(builder, node):
+    builder.add_unary(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode='inverse'
+    )
+
+
 _ONNX_NODE_REGISTRY = {
     "Conv": _convert_conv,
     "Relu": _convert_relu,
@@ -651,6 +660,7 @@ _ONNX_NODE_REGISTRY = {
     "Div": _convert_div,
     "HardSigmoid": _convert_hardsigmoid,
     "LogSoftmax": _convert_logsoftmax,
+    "Reciprocal": _convert_reciprocal,
 }
 
 
