@@ -515,6 +515,19 @@ def _convert_max(builder, node):
     )
 
 
+def _convert_min(builder, node):
+    if len(node.inputs) == 1:
+        inputs = [node.inputs[0], node.inputs[0]]
+    else:
+        inputs = node.inputs
+    builder.add_elementwise(
+        name=node.name,
+        input_names=inputs,
+        output_name=node.outputs[0],
+        mode='MIN'
+    )
+
+
 def _convert_softsign(builder, node):
     builder.add_activation(
         name=node.name,
@@ -629,6 +642,7 @@ _ONNX_NODE_REGISTRY = {
     "Exp": _convert_exp,
     "Flatten": _convert_flatten,
     "Max": _convert_max,
+    "Min": _convert_min,
     "Softsign": _convert_softsign,
     "Softplus": _convert_softplus,
     "Neg": _convert_neg,
