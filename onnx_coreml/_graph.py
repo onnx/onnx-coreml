@@ -3,9 +3,10 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from onnx import numpy_helper
-from typing import Any, Text, Iterable, List, Dict, Sequence, Optional, Tuple
+from onnx import numpy_helper, ValueInfoProto, AttributeProto, GraphProto, NodeProto, TensorProto, TensorShapeProto
+from typing import Any, Text, Iterable, List, Dict, Sequence, Optional, Tuple, Union
 from typing_extensions import Protocol
+import numpy as np
 
 
 class Transformer(Protocol):
@@ -13,17 +14,17 @@ class Transformer(Protocol):
         pass
 
 
-EdgeInfo = Tuple[Text, Any, Any]
+EdgeInfo = Tuple[Text, TensorProto.DataType, TensorShapeProto]
+AttributeValue = Any # TODO Union[Sequence[float], Sequence[int], Sequence[Text], Sequence[TensorProto], Sequence[GraphProto]]
 
-
-def _input_from_onnx_input(input):  # type: (Any) -> EdgeInfo
+def _input_from_onnx_input(input):  # type: (ValueInfoProto) -> EdgeInfo
     name = input.name
     type = input.type.tensor_type.elem_type
     shape = tuple([d.dim_value for d in input.type.tensor_type.shape.dim])
     return (name, type, shape)
 
 
-def _convertAttributeProto(onnx_arg):  # type: (Any) -> Any
+def _convertAttributeProto(onnx_arg):  # type: (AttributeProto) -> AttributeValue
     """
     Convert an ONNX AttributeProto into an appropriate Python object
     for the type.
@@ -47,9 +48,9 @@ def _convertAttributeProto(onnx_arg):  # type: (Any) -> Any
         raise ValueError("Unsupported ONNX attribute: {}".format(onnx_arg))
 
 
-class Attributes(dict):
+class Attributes(Dict[Text, Any]):
     @staticmethod
-    def from_onnx(args):  # type: (Any) -> Attributes
+    def from_onnx(args):  # type: (Iterable[AttributeProto]) -> Attributes
         d = Attributes()
         for arg in args:
             d[arg.name] = _convertAttributeProto(arg)
@@ -60,9 +61,9 @@ class Node(object):
     def __init__(self,
                  name,  # type: Optional[Text]
                  op_type,  # type: Text
-                 attrs,  # type: Dict[Text, Any]
-                 inputs,  # type: List[Any]
-                 outputs,  # type: List[Any]
+                 attrs,  # type: Dict[Text, AttributeValue]
+                 inputs,  # type: List[Text]
+                 outputs,  # type: List[Text]
                  ):
         # type: (...) -> None
         self.name = name
@@ -70,7 +71,7 @@ class Node(object):
         self.attrs = attrs
         self.inputs = inputs
         self.outputs = outputs
-        self.input_tensors = {}  # type: Dict[Text, Any]
+        self.input_tensors = {}  # type: Dict[Text, np._ArrayLike[Any]]
         self.parents = []  # type: List[Node]
         self.children = []  # type: List[Node]
         self.metadata = {}  # type: Dict[Any, Any]
@@ -94,7 +95,7 @@ class Node(object):
         return self.parents[0]
 
     @staticmethod
-    def from_onnx(node):  # type: (Any) -> Node
+    def from_onnx(node):  # type: (NodeProto) -> Node
         attrs = Attributes.from_onnx(node.attribute)
         name = Text(node.name)
         if len(name) == 0:
@@ -145,7 +146,7 @@ class Graph(object):
         return n_
 
     @staticmethod
-    def from_onnx(graph):  # type: (Any) -> Graph
+    def from_onnx(graph):  # type: (GraphProto) -> Graph
         input_tensors = {
             t.name: numpy_helper.to_array(t) for t in graph.initializer
         }

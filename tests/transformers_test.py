@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 
 import unittest
 import numpy as np
+import numpy.testing as npt  # type: ignore
 
 from onnx import helper, numpy_helper
 
@@ -15,7 +16,7 @@ from tests._test_utils import _onnx_create_model, _test_onnx_model, \
 
 
 class ConvAddFuserTest(unittest.TestCase):
-    def test_fuse_conv_without_bias(self):
+    def test_fuse_conv_without_bias(self):  # type: () -> None
         kernel_shape = (3, 2)
         strides = (2, 3)
         pads = (4, 2, 4, 2)
@@ -67,10 +68,10 @@ class ConvAddFuserTest(unittest.TestCase):
         self.assertEqual(len(fused_graph.nodes), 1)
         node = fused_graph.nodes[0]
         self.assertEqual(len(node.inputs), 3)
-        np.testing.assert_equal(node.input_tensors[node.inputs[2]], b)
+        npt.assert_equal(node.input_tensors[node.inputs[2]], b)
         self.assertEqual(fused_graph.nodes[0].outputs[0], outputs[0][0])
 
-    def test_fuse_conv_with_bias(self):
+    def test_fuse_conv_with_bias(self):  # type: () -> None
         kernel_shape = (3, 2)
         strides = (2, 3)
         pads = (4, 2, 4, 2)
@@ -121,12 +122,12 @@ class ConvAddFuserTest(unittest.TestCase):
         self.assertEqual(len(fused_graph.nodes), 1)
         node = fused_graph.nodes[0]
         self.assertEqual(len(node.inputs), 3)
-        np.testing.assert_equal(node.input_tensors[node.inputs[2]], b * 2)
+        npt.assert_equal(node.input_tensors[node.inputs[2]], b * 2)
         self.assertEqual(fused_graph.nodes[0].outputs[0], outputs[0][0])
 
 
 class PixelShuffleFuserTest(unittest.TestCase):
-    def test_pixel_shuffle(self):
+    def test_pixel_shuffle(self):  # type: () -> None
         scale_factor = 2
         input_shape = (1, 8, 2, 2)
         output_shape = (

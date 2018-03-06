@@ -76,7 +76,7 @@ def progressbar(
     bar_template: Text = ...,
     info_sep: Text = ...,
     width: int = ...,
-    file: Optional[IO] = ...,
+    file: Optional[IO[Any]] = ...,
     color: Optional[bool] = ...,
 ) -> Generator[_T, None, None]:
     ...
@@ -107,7 +107,7 @@ def unstyle(text: Text) -> Text:
 # Styling options copied from style() for nicer type checking.
 def secho(
     text: Text,
-    file: Optional[IO] = ...,
+    file: Optional[IO[Any]] = ...,
     nl: bool = ...,
     err: bool = ...,
     color: Optional[bool] = ...,

@@ -161,8 +161,8 @@ class BNBroadcastedMulFuser(NodesFuser):
         weight = parent.input_tensors[parent.inputs[1]]
         bias = parent.input_tensors[parent.inputs[2]]
         W = child.input_tensors[child.inputs[1]]
-        parent.input_tensors[parent.inputs[1]] = np.multiply(weight, W)  # type: ignore
-        parent.input_tensors[parent.inputs[2]] = np.multiply(bias, W)  # type: ignore
+        parent.input_tensors[parent.inputs[1]] = np.multiply(weight, W)
+        parent.input_tensors[parent.inputs[2]] = np.multiply(bias, W)
         parent.outputs = child.outputs
         parent.children.remove(child)
         child.parents.remove(parent)

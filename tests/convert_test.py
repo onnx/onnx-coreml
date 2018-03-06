@@ -6,6 +6,7 @@ from __future__ import unicode_literals
 import unittest
 import numpy as np
 import numpy.testing as npt  # type: ignore
+import numpy.random as npr
 
 from PIL import Image  # type: ignore
 
@@ -14,10 +15,10 @@ from tests._test_utils import _onnx_create_single_node_model
 
 
 class ConvertTest(unittest.TestCase):
-    def setUp(self):
-        self.img_arr = np.uint8(np.random.rand(224, 224, 3) * 255)
-        self.img = Image.fromarray(np.uint8(self.img_arr))
-        self.img_arr = np.float32(self.img_arr)
+    def setUp(self):  # type: () -> None
+        self.img_arr = np.uint8(npr.rand(224, 224, 3) * 255)  # type: ignore
+        self.img = Image.fromarray(np.uint8(self.img_arr))  # type: ignore
+        self.img_arr = np.float32(self.img_arr)  # type: ignore
         self.onnx_model = _onnx_create_single_node_model(
             "Relu",
             [(3, 224, 224)],
@@ -26,7 +27,7 @@ class ConvertTest(unittest.TestCase):
         self.input_names = [i.name for i in self.onnx_model.graph.input]
         self.output_names = [o.name for o in self.onnx_model.graph.output]
 
-    def test_convert_image_input(self):
+    def test_convert_image_input(self):  # type: () -> None
         coreml_model = convert(
             self.onnx_model,
             image_input_names=self.input_names
@@ -35,7 +36,7 @@ class ConvertTest(unittest.TestCase):
         for input_ in spec.description.input:
             self.assertEqual(input_.type.WhichOneof('Type'), 'imageType')
 
-    def test_convert_image_output(self):
+    def test_convert_image_output(self):  # type: () -> None
         coreml_model = convert(
             self.onnx_model,
             image_output_names=self.output_names
@@ -44,7 +45,7 @@ class ConvertTest(unittest.TestCase):
         for output in spec.description.output:
             self.assertEqual(output.type.WhichOneof('Type'), 'imageType')
 
-    def test_convert_image_input_preprocess(self):
+    def test_convert_image_input_preprocess(self):  # type: () -> None
         bias = np.array([100, 90, 80])
         coreml_model = convert(
             self.onnx_model,
@@ -63,12 +64,12 @@ class ConvertTest(unittest.TestCase):
         )[self.output_names[0]]
 
         expected_output = self.img_arr[:, :, ::-1].transpose((2, 0, 1))
-        expected_output[0] += bias[0]
-        expected_output[1] += bias[1]
-        expected_output[2] += bias[2]
+        expected_output[0] = expected_output[0] + bias[0]
+        expected_output[1] = expected_output[1] + bias[1]
+        expected_output[2] = expected_output[2] + bias[2]
         npt.assert_equal(output, expected_output)
 
-    def test_convert_image_output_bgr(self):
+    def test_convert_image_output_bgr(self):  # type: () -> None
         coreml_model = convert(
             self.onnx_model,
             image_input_names=self.input_names,
@@ -82,7 +83,7 @@ class ConvertTest(unittest.TestCase):
                 self.input_names[0]: self.img
             }
         )[self.output_names[0]]
-        output = np.array(output)[:, :, :3].transpose(2, 0, 1)
+        output = np.array(output)[:, :, :3].transpose((2, 0, 1))
         expected_output = self.img_arr[:, :, ::-1].transpose((2, 0, 1))
         npt.assert_equal(output, expected_output)
 

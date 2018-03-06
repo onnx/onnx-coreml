@@ -37,7 +37,7 @@ class LazyFile:
     ) -> None:
         ...
 
-    def open(self) -> IO:
+    def open(self) -> IO[Any]:
         ...
 
     def close(self) -> None:
@@ -52,14 +52,14 @@ class LazyFile:
     def __exit__(self, exc_type, exc_value, tb):
         ...
 
-    def __iter__(self) -> Iterator:
+    def __iter__(self) -> Iterator[Any]:
         ...
 
 
 class KeepOpenFile:
-    _file: IO
+    _file: IO[Any]
 
-    def __init__(self, file: IO) -> None:
+    def __init__(self, file: IO[Any]) -> None:
         ...
 
     def __enter__(self) -> 'KeepOpenFile':
@@ -68,13 +68,13 @@ class KeepOpenFile:
     def __exit__(self, exc_type, exc_value, tb):
         ...
 
-    def __iter__(self) -> Iterator:
+    def __iter__(self) -> Iterator[Any]:
         ...
 
 
 def echo(
     message: Optional[Union[bytes, Text]] = ...,
-    file: Optional[IO] = ...,
+    file: Optional[IO[Any]] = ...,
     nl: bool = ...,
     err: bool = ...,
     color: Optional[bool] = ...,
@@ -99,7 +99,7 @@ def open_file(
     errors: Text = ...,
     lazy: bool = ...,
     atomic: bool = ...
-) -> Union[IO, LazyFile, KeepOpenFile]:
+) -> Union[IO[Any], LazyFile, KeepOpenFile]:
     ...
 
 
