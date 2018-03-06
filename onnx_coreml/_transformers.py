@@ -4,14 +4,9 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from typing import Sequence, Text, Dict, List
-from typing_extensions import Protocol
 import numpy as np
 
 from ._graph import Graph, Node
-
-class Transformer(Protocol):
-    def __call__(self, graph):  # type: (Graph) -> Graph
-        pass
 
 
 class NodesFuser(object):

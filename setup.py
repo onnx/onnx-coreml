@@ -48,6 +48,8 @@ setup(
         'numpy',
         'coremltools>=0.6.3',
         'onnx>=0.2.1',
+        'typing>=3.6.4',
+        'typing-extensions>=3.6.2.1',
     ],
     setup_requires=['pytest-runner'],
     tests_require=[

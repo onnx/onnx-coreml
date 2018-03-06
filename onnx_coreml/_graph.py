@@ -4,8 +4,14 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from onnx import numpy_helper
-from ._transformers import Transformer
 from typing import Any, Text, Iterable, List, Dict, Sequence, Optional, Tuple
+from typing_extensions import Protocol
+
+
+class Transformer(Protocol):
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        pass
+
 
 EdgeInfo = Tuple[Text, Any, Any]
 
