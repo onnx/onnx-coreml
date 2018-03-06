@@ -169,7 +169,7 @@ backend_test.exclude('test_conv_with_strides_and_asymmetric_padding_cpu')
 backend_test.exclude('test_conv_with_strides_no_padding_cpu')
 backend_test.exclude('test_conv_with_strides_padding_cpu')
 
-#Failing due to to tolerance (in particular due to the way outputs are compared)
+#Failing due to tolerance (in particular due to the way outputs are compared)
 backend_test.exclude('test_log_example_cpu')
 
 #These are failing due to some error in Caffe2 backend
