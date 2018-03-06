@@ -3,6 +3,8 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+from typing import Any, Text
+from onnx import ModelProto
 from onnx.backend.base import Backend
 from onnx_coreml._backend_rep import CoreMLRep
 from onnx_coreml import convert
@@ -30,7 +32,12 @@ def _get_onnx_outputs(model):
 
 class CoreMLBackend(Backend):
     @classmethod
-    def prepare(cls, model, device='CPU', **kwargs):
+    def prepare(cls,
+                model,  # type: ModelProto
+                device='CPU',  # type: Text
+                **kwargs  # type: Any
+                ):
+        # type: (...) -> CoreMLRep
         super(CoreMLBackend, cls).prepare(model, device, **kwargs)
         with open('/tmp/node_model.onnx', 'wb') as f:
             s = model.SerializeToString()
@@ -41,7 +48,10 @@ class CoreMLBackend(Backend):
         return CoreMLRep(coreml_model, onnx_outputs, device == 'CPU')
 
     @classmethod
-    def supports_device(cls, device):
+    def supports_device(cls,
+                        device,  # type: Text
+                        ):
+        # type: (...) -> bool
         return device == 'CPU'
 
 

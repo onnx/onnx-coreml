@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages  # type: ignore
+from setuptools import setup, find_packages
 from os import path
 import sys
 
@@ -8,14 +8,15 @@ VERSION = '0.0.2'
 here = path.abspath(path.dirname(__file__))
 
 try:
-    import pypandoc  # type: ignore
+    import pypandoc
     long_description = pypandoc.convert('README.md', 'rst')
 except(IOError, ImportError):
     long_description = open('README.md').read()
 
 
 if sys.version_info[0] == 2:
-    mypy = []  # Mypy doesn't work with Python 2
+    # Mypy doesn't work with Python 2
+    mypy = []
 elif sys.version_info[0] == 3:
     mypy = ['mypy==0.560']
 
@@ -47,6 +48,8 @@ setup(
         'numpy',
         'coremltools>=0.6.3',
         'onnx>=0.2.1',
+        'typing>=3.6.4',
+        'typing-extensions>=3.6.2.1',
     ],
     setup_requires=['pytest-runner'],
     tests_require=[

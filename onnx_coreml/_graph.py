@@ -3,17 +3,28 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from onnx import numpy_helper
+from onnx import numpy_helper, ValueInfoProto, AttributeProto, GraphProto, NodeProto, TensorProto, TensorShapeProto
+from typing import Any, Text, Iterable, List, Dict, Sequence, Optional, Tuple, Union
+from typing_extensions import Protocol
+import numpy as np
 
 
-def _input_from_onnx_input(input):
+class Transformer(Protocol):
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        pass
+
+
+EdgeInfo = Tuple[Text, TensorProto.DataType, TensorShapeProto]
+AttributeValue = Any # TODO Union[Sequence[float], Sequence[int], Sequence[Text], Sequence[TensorProto], Sequence[GraphProto]]
+
+def _input_from_onnx_input(input):  # type: (ValueInfoProto) -> EdgeInfo
     name = input.name
     type = input.type.tensor_type.elem_type
     shape = tuple([d.dim_value for d in input.type.tensor_type.shape.dim])
     return (name, type, shape)
 
 
-def _convertAttributeProto(onnx_arg):
+def _convertAttributeProto(onnx_arg):  # type: (AttributeProto) -> AttributeValue
     """
     Convert an ONNX AttributeProto into an appropriate Python object
     for the type.
@@ -37,9 +48,9 @@ def _convertAttributeProto(onnx_arg):
         raise ValueError("Unsupported ONNX attribute: {}".format(onnx_arg))
 
 
-class Attributes(dict):
+class Attributes(Dict[Text, Any]):
     @staticmethod
-    def from_onnx(args):
+    def from_onnx(args):  # type: (Iterable[AttributeProto]) -> Attributes
         d = Attributes()
         for arg in args:
             d[arg.name] = _convertAttributeProto(arg)
@@ -47,39 +58,46 @@ class Attributes(dict):
 
 
 class Node(object):
-    def __init__(self, name, op_type, attrs, inputs, outputs):
+    def __init__(self,
+                 name,  # type: Optional[Text]
+                 op_type,  # type: Text
+                 attrs,  # type: Dict[Text, AttributeValue]
+                 inputs,  # type: List[Text]
+                 outputs,  # type: List[Text]
+                 ):
+        # type: (...) -> None
         self.name = name
         self.op_type = op_type
         self.attrs = attrs
         self.inputs = inputs
         self.outputs = outputs
-        self.input_tensors = {}
-        self.parents = []
-        self.children = []
-        self.metadata = {}
+        self.input_tensors = {}  # type: Dict[Text, np._ArrayLike[Any]]
+        self.parents = []  # type: List[Node]
+        self.children = []  # type: List[Node]
+        self.metadata = {}  # type: Dict[Any, Any]
 
-    def add_parent(self, parent_node):
+    def add_parent(self, parent_node):  # type: (Node) -> None
         assert parent_node not in self.parents
         self.parents.append(parent_node)
         if self not in parent_node.children:
             parent_node.children.append(self)
 
-    def add_child(self, child_node):
+    def add_child(self, child_node):  # type: (Node) -> None
         assert child_node not in self.children
         self.children.append(child_node)
         if self not in child_node.parents:
             child_node.parents.append(self)
 
-    def get_only_parent(self):
+    def get_only_parent(self):  # type: () -> Node
         if len(self.parents) != 1:
             raise ValueError('Node ({}) expected to have 1 parent. Found {}.'
                              .format(self, len(self.parents)))
         return self.parents[0]
 
     @staticmethod
-    def from_onnx(node):
+    def from_onnx(node):  # type: (NodeProto) -> Node
         attrs = Attributes.from_onnx(node.attribute)
-        name = str(node.name)
+        name = Text(node.name)
         if len(name) == 0:
             name = "_".join(node.output)
         return Node(
@@ -88,18 +106,23 @@ class Node(object):
 
 
 class Graph(object):
-    def __init__(self, nodes, inputs, outputs):
+    def __init__(self,
+                 nodes,  # type: List[Node]
+                 inputs,  # type: Sequence[EdgeInfo]
+                 outputs,  # type: Sequence[EdgeInfo]
+                 ):
+        # type: (...) -> None
         self.nodes = nodes
         self.inputs = inputs
         self.outputs = outputs
 
-    def transformed(self, transformers):
+    def transformed(self, transformers):  # type: (Iterable[Transformer]) -> Graph
         graph = self
         for transformer in transformers:
             graph = transformer(graph)
         return graph
 
-    def has_edge_name(self, name):
+    def has_edge_name(self, name):  # type: (Text) -> bool
         '''
         Check if name is already used for graph inputs/outputs or for nodes
         inputs/outputs
@@ -114,7 +137,7 @@ class Graph(object):
             names.update(node.outputs)
         return name in names
 
-    def get_unique_edge_name(self, name):
+    def get_unique_edge_name(self, name):  # type: (Text) -> Text
         n_ = name
         i = 0
         while self.has_edge_name(n_):
@@ -123,12 +146,12 @@ class Graph(object):
         return n_
 
     @staticmethod
-    def from_onnx(graph):
+    def from_onnx(graph):  # type: (GraphProto) -> Graph
         input_tensors = {
             t.name: numpy_helper.to_array(t) for t in graph.initializer
         }
         nodes_ = []
-        nodes_by_input = {}
+        nodes_by_input = {}  # type: Dict[Text, List[Node]]
         nodes_by_output = {}
         for node in graph.node:
             node_ = Node.from_onnx(node)

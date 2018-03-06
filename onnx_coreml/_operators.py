@@ -3,8 +3,11 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+from typing import Sequence, Callable, List, Tuple, Optional
+from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
+from ._graph import Node
 
-def _convert_conv(builder, node):
+def _convert_conv(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
     #get weights for convolution
     weight_name = node.inputs[1]
     W = None
@@ -55,7 +58,7 @@ def _convert_conv(builder, node):
     )
 
 
-def _convert_relu(builder, node):
+def _convert_relu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_activation(
         name=node.name,
         non_linearity='RELU',
@@ -63,7 +66,7 @@ def _convert_relu(builder, node):
         output_name=node.outputs[0]
     )
 
-def _convert_thresholdedrelu(builder, node):
+def _convert_thresholdedrelu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     alpha = 1.0
     if 'alpha' in node.attrs:
         alpha = node.attrs['alpha']
@@ -75,12 +78,12 @@ def _convert_thresholdedrelu(builder, node):
         params = alpha
     )
 
-def _convert_reshape(builder, node):
+def _convert_reshape(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     shape = tuple(node.attrs["shape"])
 
-    def get_coreml_target_shape(target_shape):
+    def get_coreml_target_shape(target_shape):  # type: (Tuple[int, ...]) -> Optional[Tuple[int, ...]]
         if len(target_shape) == 1:  # (D,)
-            coreml_shape = (1, target_shape[0], 1, 1)
+            coreml_shape = (1, target_shape[0], 1, 1)  # type: Optional[Tuple[int, ...]]
         elif len(target_shape) == 2:  # (S,D)
             coreml_shape = target_shape + (1, 1)
         elif len(target_shape) == 3:  # (C,H,W)
@@ -113,7 +116,7 @@ def _convert_reshape(builder, node):
     )
 
 
-def _convert_transpose(builder, node):
+def _convert_transpose(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     perm = node.attrs.get("perm", [0, 3, 2, 1])
     if len(perm) > 4:
         diff = len(perm) - 4
@@ -134,7 +137,7 @@ def _convert_transpose(builder, node):
     )
 
 
-def _convert_pool(builder, node):
+def _convert_pool(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     is_global = False
     if node.op_type.startswith('Global'):
         is_global = True
@@ -195,7 +198,7 @@ def _convert_pool(builder, node):
     )
 
 
-def _convert_fc(builder, node):
+def _convert_fc(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     W = node.input_tensors[node.inputs[1]]
     b = node.input_tensors.get(node.inputs[2])
     output_channels, input_channels = W.shape
@@ -211,7 +214,7 @@ def _convert_fc(builder, node):
     )
 
 
-def _convert_bn(builder, node):
+def _convert_bn(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if node.attrs["is_test"] == 0:
         raise ValueError(
             "BatchNormalization supports only test mode"
@@ -236,7 +239,7 @@ def _convert_bn(builder, node):
     )
 
 
-def _convert_add(builder, node):
+def _convert_add(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
             raise ValueError('Broadcast Add is not supported now')
@@ -248,7 +251,7 @@ def _convert_add(builder, node):
     )
 
 
-def _convert_mul(builder, node):
+def _convert_mul(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
             raise ValueError('Broadcast Multiply is not supported now')
@@ -260,7 +263,7 @@ def _convert_mul(builder, node):
         mode="MULTIPLY"
     )
 
-def _convert_div(builder, node):
+def _convert_div(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
             raise ValueError('Broadcast Div is not supported now')
@@ -276,7 +279,7 @@ def _convert_div(builder, node):
         mode="MULTIPLY"
     )
 
-def _convert_leaky_relu(builder, node):
+def _convert_leaky_relu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if 'alpha' in node.attrs:
         alpha = node.attrs['alpha']
     else:
@@ -289,8 +292,7 @@ def _convert_leaky_relu(builder, node):
         output_name=node.outputs[0]
     )
 
-
-def _convert_concat(builder, node):
+def _convert_concat(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     axis = node.attrs.get("axis", 1)
     if axis != 0 and axis != 1:
         raise ValueError(
@@ -310,8 +312,7 @@ def _convert_concat(builder, node):
         mode=mode
     )
 
-
-def _convert_softmax(builder, node):
+def _convert_softmax(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if "axis" in node.attrs:
         axis = node.attrs["axis"]
         if axis != 1:
@@ -324,8 +325,7 @@ def _convert_softmax(builder, node):
         output_name=node.outputs[0]
     )
 
-
-def _convert_gemm(builder, node):
+def _convert_gemm(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if node.attrs["broadcast"] != 1 or node.attrs["transB"] != 1:
         raise ValueError(
             "Gemm is supported only for inner_product layer"
@@ -335,7 +335,7 @@ def _convert_gemm(builder, node):
     b = None
     if len(node.inputs) > 2:
         b = node.input_tensors[node.inputs[2]]
-    if len(W.shape) != 2 or len(b.shape) != 1:
+    if len(W.shape) != 2 or (b is not None and len(b.shape) != 1):
         raise ValueError(
             "Gemm is supported only for inner_product layer"
         )
@@ -360,7 +360,7 @@ def _convert_gemm(builder, node):
     )
 
 
-def _convert_lrn(builder, node):
+def _convert_lrn(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     alpha = node.attrs["alpha"]
     beta = node.attrs["beta"]
     bias = node.attrs["bias"]
@@ -376,7 +376,7 @@ def _convert_lrn(builder, node):
     )
 
 
-def _convert_sigmoid(builder, node):
+def _convert_sigmoid(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_activation(
         name=node.name,
         non_linearity='SIGMOID',
@@ -385,7 +385,7 @@ def _convert_sigmoid(builder, node):
     )
 
 
-def _convert_elu(builder, node):
+def _convert_elu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if 'alpha' in node.attrs:
         alpha = node.attrs['alpha']
     else:
@@ -398,8 +398,7 @@ def _convert_elu(builder, node):
         output_name=node.outputs[0]
     )
 
-
-def _convert_selu(builder, node):
+def _convert_selu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     alpha = 1.6732
     gamma = 1.0507
     if 'alpha' in node.attrs:
@@ -422,8 +421,7 @@ def _convert_selu(builder, node):
     )
 
 
-
-def _convert_prelu(builder, node):
+def _convert_prelu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     slope = node.input_tensors[node.inputs[1]]
     builder.add_activation(
         name=node.name,
@@ -434,7 +432,7 @@ def _convert_prelu(builder, node):
     )
 
 
-def _convert_tanh(builder, node):
+def _convert_tanh(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_activation(
         name=node.name,
         non_linearity='TANH',
@@ -443,7 +441,7 @@ def _convert_tanh(builder, node):
     )
 
 
-def _convert_abs(builder, node):
+def _convert_abs(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_unary(
         name=node.name,
         input_name=node.inputs[0],
@@ -452,7 +450,7 @@ def _convert_abs(builder, node):
     )
 
 
-def _convert_pad(builder, node):
+def _convert_pad(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     mode = node.attrs['mode']
     if mode == 'reflect' or mode == b'reflect':
         mode = 'reflection'
@@ -468,7 +466,7 @@ def _convert_pad(builder, node):
         start.append(0)
         end.append(0)
 
-    def _all_zero(x):
+    def _all_zero(x):  # type: (Sequence[int]) -> bool
         return x.count(0) == len(x)
 
     if not _all_zero(start[:-2]) and not _all_zero(end[:-2]):
@@ -493,7 +491,11 @@ def _convert_pad(builder, node):
     )
 
 
-def _convert_slice(builder, node):
+def _convert_slice(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+    # TODO: support multi-axis slice
+    axes = node.attrs.get('axes', [])
+    if len(axes) != 1:
+        raise NotImplementedError("Only single axis Slice is supported now")
     starts = node.attrs['starts']
     ends = node.attrs['ends']
     axes = node.attrs.get('axes', [])
@@ -519,7 +521,7 @@ def _convert_slice(builder, node):
     )
 
 
-def _convert_exp(builder, node):
+def _convert_exp(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_unary(
         name=node.name,
         input_name=node.inputs[0],
@@ -528,7 +530,7 @@ def _convert_exp(builder, node):
     )
 
 
-def _convert_flatten(builder, node):
+def _convert_flatten(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_flatten(
         name=node.name,
         input_name=node.inputs[0],
@@ -537,7 +539,7 @@ def _convert_flatten(builder, node):
     )
 
 
-def _convert_max(builder, node):
+def _convert_max(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if len(node.inputs) == 1:
         inputs = [node.inputs[0], node.inputs[0]]
     else:
@@ -550,7 +552,7 @@ def _convert_max(builder, node):
     )
 
 
-def _convert_min(builder, node):
+def _convert_min(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
     if len(node.inputs) == 1:
         inputs = [node.inputs[0], node.inputs[0]]
     else:
@@ -562,8 +564,7 @@ def _convert_min(builder, node):
         mode='MIN'
     )
 
-
-def _convert_softsign(builder, node):
+def _convert_softsign(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_activation(
         name=node.name,
         input_name=node.inputs[0],
@@ -572,7 +573,7 @@ def _convert_softsign(builder, node):
     )
 
 
-def _convert_softplus(builder, node):
+def _convert_softplus(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_activation(
         name=node.name,
         input_name=node.inputs[0],
@@ -580,7 +581,7 @@ def _convert_softplus(builder, node):
         non_linearity='SOFTPLUS'
     )
 
-def _convert_hardsigmoid(builder, node):
+def _convert_hardsigmoid(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     alpha = 0.2
     beta = 0.5
     if 'alpha' in node.attrs:
@@ -595,7 +596,7 @@ def _convert_hardsigmoid(builder, node):
         params = [alpha, beta]
     )
 
-def _convert_logsoftmax(builder, node):
+def _convert_logsoftmax(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     axis = 1
     if axis in node.attrs:
         axis = node.attrs['axis']
@@ -617,7 +618,7 @@ def _convert_logsoftmax(builder, node):
 
 
 
-def _convert_neg(builder, node):
+def _convert_neg(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_elementwise(
         name=node.name,
         input_names=node.inputs,
@@ -627,7 +628,7 @@ def _convert_neg(builder, node):
     )
 
 
-def _convert_split(builder, node):
+def _convert_split(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     axis = node.attrs["axis"]
     if axis != 1:
         raise NotImplementedError("Split is supported for axis = 1 only")
@@ -638,7 +639,7 @@ def _convert_split(builder, node):
     )
 
 
-def _convert_log(builder, node):
+def _convert_log(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_unary(
         name=node.name,
         input_name=node.inputs[0],
@@ -647,7 +648,7 @@ def _convert_log(builder, node):
     )
 
 
-def _convert_sqrt(builder, node):
+def _convert_sqrt(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_unary(
         name=node.name,
         input_name=node.inputs[0],
@@ -655,7 +656,7 @@ def _convert_sqrt(builder, node):
         mode='sqrt'
     )
 
-def _convert_reciprocal(builder, node):
+def _convert_reciprocal(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_unary(
         name=node.name,
         input_name=node.inputs[0],
@@ -710,7 +711,7 @@ _ONNX_NODE_REGISTRY = {
 }
 
 
-def _get_node_converter_fn(node):
+def _get_node_converter_fn(node):  # type: (Node) -> Callable[[NeuralNetworkBuilder, Node], None]
     """
     Get the right converter function for ONNX node op_type
     """
@@ -723,6 +724,6 @@ def _get_node_converter_fn(node):
         )
 
 
-def _convert_node(builder, node):
+def _convert_node(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     converter_fn = _get_node_converter_fn(node)
     return converter_fn(builder, node)
