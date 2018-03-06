@@ -14,8 +14,7 @@ class Transformer(Protocol):
         pass
 
 
-#EdgeInfo = Tuple[Text, TensorProto.DataType, TensorShapeProto]
-EdgeInfo = Tuple[Text, Any, Any]
+EdgeInfo = Tuple[Text, Any, TensorShapeProto]
 AttributeValue = Any # TODO Union[Sequence[float], Sequence[int], Sequence[Text], Sequence[TensorProto], Sequence[GraphProto]]
 
 def _input_from_onnx_input(input):  # type: (ValueInfoProto) -> EdgeInfo
