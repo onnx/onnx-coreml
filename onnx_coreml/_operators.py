@@ -503,9 +503,13 @@ def _convert_flatten(builder, node):
 
 
 def _convert_max(builder, node):
+    if len(node.inputs) == 1:
+        inputs = [node.inputs[0], node.inputs[0]]
+    else:
+        inputs = node.inputs
     builder.add_elementwise(
         name=node.name,
-        input_names=node.inputs,
+        input_names=inputs,
         output_name=node.outputs[0],
         mode='MAX'
     )
@@ -541,6 +545,26 @@ def _convert_hardsigmoid(builder, node):
         output_name=node.outputs[0],
         non_linearity='SIGMOID_HARD',
         params = [alpha, beta]
+    )
+
+def _convert_logsoftmax(builder, node):
+    axis = 1
+    if axis in node.attrs:
+        axis = node.attrs['axis']
+    if axis != 1:
+            raise ValueError(
+                "Unsupported axis {} for logsoftmax".format(axis,)
+            )
+    builder.add_softmax(
+        name=node.name + '_softmax',
+        input_name=node.inputs[0],
+        output_name=node.outputs[0] + '_softmax'
+    )
+    builder.add_unary(
+        name=node.name,
+        input_name=node.outputs[0] + '_softmax',
+        output_name=node.outputs[0],
+        mode='log'
     )
 
 
@@ -612,6 +636,7 @@ _ONNX_NODE_REGISTRY = {
     "Log": _convert_log,
     "Div": _convert_div,
     "HardSigmoid": _convert_hardsigmoid,
+    "LogSoftmax": _convert_logsoftmax,
 }
 
 
