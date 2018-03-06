@@ -636,6 +636,14 @@ def _convert_log(builder, node):
     )
 
 
+def _convert_sqrt(builder, node):
+    builder.add_unary(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode='sqrt'
+    )
+
 def _convert_reciprocal(builder, node):
     builder.add_unary(
         name=node.name,
@@ -686,6 +694,7 @@ _ONNX_NODE_REGISTRY = {
     "LogSoftmax": _convert_logsoftmax,
     "Reciprocal": _convert_reciprocal,
     "Selu": _convert_selu,
+    "Sqrt": _convert_sqrt,
 }
 
 
