@@ -2,6 +2,8 @@
 
 # Don't source setup.sh here, because the virtualenv might not be set up yet
 
+set -ex
+
 export NUMCORES=`grep -c ^processor /proc/cpuinfo`
 if [ ! -n "$NUMCORES" ]; then
   export NUMCORES=`sysctl -n hw.ncpu`
@@ -19,7 +21,14 @@ if [ "$TRAVIS_OS_NAME" == "linux" ]; then
   ccache -s
 
   # Setup Python.
-  export PYTHON_DIR="/usr/bin"
+  if [ "${PYTHON_VERSION}" == "python3" ]; then
+    export PYTHON_DIR="$(ls -d /opt/python/3.*.*)/bin"
+  elif [ "${PYTHON_VERSION}" == "python2" ]; then
+    export PYTHON_DIR="$(ls -d /opt/python/2.*.*)/bin"
+  else
+    echo Unknown Python Version: ${PYTHON_VERSION}
+    exit 1
+  fi
 elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
   brew install ccache protobuf
 
