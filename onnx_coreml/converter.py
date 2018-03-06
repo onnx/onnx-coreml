@@ -16,8 +16,8 @@ from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
 from typing import Tuple
 
 from ._operators import _convert_node
-from ._graph import Graph, EdgeInfo
-from ._transformers import Transformer, ConvAddFuser, DropoutRemover, \
+from ._graph import Graph, EdgeInfo, Transformer
+from ._transformers import ConvAddFuser, DropoutRemover, \
     DanglingOutputsRemover, ReshapeInitTensorFuser, \
     BNBroadcastedMulFuser, BNBroadcastedAddFuser, PixelShuffleFuser, \
     OutputRenamer
