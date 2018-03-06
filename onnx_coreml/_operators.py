@@ -266,7 +266,10 @@ def _convert_div(builder, node):
     )
 
 def _convert_leaky_relu(builder, node):
-    alpha = node.attrs['alpha']
+    if 'alpha' in node.attrs:
+        alpha = node.attrs['alpha']
+    else:
+        alpha = .01
     builder.add_activation(
         name=node.name,
         non_linearity='LEAKYRELU',
@@ -525,6 +528,22 @@ def _convert_softplus(builder, node):
         non_linearity='SOFTPLUS'
     )
 
+def _convert_hardsigmoid(builder, node):
+    alpha = 0.2
+    beta = 0.5
+    if 'alpha' in node.attrs:
+        alpha = node.attrs['alpha']
+    if 'beta' in node.attrs:
+        alpha = node.attrs['beta']
+    builder.add_activation(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        non_linearity='SIGMOID_HARD',
+        params = [alpha, beta]
+    )
+
+
 
 def _convert_neg(builder, node):
     builder.add_elementwise(
@@ -592,6 +611,7 @@ _ONNX_NODE_REGISTRY = {
     "Split": _convert_split,
     "Log": _convert_log,
     "Div": _convert_div,
+    "HardSigmoid": _convert_hardsigmoid,
 }
 
 
