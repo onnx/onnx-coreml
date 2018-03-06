@@ -104,7 +104,7 @@ class File(ParamType):
         value: Optional[Text],
         param: Optional[Parameter] = ...,
         ctx: Optional[Context] = ...,
-    ) -> IO:
+    ) -> IO[Any]:
         ...
 
     def convert(
@@ -112,7 +112,7 @@ class File(ParamType):
         value: Text,
         param: Optional[Parameter],
         ctx: Optional[Context],
-    ) -> IO:
+    ) -> IO[Any]:
         ...
 
     def resolve_lazy_flag(self, value: Text) -> bool:
@@ -124,9 +124,9 @@ _Func = Callable[[Optional[Text]], _F]
 
 
 class FuncParamType(ParamType):
-    func: _Func
+    func: _Func[Any]
 
-    def __init__(self, func: _Func) -> None:
+    def __init__(self, func: _Func[Any]) -> None:
         ...
 
     def __call__(

@@ -6,7 +6,7 @@ from __future__ import unicode_literals
 import unittest
 
 import onnx
-
+from typing import Any, Text
 import onnx.backend.test
 import caffe2.python.onnx.backend
 
@@ -16,7 +16,12 @@ from onnx_coreml._backend import CoreMLBackend
 # TODO: don't use caffe2 to infer output shapes
 class CoreMLTestingBackend(CoreMLBackend):
     @classmethod
-    def run_node(cls, node, inputs, device='CPU'):
+    def run_node(cls,
+                 node,  # type: onnx.NodeProto
+                 inputs,  # type: Any
+                 device='CPU',  # type: Text
+                 ):
+        # type: (...) -> onnx.namedtupledict
         '''
         CoreML requires full model for prediction, not just single layer.
         Also input/output shapes are required to build CoreML spec for model.

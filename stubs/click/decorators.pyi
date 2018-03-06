@@ -33,13 +33,13 @@ def command(
     name: Optional[Text] = ...,
     cls: Optional[Type[Command]] = ...,
     # Command
-    context_settings: Optional[Dict] = ...,
+    context_settings: Optional[Dict[Text, Any]] = ...,
     help: Optional[Text] = ...,
     epilog: Optional[Text] = ...,
     short_help: Optional[Text] = ...,
     options_metavar: Text = ...,
     add_help_option: bool = ...,
-) -> _Decorator:
+) -> _Decorator[Any]:
     ...
 
 
@@ -55,7 +55,7 @@ def group(
     no_args_is_help: Optional[bool] = ...,
     subcommand_metavar: Optional[Text] = ...,
     chain: bool = ...,
-    result_callback: Optional[Callable] = ...,
+    result_callback: Optional[Callable[..., Any]] = ...,
     # Command
     help: Optional[Text] = ...,
     epilog: Optional[Text] = ...,
@@ -64,7 +64,7 @@ def group(
     add_help_option: bool = ...,
     # User-defined
     **kwargs: Any,
-) -> _Decorator:
+) -> _Decorator[Any]:
     ...
 
 
@@ -82,7 +82,7 @@ def argument(
     expose_value: bool = ...,
     is_eager: bool = ...,
     envvar: Optional[Union[Text, List[Text]]] = ...
-) -> _Decorator:
+) -> _Decorator[Any]:
     ...
 
 
@@ -110,7 +110,7 @@ def option(
     expose_value: bool = ...,
     is_eager: bool = ...,
     envvar: Optional[Union[Text, List[Text]]] = ...
-) -> _Decorator:
+) -> _Decorator[Any]:
     ...
 
 
@@ -137,7 +137,7 @@ def confirmation_option(
     expose_value: bool = ...,
     is_eager: bool = ...,
     envvar: Optional[Union[Text, List[Text]]] = ...
-) -> _Decorator:
+) -> _Decorator[Any]:
     ...
 
 
@@ -164,7 +164,7 @@ def password_option(
     expose_value: bool = ...,
     is_eager: bool = ...,
     envvar: Optional[Union[Text, List[Text]]] = ...
-) -> _Decorator:
+) -> _Decorator[Any]:
     ...
 
 
@@ -194,7 +194,7 @@ def version_option(
     expose_value: bool = ...,
     is_eager: bool = ...,
     envvar: Optional[Union[Text, List[Text]]] = ...
-) -> _Decorator:
+) -> _Decorator[Any]:
     ...
 
 
@@ -221,5 +221,5 @@ def help_option(
     expose_value: bool = ...,
     is_eager: bool = ...,
     envvar: Optional[Union[Text, List[Text]]] = ...
-) -> _Decorator:
+) -> _Decorator[Any]:
     ...

@@ -47,7 +47,7 @@ class Context:
     parent: Optional['Context']
     command: 'Command'
     info_name: Optional[Text]
-    params: Dict
+    params: Dict[Text, Any]
     args: List[Text]
     protected_args: List[Text]
     obj: Any
@@ -64,7 +64,7 @@ class Context:
     auto_envvar_prefix: Optional[Text]
     color: Optional[bool]
     _meta: Dict[Text, Any]
-    _close_callbacks: List
+    _close_callbacks: List[Callable[..., Any]]
     _depth: int
 
     # properties
@@ -98,7 +98,7 @@ class Context:
     def make_formatter(self) -> HelpFormatter:
         ...
 
-    def call_on_close(self, f: Callable) -> Callable:
+    def call_on_close(self, f: Callable[..., Any]) -> Callable[..., Any]:
         ...
 
     def close(self) -> None:
@@ -132,12 +132,12 @@ class Context:
         ...
 
     def invoke(
-        self, callback: Union['Command', Callable], *args, **kwargs
+        self, callback: Union['Command', Callable[..., Any]], *args, **kwargs
     ) -> Any:
         ...
 
     def forward(
-        self, callback: Union['Command', Callable], *args, **kwargs
+        self, callback: Union['Command', Callable[..., Any]], *args, **kwargs
     ) -> Any:
         ...
 
@@ -146,9 +146,9 @@ class BaseCommand:
     allow_interspersed_args: bool
     ignore_unknown_options: bool
     name: Text
-    context_settings: Dict
+    context_settings: Dict[Text, Any]
 
-    def __init__(self, name: Text, context_settings: Optional[Dict] = ...) -> None:
+    def __init__(self, name: Text, context_settings: Optional[Dict[Text, Any]] = ...) -> None:
         ...
 
     def get_usage(self, ctx: Context) -> Text:
@@ -183,7 +183,7 @@ class BaseCommand:
 
 
 class Command(BaseCommand):
-    callback: Optional[Callable]
+    callback: Optional[Callable[..., Any]]
     params: List['Parameter']
     help: Optional[Text]
     epilog: Optional[Text]
@@ -194,8 +194,8 @@ class Command(BaseCommand):
     def __init__(
         self,
         name: Text,
-        context_settings: Optional[Dict] = ...,
-        callback: Optional[Callable] = ...,
+        context_settings: Optional[Dict[Text, Any]] = ...,
+        callback: Optional[Callable[..., Any]] = ...,
         params: Optional[List['Parameter']] = ...,
         help: Optional[Text] = ...,
         epilog: Optional[Text] = ...,
@@ -249,7 +249,7 @@ class MultiCommand(Command):
     invoke_without_command: bool
     subcommand_metavar: Text
     chain: bool
-    result_callback: Callable
+    result_callback: Callable[..., Any]
 
     def __init__(
         self,
@@ -258,14 +258,14 @@ class MultiCommand(Command):
         no_args_is_help: Optional[bool] = ...,
         subcommand_metavar: Optional[Text] = ...,
         chain: bool = ...,
-        result_callback: Optional[Callable] = ...,
+        result_callback: Optional[Callable[..., Any]] = ...,
         **attrs
     ) -> None:
         ...
 
     def resultcallback(
         self, replace: bool = ...
-    ) -> _Decorator:
+    ) -> _Decorator[Any]:
         ...
 
     def format_commands(self, ctx: Context, formatter: HelpFormatter) -> None:
@@ -294,10 +294,10 @@ class Group(MultiCommand):
     def add_command(self, cmd: Command, name: Optional[Text] = ...):
         ...
 
-    def command(self, *args, **kwargs) -> _Decorator:
+    def command(self, *args, **kwargs) -> _Decorator[Any]:
         ...
 
-    def group(self, *args, **kwargs) -> _Decorator:
+    def group(self, *args, **kwargs) -> _Decorator[Any]:
         ...
 
 

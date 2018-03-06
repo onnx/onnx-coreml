@@ -14,7 +14,7 @@ from onnx_coreml._graph import Node, Graph
 
 
 class NodeTest(unittest.TestCase):
-    def test_create_node(self):
+    def test_create_node(self):  # type: () -> None
         model = _onnx_create_single_node_model(
             "Elu",
             [(1, 3, 224, 224)],
@@ -31,7 +31,7 @@ class NodeTest(unittest.TestCase):
 
 
 class GraphTest(unittest.TestCase):
-    def test_create_graph(self):
+    def test_create_graph(self):  # type: () -> None
         kernel_shape = (3, 2)
         strides = (2, 3)
         pads = (4, 2, 4, 2)

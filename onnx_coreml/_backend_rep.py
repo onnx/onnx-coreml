@@ -4,12 +4,17 @@ from __future__ import print_function
 # from __future__ import unicode_literals
 
 import numpy as np
-
+from typing import Any, Sequence, List
 from onnx.backend.base import BackendRep, namedtupledict
+from coremltools.models import MLModel  #type: ignore
 
 
 class CoreMLRep(BackendRep):
-    def __init__(self, coreml_model, useCPUOnly=False):
+    def __init__(self,
+                 coreml_model,  # type: MLModel
+                 useCPUOnly=False,  # type: bool
+                 ):
+        # type: (...) -> None
         super(CoreMLRep, self).__init__()
         self.model = coreml_model
         self.useCPUOnly = useCPUOnly
@@ -18,7 +23,11 @@ class CoreMLRep(BackendRep):
         self.input_names = [str(i.name) for i in spec.description.input]
         self.output_names = [str(o.name) for o in spec.description.output]
 
-    def run(self, inputs, **kwargs):
+    def run(self,
+            inputs,  # type: Any
+            **kwargs  # type: Any
+            ):
+        # type: (...) -> namedtupledict
         super(CoreMLRep, self).run(inputs, **kwargs)
         inputs_ = inputs
         _reshaped = False

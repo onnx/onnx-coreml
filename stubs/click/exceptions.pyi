@@ -1,4 +1,4 @@
-from typing import IO, List, Text, Optional
+from typing import IO, List, Text, Optional, Any
 
 from click.core import Context, Parameter
 
@@ -23,7 +23,7 @@ class UsageError(ClickException):
     def __init__(self, message: Text, ctx: Optional[Context] = ...) -> None:
         ...
 
-    def show(self, file: Optional[IO] = ...) -> None:
+    def show(self, file: Optional[IO[Any]] = ...) -> None:
         ...
 
 
