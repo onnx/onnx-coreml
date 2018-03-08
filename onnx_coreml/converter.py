@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 from typing import Text, Union, Optional, Dict, Any, Iterable, Sequence, Callable
+from ._shapeinference import infer_shapes_and_types
 
 import onnx
 import numpy as np
@@ -149,6 +150,7 @@ def _set_deprocessing(is_grayscale,  # type: bool
 
 
 def _prepare_onnx_graph(graph, transformers):  # type: (Graph, Iterable[Transformer]) -> Graph
+    infer_shapes_and_types(graph)
     graph_ = Graph.from_onnx(graph)
     return graph_.transformed(transformers)
 
