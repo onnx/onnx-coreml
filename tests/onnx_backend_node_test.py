@@ -6,9 +6,9 @@ from __future__ import unicode_literals
 import unittest
 
 import onnx
-from typing import Any, Text
+from typing import Any, Text, Optional, Tuple, Sequence
 import onnx.backend.test
-import caffe2.python.onnx.backend
+import numpy
 
 from onnx_coreml._backend import CoreMLBackend
 
@@ -18,8 +18,9 @@ class CoreMLTestingBackend(CoreMLBackend):
     @classmethod
     def run_node(cls,
                  node,  # type: onnx.NodeProto
-                 inputs,  # type: Any
+                 inputs,  # type: Sequence[numpy.ndarray[Any]]
                  device='CPU',  # type: Text
+                 outputs_info=None,  # type: Optional[Sequence[Tuple[numpy.dtype, Tuple[int, ...]]]]
                  ):
         # type: (...) -> onnx.namedtupledict
         '''
@@ -31,6 +32,8 @@ class CoreMLTestingBackend(CoreMLBackend):
         '''
         super(CoreMLTestingBackend, cls).run_node(node, inputs, device)
 
+        assert outputs_info is not None, "CoreML needs output shapes"
+
         graph_inputs = []
         for i in range(len(inputs)):
             input_ = inputs[i]
@@ -41,15 +44,13 @@ class CoreMLTestingBackend(CoreMLBackend):
             )
             graph_inputs.append(value_info)
 
-        c2_result = caffe2.python.onnx.backend.run_node(node, inputs, device)
-
         graph_outputs = []
-        for i in range(len(node.output)):
-            c2_output = c2_result[i]
+        for i in range(len(outputs_info)):
+            output_info = outputs_info[i]
             value_info = onnx.helper.make_tensor_value_info(
                 name=node.output[i],
-                elem_type=onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[c2_output.dtype],
-                shape=c2_output.shape
+                elem_type=onnx.mapping.NP_TYPE_TO_TENSOR_TYPE[output_info[0]],
+                shape=output_info[1]
             )
             graph_outputs.append(value_info)
 
@@ -57,7 +58,7 @@ class CoreMLTestingBackend(CoreMLBackend):
             nodes=[node],
             name='dummy',
             inputs=graph_inputs,
-            outputs=graph_outputs
+            outputs=graph_outputs,
         )
 
         model = onnx.helper.make_model(graph)
