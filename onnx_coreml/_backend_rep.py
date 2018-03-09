@@ -46,9 +46,9 @@ class CoreMLRep(BackendRep):
         output_values = [prediction[name] for name in self.output_names]
         for i, output_ in enumerate(output_values):
             shape = output_.shape
-            #reshape the CoreML output to matcj Onnx's in shape
+            #reshape the CoreML output to match Onnx's in shape
             try:
-                output_values[i] = np.reshape(output_, self.onnx_outputs[self.output_names[i]])
+                output_values[i] = np.reshape(output_, self.onnx_outputs[self.output_names[i]]) #type: ignore
             except RuntimeError:
                 print("Output '%s' shape incompatible between CoreML (%s) and onnx (%s)"
                       %(self.output_names[i], output_.shape,

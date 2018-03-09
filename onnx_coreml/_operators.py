@@ -268,7 +268,7 @@ def _convert_div(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
         if node.attrs['broadcast'] == 1:
             raise ValueError('Broadcast Div is not supported now')
 
-    builder.add_unary(name=node.name + '_inverse',
+    builder.add_unary(name=node.name + '_inverse', #type: ignore
                       input_name=node.inputs[1],
                       output_name=node.inputs[1] + '_inverse',
                       mode='inverse')
@@ -406,7 +406,7 @@ def _convert_selu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if 'gamma' in node.attrs:
         gamma = node.attrs['gamma']
     builder.add_activation(
-        name=node.name + '_elu',
+        name=node.name + '_elu', #type: ignore
         non_linearity='ELU',
         params=alpha,
         input_name=node.inputs[0],
@@ -605,7 +605,7 @@ def _convert_logsoftmax(builder, node):  # type: (NeuralNetworkBuilder, Node) ->
                 "Unsupported axis {} for logsoftmax".format(axis,)
             )
     builder.add_softmax(
-        name=node.name + '_softmax',
+        name=node.name + '_softmax', #type: ignore
         input_name=node.inputs[0],
         output_name=node.outputs[0] + '_softmax'
     )

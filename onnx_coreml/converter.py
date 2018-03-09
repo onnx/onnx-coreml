@@ -27,7 +27,7 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
 inputs: list of tuples. 
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_input_features(inputs): # type: (Tuple) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_input_features(inputs): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
     for input_ in inputs:
         if input_[1] != TensorProto.FLOAT:
@@ -53,7 +53,7 @@ def _make_coreml_input_features(inputs): # type: (Tuple) -> Sequence[Tuple[Text,
 outputs: list of tuples. 
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_output_features(outputs):  # type: (Tuple) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_output_features(outputs):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
     for output_ in outputs:
         if output_[1] != TensorProto.FLOAT:

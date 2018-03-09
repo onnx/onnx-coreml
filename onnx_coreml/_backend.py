@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from typing import Any, Text
+from typing import Any, Text, Dict
 from onnx import ModelProto
 from onnx.backend.base import Backend
 from onnx_coreml._backend_rep import CoreMLRep
@@ -40,7 +40,7 @@ class CoreMLBackend(Backend):
         # type: (...) -> CoreMLRep
         super(CoreMLBackend, cls).prepare(model, device, **kwargs)
         coreml_model = convert(model)
-        onnx_outputs = _get_onnx_outputs(model)
+        onnx_outputs = _get_onnx_outputs(model) # type: ignore
         return CoreMLRep(coreml_model, onnx_outputs, device == 'CPU')
 
     @classmethod
