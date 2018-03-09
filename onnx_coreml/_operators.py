@@ -7,11 +7,17 @@ from typing import Sequence, Callable, List, Tuple, Optional
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from ._graph import Node
 
-def _convert_conv(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    W = node.input_tensors[node.inputs[1]]
+def _convert_conv(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
+    #get weights for convolution
+    weight_name = node.inputs[1]
+    W = None
+    if weight_name in node.input_tensors:
+        W = node.input_tensors[weight_name]
     if W is None:
         raise ValueError(
-            "Weight tensor not found in graph initializer"
+            "For Convoltuion layer, with input name = '%s', "
+            "output name = '%s' and weight name = '%s', Weight tensor not found in graph initializer"
+            %(node.inputs[0], node.outputs[0], weight_name)
         )
 
     W = W.transpose((2, 3, 1, 0))
@@ -60,6 +66,17 @@ def _convert_relu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
         output_name=node.outputs[0]
     )
 
+def _convert_thresholdedrelu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+    alpha = 1.0
+    if 'alpha' in node.attrs:
+        alpha = node.attrs['alpha']
+    builder.add_activation(
+        name=node.name,
+        non_linearity='THRESHOLDEDRELU',
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        params = alpha
+    )
 
 def _convert_reshape(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     shape = tuple(node.attrs["shape"])
@@ -237,7 +254,7 @@ def _convert_add(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
 def _convert_mul(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
-            raise ValueError('Broadcast Add is not supported now')
+            raise ValueError('Broadcast Multiply is not supported now')
 
     builder.add_elementwise(
         name=node.name,
@@ -246,9 +263,27 @@ def _convert_mul(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
         mode="MULTIPLY"
     )
 
+def _convert_div(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+    if 'broadcast' in node.attrs:
+        if node.attrs['broadcast'] == 1:
+            raise ValueError('Broadcast Div is not supported now')
+
+    builder.add_unary(name=node.name + '_inverse', #type: ignore
+                      input_name=node.inputs[1],
+                      output_name=node.inputs[1] + '_inverse',
+                      mode='inverse')
+    builder.add_elementwise(
+        name=node.name,
+        input_names=[node.inputs[0], node.inputs[1] + '_inverse'],
+        output_name=node.outputs[0],
+        mode="MULTIPLY"
+    )
 
 def _convert_leaky_relu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    alpha = node.attrs['alpha']
+    if 'alpha' in node.attrs:
+        alpha = node.attrs['alpha']
+    else:
+        alpha = .01
     builder.add_activation(
         name=node.name,
         non_linearity='LEAKYRELU',
@@ -256,7 +291,6 @@ def _convert_leaky_relu(builder, node):  # type: (NeuralNetworkBuilder, Node) ->
         input_name=node.inputs[0],
         output_name=node.outputs[0]
     )
-
 
 def _convert_concat(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     axis = node.attrs.get("axis", 1)
@@ -278,7 +312,6 @@ def _convert_concat(builder, node):  # type: (NeuralNetworkBuilder, Node) -> Non
         mode=mode
     )
 
-
 def _convert_softmax(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if "axis" in node.attrs:
         axis = node.attrs["axis"]
@@ -291,7 +324,6 @@ def _convert_softmax(builder, node):  # type: (NeuralNetworkBuilder, Node) -> No
         input_name=node.inputs[0],
         output_name=node.outputs[0]
     )
-
 
 def _convert_gemm(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if node.attrs["broadcast"] != 1 or node.attrs["transB"] != 1:
@@ -354,13 +386,38 @@ def _convert_sigmoid(builder, node):  # type: (NeuralNetworkBuilder, Node) -> No
 
 
 def _convert_elu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    alpha = node.attrs["alpha"]
+    if 'alpha' in node.attrs:
+        alpha = node.attrs['alpha']
+    else:
+        alpha = 1.0
     builder.add_activation(
         name=node.name,
         non_linearity='ELU',
         params=alpha,
         input_name=node.inputs[0],
         output_name=node.outputs[0]
+    )
+
+def _convert_selu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+    alpha = 1.6732
+    gamma = 1.0507
+    if 'alpha' in node.attrs:
+        alpha = node.attrs['alpha']
+    if 'gamma' in node.attrs:
+        gamma = node.attrs['gamma']
+    builder.add_activation(
+        name=node.name + '_elu', #type: ignore
+        non_linearity='ELU',
+        params=alpha,
+        input_name=node.inputs[0],
+        output_name=node.inputs[0] + '_elu'
+    )
+    builder.add_elementwise(
+        name=node.name,
+        input_names=node.inputs[0] + '_elu',
+        output_name=node.outputs[0],
+        mode='MULTIPLY',
+        alpha=gamma
     )
 
 
@@ -395,10 +452,12 @@ def _convert_abs(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
 
 def _convert_pad(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     mode = node.attrs['mode']
-    if mode == 'reflect':
+    if mode == 'reflect' or mode == b'reflect':
         mode = 'reflection'
-    elif mode == 'edge':
+    elif mode == 'edge' or mode == b'edge':
         mode = 'replication'
+    else:
+        mode = 'constant'
     pads = node.attrs['pads']
     assert len(pads) % 2 == 0 and len(pads) >= 2
     start = pads[:len(pads)//2]
@@ -439,14 +498,18 @@ def _convert_slice(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
         raise NotImplementedError("Only single axis Slice is supported now")
     starts = node.attrs['starts']
     ends = node.attrs['ends']
-    if axes[0] == 0:
-        axis = 'channel'
-    elif axes[0] == 1:
-        axis = 'height'
-    elif axes[0] == 2:
-        axis = 'width'
+    axes = node.attrs.get('axes', [])
+    if len(axes) == 0: axes = range(len(starts))
+    if len(axes) == 1:
+        if axes[0] == 0:
+            axis = 'channel'
+        elif axes[0] == 1:
+            axis = 'height'
+        elif axes[0] == 2:
+            axis = 'width'
+        raise NotImplementedError("Slice is supported only along H, W or C dimensions")
     else:
-        raise NotImplementedError("Slice is supported only for 3d tensors")
+        raise NotImplementedError("Slice is supported only along one axis for 3D or 4D Tensors")
     builder.add_slice(
         name=node.name,
         input_name=node.inputs[0],
@@ -477,13 +540,29 @@ def _convert_flatten(builder, node):  # type: (NeuralNetworkBuilder, Node) -> No
 
 
 def _convert_max(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+    if len(node.inputs) == 1:
+        inputs = [node.inputs[0], node.inputs[0]]
+    else:
+        inputs = node.inputs
     builder.add_elementwise(
         name=node.name,
-        input_names=node.inputs,
+        input_names=inputs,
         output_name=node.outputs[0],
         mode='MAX'
     )
 
+
+def _convert_min(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
+    if len(node.inputs) == 1:
+        inputs = [node.inputs[0], node.inputs[0]]
+    else:
+        inputs = node.inputs
+    builder.add_elementwise(
+        name=node.name,
+        input_names=inputs,
+        output_name=node.outputs[0],
+        mode='MIN'
+    )
 
 def _convert_softsign(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_activation(
@@ -501,6 +580,42 @@ def _convert_softplus(builder, node):  # type: (NeuralNetworkBuilder, Node) -> N
         output_name=node.outputs[0],
         non_linearity='SOFTPLUS'
     )
+
+def _convert_hardsigmoid(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+    alpha = 0.2
+    beta = 0.5
+    if 'alpha' in node.attrs:
+        alpha = node.attrs['alpha']
+    if 'beta' in node.attrs:
+        alpha = node.attrs['beta']
+    builder.add_activation(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        non_linearity='SIGMOID_HARD',
+        params = [alpha, beta]
+    )
+
+def _convert_logsoftmax(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+    axis = 1
+    if axis in node.attrs:
+        axis = node.attrs['axis']
+    if axis != 1:
+            raise ValueError(
+                "Unsupported axis {} for logsoftmax".format(axis,)
+            )
+    builder.add_softmax(
+        name=node.name + '_softmax', #type: ignore
+        input_name=node.inputs[0],
+        output_name=node.outputs[0] + '_softmax'
+    )
+    builder.add_unary(
+        name=node.name,
+        input_name=node.outputs[0] + '_softmax',
+        output_name=node.outputs[0],
+        mode='log'
+    )
+
 
 
 def _convert_neg(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
@@ -530,6 +645,23 @@ def _convert_log(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
         input_name=node.inputs[0],
         output_name=node.outputs[0],
         mode='log'
+    )
+
+
+def _convert_sqrt(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+    builder.add_unary(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode='sqrt'
+    )
+
+def _convert_reciprocal(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+    builder.add_unary(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode='inverse'
     )
 
 
@@ -563,11 +695,19 @@ _ONNX_NODE_REGISTRY = {
     "Exp": _convert_exp,
     "Flatten": _convert_flatten,
     "Max": _convert_max,
+    "Min": _convert_min,
     "Softsign": _convert_softsign,
     "Softplus": _convert_softplus,
     "Neg": _convert_neg,
     "Split": _convert_split,
     "Log": _convert_log,
+    "Div": _convert_div,
+    "HardSigmoid": _convert_hardsigmoid,
+    "LogSoftmax": _convert_logsoftmax,
+    "Reciprocal": _convert_reciprocal,
+    "Selu": _convert_selu,
+    "Sqrt": _convert_sqrt,
+    "ThresholdedRelu": _convert_thresholdedrelu,
 }
 
 
