@@ -100,16 +100,16 @@ backend_test.exclude('test_MaxPool1d')
 backend_test.exclude('test_MaxPool2d')
 backend_test.exclude('test_MaxPool3d')
 
-# big models tests
-# backend_test.exclude('test_bvlc_alexnet')
-# backend_test.exclude('test_resnet50')
-# backend_test.exclude('test_vgg16')
-# backend_test.exclude('test_vgg19')
-# backend_test.exclude('test_densenet121')
-# backend_test.exclude('test_inception_v1')
-# backend_test.exclude('test_inception_v2')
-# backend_test.exclude('test_shufflenet')
-# backend_test.exclude('test_squeezenet')
+# Exclude big model zoo tests
+backend_test.exclude('test_bvlc_alexnet')
+backend_test.exclude('test_resnet50')
+backend_test.exclude('test_vgg16')
+backend_test.exclude('test_vgg19')
+backend_test.exclude('test_densenet121')
+backend_test.exclude('test_inception_v1')
+backend_test.exclude('test_inception_v2')
+backend_test.exclude('test_shufflenet')
+backend_test.exclude('test_squeezenet')
 
 globals().update(backend_test
                  .enable_report()
