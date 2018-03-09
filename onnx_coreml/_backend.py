@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from typing import Any, Text, Dict
+from typing import Any, Text, Dict, Tuple
 from onnx import ModelProto
 from onnx.backend.base import Backend
 from onnx_coreml._backend_rep import CoreMLRep
@@ -12,7 +12,7 @@ import onnx
 from ._graph import _input_from_onnx_input
 
 
-def _get_onnx_outputs(model):
+def _get_onnx_outputs(model): # type: (...) -> Dict[Text, Tuple[int,...]]
     """
     Takes in an onnx model and returns a dictionary 
     of onnx output names mapped to shape tuples
@@ -40,7 +40,7 @@ class CoreMLBackend(Backend):
         # type: (...) -> CoreMLRep
         super(CoreMLBackend, cls).prepare(model, device, **kwargs)
         coreml_model = convert(model)
-        onnx_outputs = _get_onnx_outputs(model) # type: ignore
+        onnx_outputs = _get_onnx_outputs(model)
         return CoreMLRep(coreml_model, onnx_outputs, device == 'CPU')
 
     @classmethod
