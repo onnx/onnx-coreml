@@ -67,6 +67,7 @@ class CoreMLTestingBackend(CoreMLBackend):
 # import all test cases at global scope to make them visible to python.unittest
 backend_test = onnx.backend.test.BackendTest(CoreMLTestingBackend, __name__)
 
+
 # some of these are fixable once input/output shape info is available to the converter.
 # The ones that are not fixed after that should be categorized under "Supported ops, but Unsupported parameters by CoreML"
 backend_test.exclude('test_add_bcast_cpu')
@@ -111,6 +112,7 @@ backend_test.exclude('test_PReLU_1d_multiparam_cpu')
 backend_test.exclude('test_operator_chunk_cpu')
 backend_test.exclude('test_operator_permute2_cpu')
 backend_test.exclude('test_operator_transpose_cpu')
+backend_test.exclude('test_slice_default_axes_cpu')
 
 # These layers are supported. Need to fix these tests
 backend_test.exclude('test_Softsign_cpu')
@@ -161,18 +163,18 @@ backend_test.exclude('test_BatchNorm1d_3d_input_eval_cpu')
 # Supported ops, but Unsupported parameters by CoreML
 backend_test.exclude('test_thresholdedrelu_example_cpu')
 
-#maybe these can be fixed if we find a way to convert the "weight" input to a graph initializer field
-#otherwise they fall in the category of "supported ops, but unsupported parameters by CoreML"
+# maybe these can be fixed if we find a way to convert the "weight" input to a graph initializer field
+# otherwise they fall in the category of "supported ops, but unsupported parameters by CoreML"
 backend_test.exclude('test_basic_conv_with_padding_cpu')
 backend_test.exclude('test_basic_conv_without_padding_cpu')
 backend_test.exclude('test_conv_with_strides_and_asymmetric_padding_cpu')
 backend_test.exclude('test_conv_with_strides_no_padding_cpu')
 backend_test.exclude('test_conv_with_strides_padding_cpu')
 
-#Failing due to tolerance (in particular due to the way outputs are compared)
+# Failing due to tolerance (in particular due to the way outputs are compared)
 backend_test.exclude('test_log_example_cpu')
 
-#These are failing due to some error in Caffe2 backend
+# These are failing due to some error in Caffe2 backend
 backend_test.exclude('test_hardsigmoid_cpu')
 backend_test.exclude('test_hardsigmoid_default_cpu')
 backend_test.exclude('test_hardsigmoid_example_cpu')

@@ -7,12 +7,13 @@ import numpy as np
 from typing import Any, Sequence, List
 from onnx.backend.base import BackendRep, namedtupledict
 from coremltools.models import MLModel  #type: ignore
+from typing import Dict, Any, Text
 
 
 class CoreMLRep(BackendRep):
     def __init__(self,
                  coreml_model,  # type: MLModel
-                 onnx_outputs,  # type: dict()
+                 onnx_outputs,  # type: Dict[Text, Any]
                  useCPUOnly=False,  # type: bool
                  ):
         # type: (...) -> None
