@@ -10,15 +10,10 @@ if [ "${PYTHON_VERSION}" != "python2" ]; then
   time mypy --py2 .
 fi
 
-#time python setup.py test
-
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
-  time python setup.py test --addopts tests/onnx_backend_models_test.py
-  time python setup.py test --addopts tests/onnx_backend_node_test.py
-  time python setup.py test --addopts tests/operators_test.py  
-  time python setup.py test --addopts tests/transformers_test.py
-  time python setup.py test --addopts tests/convert_test.py
-fi	
-
-time python setup.py test --addopts tests/graph_test.py
-
+  time python setup.py test
+else
+  # Test cases that need to run CoreML models won't work on Linux,
+  # only run test cases that don't need it.
+  time python setup.py test --addopts tests/graph_test.py
+fi
