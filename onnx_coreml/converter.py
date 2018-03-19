@@ -19,12 +19,11 @@ from typing import Tuple
 from ._operators import _convert_node
 from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
-    DanglingOutputsRemover, ReshapeInitTensorFuser, \
-    BNBroadcastedMulFuser, BNBroadcastedAddFuser, PixelShuffleFuser, \
-    OutputRenamer
+    ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
+    PixelShuffleFuser, OutputRenamer
 
 '''
-inputs: list of tuples. 
+inputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
 def _make_coreml_input_features(inputs): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
@@ -50,7 +49,7 @@ def _make_coreml_input_features(inputs): # type: (...) -> Sequence[Tuple[Text, d
     return features
 
 '''
-outputs: list of tuples. 
+outputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
 def _make_coreml_output_features(outputs):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
@@ -228,7 +227,6 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         BNBroadcastedMulFuser(),
         BNBroadcastedAddFuser(),
         PixelShuffleFuser(),
-        DanglingOutputsRemover()
     ]  # type: Iterable[Transformer]
 
     graph = _prepare_onnx_graph(onnx_model.graph, transformers)

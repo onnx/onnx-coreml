@@ -99,6 +99,12 @@ class ConvAddFuser(NodesFuser):
             return False
         if 'axis' not in child.attrs:
             return False
+        if parent.inputs[1] not in parent.input_tensors:
+            return False
+        if len(parent.inputs) > 2 and parent.inputs[2] not in parent.input_tensors:
+            return False
+        if child.inputs[1] not in child.input_tensors:
+            return False
 
         broadcast = child.attrs['broadcast']
         if broadcast != 1:
@@ -154,6 +160,10 @@ class BNBroadcastedMulFuser(NodesFuser):
             return False
         if child.inputs[1] not in child.input_tensors:
             return False
+        if parent.inputs[1] not in parent.input_tensors:
+            return False
+        if parent.inputs[2] not in parent.input_tensors:
+            return False
         return True
 
     def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
@@ -194,6 +204,8 @@ class BNBroadcastedAddFuser(NodesFuser):
             return False
         if child.inputs[1] not in child.input_tensors:
             return False
+        if parent.inputs[2] not in parent.input_tensors:
+            return False
         return True
 
     def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
@@ -233,9 +245,6 @@ class ReshapeInitTensorFuser(object):
     '''
 
     def __call__(self, graph):  # type: (Graph) -> Graph
-        # TODO ONNX spec supports setting dimension to '0', in which case
-        #      it should be taken from old dimension. This isn't supported in
-        #      numpy I think, so we'd have to handle this case here separately.
         nodes = graph.nodes
         removed = []
         for node in nodes:
@@ -253,6 +262,14 @@ class ReshapeInitTensorFuser(object):
 
             tensor = node.input_tensors[tensor_name]
             shape = tuple(node.attrs["shape"])
+
+            # ONNX spec supports setting dimension to '0', in which case
+            # it should be taken from old dimension.
+            # This isn't supported in numpy, so don't transform.
+            # TODO Should we support this case?
+            if any([s == 0 for s in shape]):
+                continue
+
             reshaped_tensor = tensor.reshape(shape)
 
             for child in node.children:
@@ -261,31 +278,6 @@ class ReshapeInitTensorFuser(object):
 
         transformed_nodes = [node for node in nodes if node not in removed]
         return Graph(transformed_nodes, graph.inputs, graph.outputs)
-
-
-class DanglingOutputsRemover(object):
-    '''
-    Removes unused outputs
-    '''
-
-    def __call__(self, graph):  # type: (Graph) -> Graph
-        nodes = graph.nodes
-        graph_output_names = set([o[0] for o in graph.outputs])
-        for node in nodes:
-            removed_outputs = set()
-            for output in node.outputs:
-                if output in graph_output_names:
-                    continue
-                children_inputs = set()
-                for child in node.children:
-                    for input_ in child.inputs:
-                        children_inputs.add(input_)
-                if output in children_inputs:
-                    continue
-                removed_outputs.add(output)
-            node.outputs = [out for out in node.outputs
-                            if out not in removed_outputs]
-        return graph
 
 
 class OutputRenamer(object):
