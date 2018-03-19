@@ -12,12 +12,6 @@ from tests._test_utils import _test_single_node, \
 
 
 class SingleOperatorTest(unittest.TestCase):
-    def test_relu(self):  # type: () -> None
-        _test_single_node(
-            "Relu",
-            [(1, 3, 224, 224)],
-            [(1, 3, 224, 224)]
-        )
 
     def test_conv(self):  # type: () -> None
         kernel_shape = (3, 2)
@@ -67,29 +61,6 @@ class SingleOperatorTest(unittest.TestCase):
             group=group,
             kernel_shape=kernel_shape,
             strides=strides
-        )
-
-    def test_reshape(self):  # type: () -> None
-        _test_single_node(
-            "Reshape",
-            [(3, 224, 224)],
-            [(1, 3 * 224 * 224)],
-            shape=(1, 3 * 224 * 224)
-        )
-
-    def test_transpose(self):  # type: () -> None
-        _test_single_node(
-            "Transpose",
-            [(3, 224, 224)],
-            [(224, 3, 224)],
-            perm=(1, 0, 2)
-        )
-
-    def test_transpose_default(self):  # type: () -> None
-        _test_single_node(
-            "Transpose",
-            [(4, 5, 6)],
-            [(6, 5, 4)]
         )
 
     def test_max_pool(self):  # type: () -> None
@@ -155,24 +126,6 @@ class SingleOperatorTest(unittest.TestCase):
             strides=strides
         )
 
-    def test_global_avg_pool(self):  # type: () -> None
-        input_shape = (1, 3, 224, 224)
-        output_shape = (3, 1, 1)
-        _test_single_node(
-            "GlobalAveragePool",
-            [input_shape],
-            [output_shape]
-        )
-
-    def test_gloabl_max_pool(self):  # type: () -> None
-        input_shape = (1, 3, 224, 224)
-        output_shape = (3, 1, 1)
-        _test_single_node(
-            "GlobalMaxPool",
-            [input_shape],
-            [output_shape]
-        )
-
     def test_bn(self):  # type: () -> None
         scale = from_array(_random_array((3,)), name="scale")
         bias = from_array(_random_array((3,)), name="bias")
@@ -207,35 +160,6 @@ class SingleOperatorTest(unittest.TestCase):
                 consumed_inputs=[0, 0, 0, 1, 1]
             )
 
-    def test_add(self):  # type: () -> None
-        _test_single_node(
-            "Add",
-            [(3, 128, 256), (3, 128, 256)],
-            [(3, 128, 256)]
-        )
-
-    def test_sum(self):  # type: () -> None
-        _test_single_node(
-            "Sum",
-            [(3, 128, 256), (3, 128, 256), (3, 128, 256)],
-            [(3, 128, 256)]
-        )
-
-    def test_mul(self):  # type: () -> None
-        _test_single_node(
-            "Mul",
-            [(3, 128, 256), (3, 128, 256)],
-            [(3, 128, 256)]
-        )
-
-    def test_concat(self):  # type: () -> None
-        _test_single_node(
-            "Concat",
-            [(1, 3, 128, 256), (1, 3, 128, 256)],
-            [(6, 128, 256)],
-            axis = 1
-        )
-
     def test_gemm(self):  # type: () -> None
         input_shape = (1, 2048, 1)
         output_shape = (1, 5)
@@ -264,20 +188,6 @@ class SingleOperatorTest(unittest.TestCase):
             beta=0.75,
             bias=1.0,
             size=5
-        )
-
-    def test_sigmoid(self):  # type: () -> None
-        _test_single_node(
-            "Sigmoid",
-            [(1, 3, 224, 224)],
-            [(1, 3, 224, 224)]
-        )
-
-    def test_softmax(self):  # type: () -> None
-        _test_single_node(
-            "Softmax",
-            [(1, 100, 1, 1)],
-            [(1, 100, 1, 1)]
         )
 
 
