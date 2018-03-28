@@ -646,7 +646,7 @@ def _convert_reciprocal(builder, node):  # type: (NeuralNetworkBuilder, Node) ->
         mode='inverse'
     )
 
-def _convert_reorganize_data(builder, node): # type: (NeuralNetowrkBuilder, Node) -> None
+def _convert_reorganize_data(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
     mode = 'SPACE_TO_DEPTH'
     if node.op_type == 'DepthToSpace':
         mode = 'DEPTH_TO_SPACE'
