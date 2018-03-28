@@ -7,6 +7,14 @@ from typing import Sequence, Callable, List, Tuple, Optional
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from ._graph import Node
 
+
+def _compare(a, b, encoding="utf8"):
+    if isinstance(a, bytes):
+        a = a.decode(encoding)
+    if isinstance(b, bytes):
+        b = b.decode(encoding)
+    return a == b
+
 def _convert_conv(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
     #get weights for convolution
     weight_name = node.inputs[1]
@@ -173,9 +181,9 @@ def _convert_pool(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
         stride_width = strides[1]
 
         if "auto_pad" in node.attrs and \
-            node.attrs["auto_pad"] != 'VALID':
+            not _compare(node.attrs["auto_pad"], 'VALID'):
             padding_type = 'SAME'
-            if node.attrs["auto_pad"] == 'SAME_LOWER':
+            if _compare(node.attrs["auto_pad"], 'SAME_LOWER'):
                 same_padding_asymmetry_mode = 'TOP_LEFT_HEAVY'
 
     builder.add_pooling(
