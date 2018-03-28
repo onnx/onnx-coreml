@@ -47,8 +47,8 @@ __mode__: str ('classifier', 'regressor' or None)
       'classifier', a NeuralNetworkClassifier spec will be constructed.  
       'regressor', a NeuralNetworkRegressor spec will be constructed.  
 
-__image_input_names__: list of strings
-      Name of the inputs that should be defined as image type. Otherwise, by default all inputs are MultiArray type.     
+__image_input_names__: list of strings    
+      Name of the inputs to be defined as image type. Otherwise, by default all inputs are MultiArray type.     
 
 __preprocessing_args__: dict  
       Specify preprocessing parameters, that are be applied to all the image inputs specified through the "image_input_names" parameter. 
@@ -57,8 +57,8 @@ __preprocessing_args__: dict
 
 https://apple.github.io/coremltools/generated/coremltools.models.neural_network.html#coremltools.models.neural_network.NeuralNetworkBuilder.set_pre_processing_parameters  
 
-__image_output_names__: list of strings
-      Name of the outputs that should be defined as image type. Otherwise, by default all outputs are MultiArray type. 
+__image_output_names__: list of strings   
+      Name of the outputs to be defined as image type. Otherwise, by default all outputs are MultiArray type. 
 
 __deprocessing_args__: dict  
       Same as 'preprocessing_args' but for the outputs. 
