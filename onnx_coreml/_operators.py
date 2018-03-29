@@ -3,12 +3,12 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from typing import Sequence, Callable, List, Tuple, Optional
+from typing import Sequence, Callable, List, Tuple, Optional, Text
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from ._graph import Node
 
 
-def _compare(a, b, encoding="utf8"):
+def _compare(a, b, encoding="utf8"): #type: (Text, Text, Text) -> bool
     if isinstance(a, bytes):
         a = a.decode(encoding)
     if isinstance(b, bytes):
