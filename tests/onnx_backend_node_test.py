@@ -89,6 +89,7 @@ backend_test.exclude('test_cast_FLOAT16_to_FLOAT_cpu')
 backend_test.exclude('test_cast_FLOAT_to_FLOAT16_cpu')
 backend_test.exclude('test_depthtospace_cpu')
 backend_test.exclude('test_depthtospace_example_cpu')
+backend_test.exclude('test_PixelShuffle_cpu') #error in shape inference
 
 # Failure due to onnx
 backend_test.exclude('test_BatchNorm2d_eval_cpu')

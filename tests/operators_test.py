@@ -144,8 +144,7 @@ class SingleOperatorTest(unittest.TestCase):
                 initializer=[scale, bias, mean, var],
                 is_test=1,
                 epsilon=epsilon,
-                momentum=momentum,
-                consumed_inputs=[0, 0, 0, 1, 1]
+                momentum=momentum
             )
 
             # epsilon by default
@@ -156,8 +155,7 @@ class SingleOperatorTest(unittest.TestCase):
                 initializer=[scale, bias, mean, var],
                 is_test=1,
                 # epsilon=epsilon,
-                momentum=momentum,
-                consumed_inputs=[0, 0, 0, 1, 1]
+                momentum=momentum
             )
 
     def test_gemm(self):  # type: () -> None
