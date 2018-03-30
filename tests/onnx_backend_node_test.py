@@ -148,6 +148,8 @@ backend_test.exclude('test_operator_transpose_cpu')
 backend_test.exclude('test_slice_default_axes_cpu')
 backend_test.exclude('test_averagepool_1d_default_cpu')
 backend_test.exclude('test_maxpool_1d_default_cpu')
+backend_test.exclude('test_AvgPool1d_cpu')
+backend_test.exclude('test_AvgPool1d_stride_cpu')
 
 
 # These layers are supported. Need to fix these tests

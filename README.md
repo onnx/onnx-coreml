@@ -5,8 +5,19 @@
 This tool converts [ONNX](https://onnx.ai/) models to Apple CoreML format. To convert CoreML models to ONNX, use [ONNXMLTools](https://github.com/onnx/onnxmltools).
 
 ## Installation
+
+### Install From PyPI
+
 ```bash
 pip install -U onnx-coreml
+```
+
+### Install From Source
+
+To get the latest version of the converter, install from source by cloning the repository and running the install-develop.sh script. That is,
+```bash
+git clone --recursive https://github.com/onnx/onnx-coreml.git
+./install-develop.sh
 ```
 
 ## Dependencies

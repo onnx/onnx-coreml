@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from typing import Sequence, Callable, List, Tuple, Optional, Text
+from typing import Sequence, Callable, List, Tuple, Optional, Text, Any
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from ._graph import Node
 
@@ -21,9 +21,9 @@ def _convert_conv(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
     W = None
     if weight_name in node.input_tensors:
         W = node.input_tensors[weight_name]
-    if W is None:
+    else:
         raise ValueError(
-            "For Convoltuion layer, with input name = '%s', "
+            "For Convolution layer, with input name = '%s', "
             "output name = '%s' and weight name = '%s', Weight tensor not found in graph initializer"
             %(node.inputs[0], node.outputs[0], weight_name)
         )
@@ -85,7 +85,17 @@ def _convert_thresholdedrelu(builder, node):  # type: (NeuralNetworkBuilder, Nod
     )
 
 def _convert_reshape(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    shape = tuple(node.attrs["shape"])
+
+    shape_name = node.inputs[1]
+    shape = () # type: (Tuple[int, ...])
+    if shape_name in node.input_tensors:
+        shape = node.input_tensors[shape_name] #type: ignore
+    else:
+        raise ValueError(
+            "For Reshape layer, with input name = '%s', "
+            "output name = '%s' and shape input name = '%s', Shape tensor not found in graph initializer"
+            %(node.inputs[0], node.outputs[0], shape_name)
+        )
 
     def get_coreml_target_shape(target_shape):  # type: (Tuple[int, ...]) -> Optional[Tuple[int, ...]]
         if len(target_shape) == 1:  # (D,)
