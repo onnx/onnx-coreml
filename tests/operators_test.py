@@ -4,7 +4,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import unittest
-
+import numpy as np
 from onnx.numpy_helper import from_array
 
 from tests._test_utils import _test_single_node, \
@@ -62,6 +62,30 @@ class SingleOperatorTest(unittest.TestCase):
             kernel_shape=kernel_shape,
             strides=strides
         )
+
+    def test_lstm(self):  # type: () -> None
+        x = 4
+        h = 7
+        seq_length = 3
+        W = from_array(_random_array((1, 4*h, x)), name="gate_weights")
+        R = from_array(_random_array((1, 4*h, h)), name="recursion_weights")
+        B = from_array(_random_array((1, 8*h)), name="biases")
+        seq_lens_input = from_array(np.array([seq_length]), name='seq_lens_input')
+        initial_h = from_array(np.zeros((1, 1, h)), name='initial_h')
+        initial_c = from_array(np.zeros((1, 1, h)), name='initial_c')
+
+        input_shape = (seq_length, 1, x)
+        output_shape_all = (seq_length, 1, 1, h)
+        output_shape_last = (1, 1, h)
+
+        _test_single_node(
+            "LSTM",
+            [input_shape],
+            [output_shape_all, output_shape_last],
+            initializer=[W, R, B, seq_lens_input, initial_h, initial_c],
+            hidden_size = h
+        )
+
 
     def test_max_pool(self):  # type: () -> None
         kernel_shape = (5, 3)
