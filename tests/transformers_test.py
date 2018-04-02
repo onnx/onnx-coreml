@@ -140,18 +140,22 @@ class PixelShuffleFuserTest(unittest.TestCase):
         inputs = [('input0', input_shape)]
         outputs = [('output0', output_shape)]
 
+        shape1 = [
+            output_shape[0],
+            output_shape[1],
+            scale_factor,
+            scale_factor,
+            input_shape[2],
+            input_shape[3]
+        ]
+
+        shape1 = numpy_helper.from_array(np.asarray(shape1), name="shape1")
+        shape2 = numpy_helper.from_array(np.asarray(list(output_shape)), name="shape2")
+
         node_0 = helper.make_node(
             "Reshape",
-            inputs=[inputs[0][0]],
+            inputs=[inputs[0][0], 'shape1'],
             outputs=['node0'],
-            shape=[
-                output_shape[0],
-                output_shape[1],
-                scale_factor,
-                scale_factor,
-                input_shape[2],
-                input_shape[3]
-            ]
         )
         node_1 = helper.make_node(
             "Transpose",
@@ -161,12 +165,11 @@ class PixelShuffleFuserTest(unittest.TestCase):
         )
         node_2 = helper.make_node(
             "Reshape",
-            inputs=['node1'],
+            inputs=['node1','shape2'],
             outputs=[outputs[0][0]],
-            shape=list(output_shape)
         )
         model = _onnx_create_model(
-            [node_0, node_1, node_2], inputs, outputs
+            [node_0, node_1, node_2], inputs, outputs, initializer=[shape1, shape2]
         )
         _test_onnx_model(model, decimal=7)
 

@@ -5,8 +5,19 @@
 This tool converts [ONNX](https://onnx.ai/) models to Apple CoreML format. To convert CoreML models to ONNX, use [ONNXMLTools](https://github.com/onnx/onnxmltools).
 
 ## Installation
+
+### Install From PyPI
+
 ```bash
 pip install -U onnx-coreml
+```
+
+### Install From Source
+
+To get the latest version of the converter, install from source by cloning the repository and running the install-develop.sh script. That is,
+```bash
+git clone --recursive https://github.com/onnx/onnx-coreml.git
+./install-develop.sh
 ```
 
 ## Dependencies
@@ -47,14 +58,21 @@ __mode__: str ('classifier', 'regressor' or None)
       'classifier', a NeuralNetworkClassifier spec will be constructed.  
       'regressor', a NeuralNetworkRegressor spec will be constructed.  
 
+__image_input_names__: list of strings    
+      Name of the inputs to be defined as image type. Otherwise, by default all inputs are MultiArray type.     
+
 __preprocessing_args__: dict  
+      Specify preprocessing parameters, that are be applied to all the image inputs specified through the "image_input_names" parameter. 
       'is_bgr', 'red_bias', 'green_bias', 'blue_bias', 'gray_bias',  
       'image_scale' keys with the same meaning as  
 
 https://apple.github.io/coremltools/generated/coremltools.models.neural_network.html#coremltools.models.neural_network.NeuralNetworkBuilder.set_pre_processing_parameters  
 
+__image_output_names__: list of strings   
+      Name of the outputs to be defined as image type. Otherwise, by default all outputs are MultiArray type. 
+
 __deprocessing_args__: dict  
-      Same as 'preprocessing_args' but for deprocessing.  
+      Same as 'preprocessing_args' but for the outputs. 
 
 __class_labels__: A string or list of strings.  
       As a string it represents the name of the file which contains  
@@ -83,24 +101,49 @@ Models from https://github.com/onnx/models are supported and tested.
 ### Operators
 List of ONNX operators that can be converted into their CoreML equivalent:
 
-- Conv
-- Relu
-- Reshape
-- Transpose
-- MaxPool
-- AveragePool
-- FC
-- BatchNormalization
+- Abs
 - Add
-- Sum
-- Mul
-- LeakyRelu
+- AveragePool
+- BatchNormalization
 - Concat
+- Conv
+- DepthToSpace
+- Div
+- Elu
+- Exp
+- FC
+- Flatten
+- Gemm
 - GlobalAveragePool
 - GlobalMaxPool
-- Softmax
-- Gemm
+- HardSigmoid
+- LeakyRelu
+- Log
+- LogSoftmax
 - LRN
+- Max
+- MaxPool
+- Min
+- Mul
+- Neg
+- Pad
+- PRelu
+- Reciprocal
+- Relu
+- Reshape
+- Selu
+- Sigmoid
+- Slice
+- Softplus
+- Softsign
+- Softmax
+- SpaceToDepth
+- Split
+- Sqrt
+- Sum
+- Tanh
+- ThresholdedRelu
+- Transpose
 
 Some of operators are partially compatible because CoreML doesn't support broadcasting, gemm for arbitrary tensors, etc.
 

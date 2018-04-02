@@ -18,7 +18,9 @@ backend_test = onnx.backend.test.BackendTest(CoreMLBackend, __name__)
 backend_test.include('test_resnet50')
 backend_test.include('test_inception_v1')
 backend_test.include('test_inception_v2')
+backend_test.include('test_densenet121')
 backend_test.include('test_shufflenet')
+
 
 #getting caffe 2 error?
 backend_test.exclude('test_squeezenet')
@@ -27,9 +29,6 @@ backend_test.exclude('test_squeezenet')
 backend_test.exclude('test_vgg19')
 backend_test.exclude('test_vgg16')
 backend_test.exclude('test_bvlc_alexnet')
-
-#Fails due to too strict tolerance, skipping for now:
-backend_test.exclude('test_densenet121')
 
 globals().update(backend_test
                  .enable_report()

@@ -250,10 +250,13 @@ class ReshapeInitTensorFuser(object):
         for node in nodes:
             if node.op_type != 'Reshape':
                 continue
-            if len(node.input_tensors) != 1:
+            if len(node.input_tensors) != 2:
                 continue
-            tensor_name = list(node.input_tensors.keys())[0]
-            if tensor_name != node.inputs[0]:
+            tensor_name = node.inputs[0]
+            shape_name = node.inputs[1]
+            if tensor_name not in node.input_tensors:
+                continue
+            if shape_name not in node.input_tensors:
                 continue
             assert len(node.parents) == 0
 
@@ -261,7 +264,7 @@ class ReshapeInitTensorFuser(object):
             output_name = node.outputs[0]
 
             tensor = node.input_tensors[tensor_name]
-            shape = tuple(node.attrs["shape"])
+            shape = node.input_tensors[shape_name]
 
             # ONNX spec supports setting dimension to '0', in which case
             # it should be taken from old dimension.
@@ -270,7 +273,7 @@ class ReshapeInitTensorFuser(object):
             if any([s == 0 for s in shape]):
                 continue
 
-            reshaped_tensor = tensor.reshape(shape)
+            reshaped_tensor = tensor.reshape(shape) #type: ignore
 
             for child in node.children:
                 child.parents.remove(node)
@@ -327,8 +330,12 @@ class PixelShuffleFuser(NodesFuser):
             return False
         if nodes[2].op_type != 'Reshape':
             return False
+        if nodes[0].inputs[1] not in nodes[0].input_tensors:
+            return False
+        if nodes[2].inputs[1] not in nodes[2].input_tensors:
+            return False
 
-        shape = nodes[0].attrs['shape']
+        shape = nodes[0].input_tensors[nodes[0].inputs[1]]
         if len(shape) != 6:
             return False
         if shape[0] != 1 or shape[2] != shape[3]:
@@ -342,7 +349,7 @@ class PixelShuffleFuser(NodesFuser):
         if nodes[1].attrs.get('perm', []) != [0, 1, 4, 2, 5, 3]:
             return False
 
-        shape = nodes[2].attrs['shape']
+        shape = nodes[2].input_tensors[nodes[2].inputs[1]]
         if len(shape) != 4:
             return False
 
@@ -381,14 +388,14 @@ class PixelShuffleFuser(NodesFuser):
         transpose_1 = nodes[1]
         transpose_1.children = []
 
-        shape = reshape_1.attrs['shape']
+        shape = reshape_1.input_tensors[reshape_1.inputs[1]]
 
         channels = shape[1]
         scale = shape[2]
         height = shape[4]
         width = shape[5]
 
-        reshape_1.attrs['shape'] = [channels, scale * scale, height, width]
+        reshape_1.input_tensors[reshape_1.inputs[1]] = np.asarray([channels, scale * scale, height, width])
         transpose_1.attrs['perm'] = [0, 2, 1, 3]
 
         reshape_output_name = 'pixel_shuffle_reshape'
@@ -398,13 +405,16 @@ class PixelShuffleFuser(NodesFuser):
             self.get_unique_edge_name(graph, transpose_output_name)
         ]
 
+        shape_name_second_reshape = self.get_unique_edge_name(graph, reshape_output_name)
+        output_name_second_reshape = self.get_unique_edge_name(graph, reshape_output_name)
         reshape_2 = Node(
             reshape_output_name,
             'Reshape',
-            {'shape': [channels * height, scale, scale, width]},
-            transpose_1.outputs,
-            [self.get_unique_edge_name(graph, reshape_output_name)]
+            {},
+            [transpose_1.outputs[0], shape_name_second_reshape],
+            [output_name_second_reshape]
         )
+        reshape_2.input_tensors[shape_name_second_reshape] = np.asarray([channels * height, scale, scale, width])
         transpose_1.add_child(reshape_2)
 
         transpose_2 = Node(
@@ -417,7 +427,7 @@ class PixelShuffleFuser(NodesFuser):
         reshape_2.add_child(transpose_2)
 
         final_reshape = nodes[2]
-        final_reshape.inputs = transpose_2.outputs
+        final_reshape.inputs = [transpose_2.outputs[0], nodes[2].inputs[1]]
         final_reshape.parents = []
         transpose_2.add_child(final_reshape)
         return [reshape_1, transpose_1, reshape_2, transpose_2, final_reshape]

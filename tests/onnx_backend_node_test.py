@@ -69,6 +69,38 @@ class CoreMLTestingBackend(CoreMLBackend):
 backend_test = onnx.backend.test.BackendTest(CoreMLTestingBackend, __name__)
 
 
+# Failing due to tolerance (in particular due to the way outputs are compared)
+backend_test.exclude('test_log_example_cpu')
+
+# These are failing due to some error in Caffe2 backend
+backend_test.exclude('test_hardsigmoid_cpu')
+backend_test.exclude('test_hardsigmoid_default_cpu')
+backend_test.exclude('test_hardsigmoid_example_cpu')
+backend_test.exclude('test_mean_example_cpu')
+backend_test.exclude('test_mean_one_input_cpu')
+backend_test.exclude('test_mean_two_inputs_cpu')
+backend_test.exclude('test_pow_bcast_axis0_cpu')
+backend_test.exclude('test_pow_bcast_cpu')
+backend_test.exclude('test_pow_cpu')
+backend_test.exclude('test_pow_example_cpu')
+backend_test.exclude('test_cast_DOUBLE_to_FLOAT16_cpu')
+backend_test.exclude('test_cast_FLOAT16_to_DOUBLE_cpu')
+backend_test.exclude('test_cast_FLOAT16_to_FLOAT_cpu')
+backend_test.exclude('test_cast_FLOAT_to_FLOAT16_cpu')
+backend_test.exclude('test_depthtospace_cpu')
+backend_test.exclude('test_depthtospace_example_cpu')
+backend_test.exclude('test_PixelShuffle_cpu') #error in shape inference
+
+# Failure due to onnx
+backend_test.exclude('test_BatchNorm2d_eval_cpu')
+backend_test.exclude('test_BatchNorm2d_momentum_eval_cpu')
+backend_test.exclude('test_reshape_extended_dims_cpu')
+backend_test.exclude('test_reshape_negative_dim_cpu')
+backend_test.exclude('test_reshape_one_dim_cpu')
+backend_test.exclude('test_reshape_reduced_dims_cpu')
+backend_test.exclude('test_reshape_reordered_dims_cpu')
+
+
 # some of these are fixable once input/output shape info is available to the converter.
 # The ones that are not fixed after that should be categorized under "Supported ops, but Unsupported parameters by CoreML"
 backend_test.exclude('test_add_bcast_cpu')
@@ -114,6 +146,11 @@ backend_test.exclude('test_operator_chunk_cpu')
 backend_test.exclude('test_operator_permute2_cpu')
 backend_test.exclude('test_operator_transpose_cpu')
 backend_test.exclude('test_slice_default_axes_cpu')
+backend_test.exclude('test_averagepool_1d_default_cpu')
+backend_test.exclude('test_maxpool_1d_default_cpu')
+backend_test.exclude('test_AvgPool1d_cpu')
+backend_test.exclude('test_AvgPool1d_stride_cpu')
+
 
 # These layers are supported. Need to fix these tests
 backend_test.exclude('test_Softsign_cpu')
@@ -160,6 +197,8 @@ backend_test.exclude('test_PReLU_3d_multiparam_cpu')
 backend_test.exclude('test_AvgPool3d_stride1_pad0_gpu_input_cpu')
 backend_test.exclude('test_BatchNorm3d_momentum_eval_cpu')
 backend_test.exclude('test_BatchNorm1d_3d_input_eval_cpu')
+backend_test.exclude('test_averagepool_3d_default_cpu')
+backend_test.exclude('test_maxpool_3d_default_cpu')
 
 # Supported ops, but Unsupported parameters by CoreML
 backend_test.exclude('test_thresholdedrelu_example_cpu')
@@ -171,25 +210,6 @@ backend_test.exclude('test_basic_conv_without_padding_cpu')
 backend_test.exclude('test_conv_with_strides_and_asymmetric_padding_cpu')
 backend_test.exclude('test_conv_with_strides_no_padding_cpu')
 backend_test.exclude('test_conv_with_strides_padding_cpu')
-
-# Failing due to tolerance (in particular due to the way outputs are compared)
-backend_test.exclude('test_log_example_cpu')
-
-# These are failing due to some error in Caffe2 backend
-backend_test.exclude('test_hardsigmoid_cpu')
-backend_test.exclude('test_hardsigmoid_default_cpu')
-backend_test.exclude('test_hardsigmoid_example_cpu')
-backend_test.exclude('test_mean_example_cpu')
-backend_test.exclude('test_mean_one_input_cpu')
-backend_test.exclude('test_mean_two_inputs_cpu')
-backend_test.exclude('test_pow_bcast_axis0_cpu')
-backend_test.exclude('test_pow_bcast_cpu')
-backend_test.exclude('test_pow_cpu')
-backend_test.exclude('test_pow_example_cpu')
-backend_test.exclude('test_cast_DOUBLE_to_FLOAT16_cpu')
-backend_test.exclude('test_cast_FLOAT16_to_DOUBLE_cpu')
-backend_test.exclude('test_cast_FLOAT16_to_FLOAT_cpu')
-backend_test.exclude('test_cast_FLOAT_to_FLOAT16_cpu')
 
 # These fail due to "TypeError: Input must be of of type TensorProto.FLOAT" or
 # "TypeError: Output must be of of type TensorProto.FLOAT"

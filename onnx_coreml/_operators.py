@@ -3,9 +3,17 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from typing import Sequence, Callable, List, Tuple, Optional
+from typing import Sequence, Callable, List, Tuple, Optional, Text, Any
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from ._graph import Node
+
+
+def _compare(a, b, encoding="utf8"): #type: (Text, Text, Text) -> bool
+    if isinstance(a, bytes):
+        a = a.decode(encoding)
+    if isinstance(b, bytes):
+        b = b.decode(encoding)
+    return a == b
 
 def _convert_conv(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
     #get weights for convolution
@@ -13,9 +21,9 @@ def _convert_conv(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
     W = None
     if weight_name in node.input_tensors:
         W = node.input_tensors[weight_name]
-    if W is None:
+    else:
         raise ValueError(
-            "For Convoltuion layer, with input name = '%s', "
+            "For Convolution layer, with input name = '%s', "
             "output name = '%s' and weight name = '%s', Weight tensor not found in graph initializer"
             %(node.inputs[0], node.outputs[0], weight_name)
         )
@@ -67,9 +75,7 @@ def _convert_relu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     )
 
 def _convert_thresholdedrelu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    alpha = 1.0
-    if 'alpha' in node.attrs:
-        alpha = node.attrs['alpha']
+    alpha = node.attrs.get('alpha', 1.0)
     builder.add_activation(
         name=node.name,
         non_linearity='THRESHOLDEDRELU',
@@ -79,7 +85,17 @@ def _convert_thresholdedrelu(builder, node):  # type: (NeuralNetworkBuilder, Nod
     )
 
 def _convert_reshape(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    shape = tuple(node.attrs["shape"])
+
+    shape_name = node.inputs[1]
+    shape = () # type: (Tuple[int, ...])
+    if shape_name in node.input_tensors:
+        shape = node.input_tensors[shape_name] #type: ignore
+    else:
+        raise ValueError(
+            "For Reshape layer, with input name = '%s', "
+            "output name = '%s' and shape input name = '%s', Shape tensor not found in graph initializer"
+            %(node.inputs[0], node.outputs[0], shape_name)
+        )
 
     def get_coreml_target_shape(target_shape):  # type: (Tuple[int, ...]) -> Optional[Tuple[int, ...]]
         if len(target_shape) == 1:  # (D,)
@@ -142,13 +158,6 @@ def _convert_pool(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     if node.op_type.startswith('Global'):
         is_global = True
 
-    if "dilations" in node.attrs:
-        dilations = node.attrs["dilations"]
-        if not all([d == 1 for d in dilations]):
-            raise ValueError(
-                "Only [1, 1] dilations are supported now"
-            )
-
     if node.op_type.endswith("MaxPool"):
         layer_type = "MAX"
     elif node.op_type.endswith("AveragePool"):
@@ -158,7 +167,10 @@ def _convert_pool(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
             "Unsupported pool type {}".format(node.op_type,)
         )
 
-    pad_t, pad_l, pad_b, pad_r = 0, 0, 0, 0
+    pad_b, pad_l, pad_r, pad_t = 0, 0, 0, 0
+    stride_height, stride_width = 1, 1
+    padding_type = 'VALID'
+    same_padding_asymmetry_mode = 'BOTTOM_RIGHT_HEAVY'
 
     if is_global:
         height, width = 0, 0
@@ -168,16 +180,21 @@ def _convert_pool(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
         height = kernel_shape[0]
         width = kernel_shape[1]
 
-        if "pads" in node.attrs:
-            pads = node.attrs["pads"]
-            pad_t = pads[0]
-            pad_l = pads[1]
-            pad_b = pads[2]
-            pad_r = pads[3]
+        pads = node.attrs.get('pads', [0,0,0,0])
+        pad_t = pads[0]
+        pad_l = pads[1]
+        pad_b = pads[2]
+        pad_r = pads[3]
 
-        strides = node.attrs["strides"]
+        strides = node.attrs.get('strides', [1,1])
         stride_height = strides[0]
         stride_width = strides[1]
+
+        if "auto_pad" in node.attrs and \
+            not _compare(node.attrs["auto_pad"], 'VALID'):
+            padding_type = 'SAME'
+            if _compare(node.attrs["auto_pad"], 'SAME_LOWER'):
+                same_padding_asymmetry_mode = 'TOP_LEFT_HEAVY'
 
     builder.add_pooling(
         name=node.name,
@@ -186,7 +203,7 @@ def _convert_pool(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
         stride_height=stride_height,
         stride_width=stride_width,
         layer_type=layer_type,
-        padding_type='VALID',
+        padding_type=padding_type,
         exclude_pad_area=True,
         is_global=is_global,
         input_name=node.inputs[0],
@@ -194,7 +211,8 @@ def _convert_pool(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
         padding_top=pad_t,
         padding_bottom=pad_b,
         padding_left=pad_l,
-        padding_right=pad_r
+        padding_right=pad_r,
+        same_padding_asymmetry_mode = same_padding_asymmetry_mode
     )
 
 
@@ -280,10 +298,7 @@ def _convert_div(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     )
 
 def _convert_leaky_relu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    if 'alpha' in node.attrs:
-        alpha = node.attrs['alpha']
-    else:
-        alpha = .01
+    alpha = node.attrs.get('alpha', 0.01)
     builder.add_activation(
         name=node.name,
         non_linearity='LEAKYRELU',
@@ -313,12 +328,10 @@ def _convert_concat(builder, node):  # type: (NeuralNetworkBuilder, Node) -> Non
     )
 
 def _convert_softmax(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    if "axis" in node.attrs:
-        axis = node.attrs["axis"]
-        if axis != 1:
-            raise ValueError(
-                "Unsupported axis {} for softmax".format(axis,)
-            )
+    axis = node.attrs.get('axis', 1)
+    if axis != 1:
+        raise ValueError("Unsupported axis {} for softmax".format(axis,))
+
     builder.add_softmax(
         name=node.name,
         input_name=node.inputs[0],
@@ -386,10 +399,7 @@ def _convert_sigmoid(builder, node):  # type: (NeuralNetworkBuilder, Node) -> No
 
 
 def _convert_elu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    if 'alpha' in node.attrs:
-        alpha = node.attrs['alpha']
-    else:
-        alpha = 1.0
+    alpha = node.attrs.get('alpha', 1.0)
     builder.add_activation(
         name=node.name,
         non_linearity='ELU',
@@ -399,12 +409,8 @@ def _convert_elu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     )
 
 def _convert_selu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    alpha = 1.6732
-    gamma = 1.0507
-    if 'alpha' in node.attrs:
-        alpha = node.attrs['alpha']
-    if 'gamma' in node.attrs:
-        gamma = node.attrs['gamma']
+    alpha = node.attrs.get('alpha', 1.6732)
+    gamma = node.attrs.get('gamma', 1.0507)
     builder.add_activation(
         name=node.name + '_elu', #type: ignore
         non_linearity='ELU',
@@ -582,12 +588,8 @@ def _convert_softplus(builder, node):  # type: (NeuralNetworkBuilder, Node) -> N
     )
 
 def _convert_hardsigmoid(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    alpha = 0.2
-    beta = 0.5
-    if 'alpha' in node.attrs:
-        alpha = node.attrs['alpha']
-    if 'beta' in node.attrs:
-        alpha = node.attrs['beta']
+    alpha = node.attrs.get('alpha', 0.2)
+    beta = node.attrs.get('beta', 0.5)
     builder.add_activation(
         name=node.name,
         input_name=node.inputs[0],
@@ -597,9 +599,7 @@ def _convert_hardsigmoid(builder, node):  # type: (NeuralNetworkBuilder, Node) -
     )
 
 def _convert_logsoftmax(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    axis = 1
-    if axis in node.attrs:
-        axis = node.attrs['axis']
+    axis = node.attrs.get('axis', 1)
     if axis != 1:
             raise ValueError(
                 "Unsupported axis {} for logsoftmax".format(axis,)
@@ -664,6 +664,18 @@ def _convert_reciprocal(builder, node):  # type: (NeuralNetworkBuilder, Node) ->
         mode='inverse'
     )
 
+def _convert_reorganize_data(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
+    mode = 'SPACE_TO_DEPTH'
+    if node.op_type == 'DepthToSpace':
+        mode = 'DEPTH_TO_SPACE'
+    block_size = node.attrs.get('blocksize', 2)
+    builder.add_reorganize_data(name = node.name,
+         input_name = node.inputs[0],
+         output_name = node.outputs[0],
+         mode=mode,
+         block_size=block_size
+    )
+
 
 _ONNX_NODE_REGISTRY = {
     "Conv": _convert_conv,
@@ -708,6 +720,8 @@ _ONNX_NODE_REGISTRY = {
     "Selu": _convert_selu,
     "Sqrt": _convert_sqrt,
     "ThresholdedRelu": _convert_thresholdedrelu,
+    "DepthToSpace": _convert_reorganize_data,
+    "SpaceToDepth": _convert_reorganize_data,
 }
 
 
