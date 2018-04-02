@@ -60,7 +60,8 @@ class SingleOperatorTest(unittest.TestCase):
             [input_shape],
             [output_shape],
             initializer=[weight],
-            # Default values for other attributes: strides=[1, 1], dilations=[1, 1], group=1
+            # Default values for other attributes: dilations=[1, 1], group=1
+            strides = strides,
             kernel_shape=kernel_shape,
             pads=pads,
             output_padding=(0, 0)
