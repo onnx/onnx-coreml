@@ -70,7 +70,7 @@ class NodesFuser(object):
                     added_merged.append(merged[0])
             else:
                 transformed_nodes.append(node)
-        return Graph(transformed_nodes, graph.inputs, graph.outputs)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
 
     def is_eligible(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> bool
         '''Returns true if this subset of nodes is eligible for fusion.'''
@@ -280,7 +280,7 @@ class ReshapeInitTensorFuser(object):
                 child.input_tensors[output_name] = reshaped_tensor
 
         transformed_nodes = [node for node in nodes if node not in removed]
-        return Graph(transformed_nodes, graph.inputs, graph.outputs)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
 
 
 class OutputRenamer(object):

@@ -26,7 +26,7 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
 inputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_input_features(inputs): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_input_features(inputs, op_types): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
     for input_ in inputs:
         if input_[1] != TensorProto.FLOAT:
@@ -40,7 +40,11 @@ def _make_coreml_input_features(inputs): # type: (...) -> Sequence[Tuple[Text, d
             # assume [H,W], so map to [1,H,W]
             shape = [1,shape[0],shape[1]]
         elif len(shape) == 3:
-            pass #[C,H,W]
+            if input_[0] in op_types and \
+                len(op_types[input_[0]]) == 1 and \
+                str(op_types[input_[0]][0]) == 'LSTM':
+                # onnx shape: (Seq,B,C)
+                shape = [shape[2]]
         elif len(shape) == 4:  # (B,C,H,W) --> (C,H,W)
             shape = shape[1:]
         else:
@@ -52,7 +56,7 @@ def _make_coreml_input_features(inputs): # type: (...) -> Sequence[Tuple[Text, d
 outputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_output_features(outputs):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_output_features(outputs, op_types):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
     for output_ in outputs:
         if output_[1] != TensorProto.FLOAT:
@@ -63,7 +67,10 @@ def _make_coreml_output_features(outputs):  # type: (...) -> Sequence[Tuple[Text
         elif len(shape) == 1:
             pass
         elif len(shape) == 3:
-            pass
+            if output_[0] in op_types and \
+                str(op_types[output_[0]]) == 'LSTM':
+                # onnx shape: (Seq,B,C)
+                shape = [shape[2]]
         else:
             shape = None #output shape need not be specified for CoreML.
         if shape is None:
@@ -233,8 +240,8 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     #Make CoreML input and output features by gathering shape info and
     #interpreting it for CoreML
-    input_features = _make_coreml_input_features(graph.inputs)
-    output_features = _make_coreml_output_features(graph.outputs)
+    input_features = _make_coreml_input_features(graph.inputs, graph.blob_to_op_type)
+    output_features = _make_coreml_output_features(graph.outputs, graph.blob_from_op_type)
 
     is_deprocess_bgr_only = (len(deprocessing_args) == 1) and \
                             ("is_bgr" in deprocessing_args)

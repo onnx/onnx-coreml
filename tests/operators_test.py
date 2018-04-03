@@ -67,12 +67,12 @@ class SingleOperatorTest(unittest.TestCase):
         x = 4
         h = 7
         seq_length = 3
-        W = from_array(_random_array((1, 4*h, x)), name="gate_weights")
-        R = from_array(_random_array((1, 4*h, h)), name="recursion_weights")
-        B = from_array(_random_array((1, 8*h)), name="biases")
-        seq_lens_input = from_array(np.array([seq_length]), name='seq_lens_input')
-        initial_h = from_array(np.zeros((1, 1, h)), name='initial_h')
-        initial_c = from_array(np.zeros((1, 1, h)), name='initial_c')
+        W = from_array(_random_array((4*h, x)), name="gate_weights")
+        R = from_array(_random_array((4*h, h)), name="recursion_weights")
+        B = from_array(_random_array((8*h)), name="biases")
+        seq_lens_input = from_array(np.array([seq_length]).astype(np.int32), name='seq_lens_input')
+        initial_h = from_array(np.zeros((1, 1, h)).astype(np.float32), name='initial_h')
+        initial_c = from_array(np.zeros((1, 1, h)).astype(np.float32), name='initial_c')
 
         input_shape = (seq_length, 1, x)
         output_shape_all = (seq_length, 1, 1, h)
