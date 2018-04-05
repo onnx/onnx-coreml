@@ -121,7 +121,7 @@ class Graph(object):
         # data blob name to the list of op types it feeds into
         self.blob_to_op_type = {} # type: Dict[Text, List[Text]]
         # data blob name to the op_type that generates it
-        self.blob_from_op_type = {}  # type: Dict[Text,Text]
+        self.blob_from_op_type = {}  # type: Dict[Text, Text]
 
         for node_ in nodes:
             for input_ in node_.inputs:

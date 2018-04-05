@@ -319,7 +319,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             predicted_feature_name=predicted_feature_name
         )
 
-    # add information in the meta data of inputs/outputs that go in or come out of recurrent layers
+    # add description to inputs/outputs that feed in/out of recurrent layers
     for node_ in graph.nodes:
         if str(node_.op_type) == 'LSTM':
             input_ = node_.inputs[0]
