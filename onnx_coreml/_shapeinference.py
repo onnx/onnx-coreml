@@ -10,9 +10,9 @@ from caffe2.python.onnx import backend
 def infer_shapes_and_types(graph):  # type: (GraphProto) -> None
     model = helper.make_model(graph)
     c2_backend = _load_model(model)
-    with c2_backend.workspace:
-        inference_result = _infer(c2_backend)
-        _add_shapes_and_types_to_graph(graph, inference_result)
+    #TODO Gate the following two lines with "with c2_backend.workspace:" once fixed
+    inference_result = _infer(c2_backend)
+    _add_shapes_and_types_to_graph(graph, inference_result)
 
 
 def _load_model(onnx_model):  # type: (ModelProto) -> Caffe2Rep
@@ -28,7 +28,8 @@ _InferenceResult = NamedTuple('InferenceResult', [
 def _infer(c2_backend):  # type: (Caffe2Rep) -> Dict[Text, _InferenceResult]
     c2_backend.workspace.CreateNet(c2_backend.init_net)
     c2_backend.workspace.CreateNet(c2_backend.predict_net)
-    (shapes, types) = c2_backend.workspace.InferShapesAndTypes([
+    #TODO Use c2_backend.workspace.InferShapesAndTypes once fixed
+    (shapes, types) = caffe2.python.workspace.InferShapesAndTypes([
         caffe2.python.core.Net(c2_backend.init_net),
         caffe2.python.core.Net(c2_backend.predict_net),
         ])
