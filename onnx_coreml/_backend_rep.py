@@ -8,12 +8,13 @@ from typing import Any, Sequence, List
 from onnx.backend.base import BackendRep, namedtupledict
 from coremltools.models import MLModel  #type: ignore
 from typing import Dict, Any, Text, Tuple
-
+from onnx import TensorProto
+from ._graph import EdgeInfo
 
 class CoreMLRep(BackendRep):
     def __init__(self,
                  coreml_model,  # type: MLModel
-                 onnx_outputs,  # type: Dict[Text, Tuple[int,...]]
+                 onnx_outputs_info,  # type: Dict[Text, EdgeInfo]
                  useCPUOnly=False,  # type: bool
                  ):
         # type: (...) -> None
@@ -24,7 +25,7 @@ class CoreMLRep(BackendRep):
         spec = coreml_model.get_spec()
         self.input_names = [str(i.name) for i in spec.description.input]
         self.output_names = [str(o.name) for o in spec.description.output]
-        self.onnx_outputs = onnx_outputs #{str:Tuple}, i.e. {name:shape}
+        self.onnx_outputs_info = onnx_outputs_info  # type: Dict[Text, EdgeInfo]
 
     def run(self,
             inputs,  # type: Any
@@ -48,7 +49,9 @@ class CoreMLRep(BackendRep):
             shape = output_.shape
             #reshape the CoreML output to match Onnx's in shape
             try:
-                output_values[i] = np.reshape(output_, self.onnx_outputs[self.output_names[i]]) #type: ignore
+                output_values[i] = np.reshape(output_, self.onnx_outputs_info[self.output_names[i]][2])  # type: ignore
+                if self.onnx_outputs_info[self.output_names[i]][1] == TensorProto.FLOAT:
+                    output_values[i] = output_values[i].astype(np.float32)
             except RuntimeError:
                 print("Output '%s' shape incompatible between CoreML (%s) and onnx (%s)"
                       %(self.output_names[i], output_.shape,

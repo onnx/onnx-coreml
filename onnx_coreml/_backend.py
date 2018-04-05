@@ -9,13 +9,13 @@ from onnx.backend.base import Backend
 from onnx_coreml._backend_rep import CoreMLRep
 from onnx_coreml import convert
 import onnx
-from ._graph import _input_from_onnx_input
+from ._graph import _input_from_onnx_input, EdgeInfo
 
 
-def _get_onnx_outputs(model): # type: (...) -> Dict[Text, Tuple[int,...]]
+def _get_onnx_outputs_info(model): # type: (...) -> Dict[Text, EdgeInfo]
     """
     Takes in an onnx model and returns a dictionary 
-    of onnx output names mapped to shape tuples
+    of onnx output names mapped to a tuple that is (output_name, type, shape)
     """
     if isinstance(model, str):
         onnx_model = onnx.load(model)
@@ -26,7 +26,7 @@ def _get_onnx_outputs(model): # type: (...) -> Dict[Text, Tuple[int,...]]
     onnx_output_dict = {}
     for o in graph.output:
         out = _input_from_onnx_input(o)
-        onnx_output_dict[out[0]] = out[2]
+        onnx_output_dict[out[0]] = out
     return onnx_output_dict
 
 
@@ -40,8 +40,8 @@ class CoreMLBackend(Backend):
         # type: (...) -> CoreMLRep
         super(CoreMLBackend, cls).prepare(model, device, **kwargs)
         coreml_model = convert(model)
-        onnx_outputs = _get_onnx_outputs(model)
-        return CoreMLRep(coreml_model, onnx_outputs, device == 'CPU')
+        onnx_outputs_info = _get_onnx_outputs_info(model)
+        return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU')
 
     @classmethod
     def supports_device(cls,
