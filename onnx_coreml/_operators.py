@@ -3,6 +3,8 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import numpy as np
+
 from typing import Sequence, Callable, List, Tuple, Optional, Text, Any
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from ._graph import Node
@@ -71,7 +73,6 @@ def _convert_conv(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
         padding_left=pads[1],
         padding_right=pads[3]
     )
-
 
 def _convert_relu(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_activation(
@@ -683,6 +684,50 @@ def _convert_reorganize_data(builder, node): # type: (NeuralNetworkBuilder, Node
          block_size=block_size
     )
 
+def _convert_lstm(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
+    W_name = node.inputs[1]
+    R_name = node.inputs[2]
+    B = None
+    if len(node.inputs) > 3:
+        B_name = node.inputs[3]
+        B = node.input_tensors.get(B_name, None)
+    W = node.input_tensors.get(W_name, None)
+    R = node.input_tensors.get(R_name, None)
+    if W is None or R is None:
+        raise ValueError("Matrix parameters for LSTM layer not found in weight initializer.")
+
+    h = node.attrs["hidden_size"]
+    W_i, W_o, W_f, W_c = np.split(W, 4)  #type: ignore
+    R_i, R_o, R_f, R_c = np.split(R, 4)  #type: ignore
+    x = W_i.shape[1]
+    W_x = [W_i, W_f, W_o, W_c]
+    W_h = [R_i, R_f, R_o, R_c]
+    b = None
+    if B is not None:
+        b_Wi, b_Wo, b_Wf, b_Wc, b_Ri, b_Ro, b_Rf, b_Rc = np.split(B, 8)  #type: ignore
+        b = [b_Wi + b_Ri, b_Wf + b_Rf, b_Wo + b_Ro, b_Wc + b_Rc]
+
+    input_h = node.inputs[5] if len(node.inputs) > 5 else node.inputs[0] + '_h_input'
+    input_c = node.inputs[6] if len(node.inputs) > 6 else node.inputs[0] + '_c_input'
+    output_h = node.outputs[1] if len(node.outputs) > 1 else node.outputs[0] + '_h_output'
+    output_c = node.outputs[2] if len(node.outputs) > 2 else node.outputs[0] + '_c_output'
+
+    builder.add_unilstm(name = node.name,
+                    W_h = W_h,
+                    W_x = W_x,
+                    b = b,
+                    hidden_size = h,
+                    input_size = x,
+                    input_names= [node.inputs[0], input_h, input_c],
+                    output_names= [node.outputs[0], output_h, output_c],
+                    inner_activation='SIGMOID',
+                    cell_state_update_activation='TANH',
+                    output_activation='TANH',
+                    peep=None,
+                    output_all=True,
+                    forget_bias=False, coupled_input_forget_gate=False,
+                    cell_clip_threshold=50000.0, reverse_input=False)
+
 
 _ONNX_NODE_REGISTRY = {
     "Conv": _convert_conv,
@@ -730,6 +775,7 @@ _ONNX_NODE_REGISTRY = {
     "ThresholdedRelu": _convert_thresholdedrelu,
     "DepthToSpace": _convert_reorganize_data,
     "SpaceToDepth": _convert_reorganize_data,
+    "LSTM": _convert_lstm,
 }
 
 
