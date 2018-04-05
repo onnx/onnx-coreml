@@ -28,7 +28,14 @@ def _convert_conv(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
             %(node.inputs[0], node.outputs[0], weight_name)
         )
 
-    W = W.transpose((2, 3, 1, 0))
+    is_deconv = False
+    if node.op_type.endswith("Transpose"):
+        is_deconv = True
+
+    if not is_deconv:
+        W = W.transpose((2, 3, 1, 0))
+    else:
+        W = W.transpose((2, 3, 0, 1))
     b = None
     if len(node.inputs) > 2:
         b = node.input_tensors[node.inputs[2]]
@@ -54,7 +61,7 @@ def _convert_conv(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
         W=W,
         b=b,
         has_bias=b is not None,
-        is_deconv=False,
+        is_deconv=is_deconv,
         output_shape=None,
         input_name=node.inputs[0],
         output_name=node.outputs[0],
@@ -679,6 +686,7 @@ def _convert_reorganize_data(builder, node): # type: (NeuralNetworkBuilder, Node
 
 _ONNX_NODE_REGISTRY = {
     "Conv": _convert_conv,
+    "ConvTranspose": _convert_conv,
     "Relu": _convert_relu,
     "Reshape": _convert_reshape,
     "Transpose": _convert_transpose,

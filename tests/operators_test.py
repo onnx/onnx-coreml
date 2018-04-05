@@ -39,6 +39,34 @@ class SingleOperatorTest(unittest.TestCase):
             strides=strides
         )
 
+    def test_conv_transpose(self):  # type: () -> None
+        kernel_shape = (3, 3)
+        pads = (0, 0, 0, 0)
+        C_in  = 3
+        C_out = 12
+        H_in, W_in = 30, 30
+        strides = (2, 2)
+
+        input_shape = (1, C_in, H_in, W_in)
+        weight = from_array(_random_array((C_in, C_out, kernel_shape[0], kernel_shape[1])),
+                            name="weight")
+
+        H_out = (H_in-1) * strides[0] + kernel_shape[0] - pads[0] - pads[2]
+        W_out = (W_in-1) * strides[1] + kernel_shape[1] - pads[1] - pads[3]
+        output_shape = (1, C_out, H_out, W_out)
+
+        _test_single_node(
+            "ConvTranspose",
+            [input_shape],
+            [output_shape],
+            initializer=[weight],
+            # Default values for other attributes: dilations=[1, 1], group=1
+            strides = strides,
+            kernel_shape=kernel_shape,
+            pads=pads,
+            output_padding=(0, 0)
+        )
+
     def test_conv_without_pads(self):  # type: () -> None
         kernel_shape = (3, 2)
         strides = (2, 3)
