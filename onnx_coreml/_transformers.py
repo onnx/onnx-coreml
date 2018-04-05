@@ -6,6 +6,8 @@ from __future__ import unicode_literals
 from typing import Sequence, Text, Dict, List
 import numpy as np
 
+from onnx import TensorProto
+
 from ._graph import Graph, Node
 
 
@@ -431,3 +433,29 @@ class PixelShuffleFuser(NodesFuser):
         final_reshape.parents = []
         transpose_2.add_child(final_reshape)
         return [reshape_1, transpose_1, reshape_2, transpose_2, final_reshape]
+
+
+class AddModelInputsOutputs(object):
+    '''
+    Expose hidden states of recurrent layers as model inputs and outputs
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        input_names = [str(input_[0]) for input_ in graph.inputs]
+        output_names = [str(output_[0]) for output_ in graph.outputs]
+        for node in graph.nodes:
+            if str(node.op_type) == 'LSTM':
+                input_h = node.inputs[5] if len(node.inputs) > 5 else node.inputs[0] + '_h_input'
+                input_c = node.inputs[6] if len(node.inputs) > 6 else node.inputs[0] + '_c_input'
+                output_h = node.outputs[1] if len(node.outputs) > 1 else node.outputs[0] + '_h_output'
+                output_c = node.outputs[2] if len(node.outputs) > 2 else node.outputs[0] + '_c_output'
+                h = node.attrs["hidden_size"]
+                for input_ in [str(input_h), str(input_c)]:
+                    if input_ not in input_names:
+                        graph.inputs.append(tuple((input_, TensorProto.FLOAT, (h,))))  #type: ignore
+                    if input_ not in graph.blob_to_op_type:
+                        graph.blob_to_op_type[input_] = ['LSTM']
+                for output_ in [str(output_h), str(output_c)]:
+                    if output_ not in output_names:
+                        graph.outputs.append(tuple((output_, TensorProto.FLOAT, (h,))))  #type: ignore
+                    graph.blob_from_op_type[output_] = 'LSTM'
+        return graph

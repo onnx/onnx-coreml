@@ -20,7 +20,7 @@ from ._operators import _convert_node
 from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
-    PixelShuffleFuser, OutputRenamer
+    PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs
 
 '''
 inputs: list of tuples.
@@ -234,6 +234,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         BNBroadcastedMulFuser(),
         BNBroadcastedAddFuser(),
         PixelShuffleFuser(),
+        AddModelInputsOutputs(),
     ]  # type: Iterable[Transformer]
 
     graph = _prepare_onnx_graph(onnx_model.graph, transformers)
@@ -317,5 +318,17 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             class_labels=labels,
             predicted_feature_name=predicted_feature_name
         )
+
+    # add information in the meta data of inputs/outputs that go in or come out of recurrent layers
+    for node_ in graph.nodes:
+        if str(node_.op_type) == 'LSTM':
+            input_ = node_.inputs[0]
+            output_ = node_.outputs[0]
+            for i, inputs in enumerate(builder.spec.description.input):
+                if inputs.name == input_:
+                    builder.spec.description.input[i].shortDescription = 'This input is a sequence'
+            for i, outputs in enumerate(builder.spec.description.output):
+                if outputs.name == output_:
+                    builder.spec.description.output[i].shortDescription = 'This output is a sequence'
 
     return MLModel(builder.spec)
