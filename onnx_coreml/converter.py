@@ -79,6 +79,46 @@ def _make_coreml_output_features(outputs, op_types):  # type: (...) -> Sequence[
             features.append((str(output_[0]), datatypes.Array(*shape)))
     return features
 
+
+def _update_multiarray_to_float32(feature): # type : ignore
+  if feature.type.HasField('multiArrayType'):
+    feature.type.multiArrayType.dataType = ft.ArrayFeatureType.FLOAT32
+
+def _update_multiarray_to_int32(feature): # type : ignore
+  if feature.type.HasField('multiArrayType'):
+    feature.type.multiArrayType.dataType = ft.ArrayFeatureType.INT32
+
+
+def _transform_coreml_dtypes(builder, # type : NeuralNetworkBuilder
+                             inputs, # type: List[EdgeInfo]
+                             outputs # type: List[EdgeInfo]
+                             ):
+    # type: (...) -> None
+
+    ''' Make sure ONNX input/output data types are mapped to the equivalent CoreML types 
+    '''
+    for i, input_ in enumerate(inputs):
+        onnx_type = input_[1]
+        if onnx_type == TensorProto.FLOAT:
+            _update_multiarray_to_float32(builder.spec.description.input[i])
+        elif onnx_type == TensorProto.DOUBLE:
+            continue
+        elif onnx_type == TensorProto.INT32 or onnx_type == TensorProto.INT64:
+            _update_multiarray_to_int32(builder.spec.description.input[i])
+        else:
+            raise TypeError("Input must be of of type FLOAT, DOUBLE, INT32 or INT64")
+
+    for i, output_ in enumerate(outputs):
+        onnx_type = output_[1]
+        if onnx_type == TensorProto.FLOAT:
+            _update_multiarray_to_float32(builder.spec.description.output[i])
+        elif onnx_type == TensorProto.DOUBLE:
+            continue
+        elif onnx_type == TensorProto.INT32 or onnx_type == TensorProto.INT64:
+            _update_multiarray_to_int32(builder.spec.description.output[i])
+        else:
+            raise TypeError("Output must be of of type FLOAT, DOUBLE, INT32 or INT64")
+
 def _convert_multiarray_output_to_image(spec,  # type: Any
                                         feature_name,  # type: Text
                                         is_bgr=False,  # type: bool
@@ -244,6 +284,9 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     input_features = _make_coreml_input_features(graph.inputs, graph.blob_to_op_type)
     output_features = _make_coreml_output_features(graph.outputs, graph.blob_from_op_type)
 
+    builder = NeuralNetworkBuilder(input_features, output_features)
+    _transform_coreml_dtypes(builder, graph.inputs, graph.outputs)
+
     is_deprocess_bgr_only = (len(deprocessing_args) == 1) and \
                             ("is_bgr" in deprocessing_args)
     add_deprocess = (len(image_output_names) > 0) and \
@@ -257,7 +300,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             mapping[output_name] = graph.get_unique_edge_name(output_name)
         graph = OutputRenamer(mapping)(graph)
 
-    builder = NeuralNetworkBuilder(input_features, output_features, mode)
+
 
     if len(image_input_names) > 0:
         builder.set_pre_processing_parameters(

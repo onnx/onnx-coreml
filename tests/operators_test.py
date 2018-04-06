@@ -263,5 +263,12 @@ class SingleOperatorTest(unittest.TestCase):
         _assert_outputs(caffe2_out_last.flatten(), coreml_out_last.flatten(), decimal=5)
 
 
+# class MultiOperatorTest(unittest.TestCase):
+#
+#     def test_embedding_lstm_gemm(self): # type: () -> None
+
+
+
+
 if __name__ == '__main__':
     unittest.main()

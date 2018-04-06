@@ -50,8 +50,6 @@ class CoreMLRep(BackendRep):
             #reshape the CoreML output to match Onnx's in shape
             try:
                 output_values[i] = np.reshape(output_, self.onnx_outputs_info[self.output_names[i]][2])  # type: ignore
-                if self.onnx_outputs_info[self.output_names[i]][1] == TensorProto.FLOAT:
-                    output_values[i] = output_values[i].astype(np.float32)
             except RuntimeError:
                 print("Output '%s' shape incompatible between CoreML (%s) and onnx (%s)"
                       %(self.output_names[i], output_.shape,
