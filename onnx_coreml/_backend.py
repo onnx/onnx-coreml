@@ -43,6 +43,7 @@ class CoreMLBackend(Backend):
             s = model.SerializeToString()
             f.write(s)
         coreml_model = convert(model)
+        coreml_model.save('/tmp/coreml_model.mlmodel')
         onnx_outputs_info = _get_onnx_outputs_info(model)
         return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU')
 
