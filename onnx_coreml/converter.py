@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-from typing import Text, Union, Optional, Dict, Any, Iterable, Sequence, Callable
+from typing import Text, Union, Optional, Dict, Any, Iterable, Sequence, Callable, List
 from ._shapeinference import infer_shapes_and_types
 
 import onnx
@@ -29,8 +29,6 @@ inputs: list of tuples.
 def _make_coreml_input_features(inputs, op_types): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
     for input_ in inputs:
-        if input_[1] != TensorProto.FLOAT:
-            raise TypeError("Input must be of of type TensorProto.FLOAT")
         shape = input_[2]
         if len(shape) == 0:
             shape = [1, 1, 1]
@@ -59,8 +57,6 @@ outputs: list of tuples.
 def _make_coreml_output_features(outputs, op_types):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
     for output_ in outputs:
-        if output_[1] != TensorProto.FLOAT:
-            raise TypeError("Output must be of of type TensorProto.FLOAT")
         shape = output_[2]
         if len(shape) == 0:
             shape = [1, 1, 1]
@@ -80,11 +76,13 @@ def _make_coreml_output_features(outputs, op_types):  # type: (...) -> Sequence[
     return features
 
 
-def _update_multiarray_to_float32(feature): # type : ignore
+def _update_multiarray_to_float32(feature, #type: Any
+                                 ): # type : (...) -> None
   if feature.type.HasField('multiArrayType'):
     feature.type.multiArrayType.dataType = ft.ArrayFeatureType.FLOAT32
 
-def _update_multiarray_to_int32(feature): # type : ignore
+def _update_multiarray_to_int32(feature, #type: Any
+                               ): # type : (...) -> None
   if feature.type.HasField('multiArrayType'):
     feature.type.multiArrayType.dataType = ft.ArrayFeatureType.INT32
 
