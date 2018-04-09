@@ -323,10 +323,7 @@ def _convert_concat(builder, node):  # type: (NeuralNetworkBuilder, Node) -> Non
             "channel axis is supported now"
             .format(axis,)
         )
-    if axis == 0:
-        mode = "SEQUENCE_CONCAT"
-    elif axis == 1:
-        mode = "CONCAT"
+    mode = "CONCAT"
 
     builder.add_elementwise(
         name=node.name,
