@@ -153,12 +153,6 @@ backend_test.exclude('test_gather_1_cpu')
 backend_test.exclude('test_gather_0_cpu')
 backend_test.exclude('test_Embedding_cpu')
 backend_test.exclude('test_Embedding_sparse_cpu')
-backend_test.exclude('test_concat_1d_axis_0_cpu')
-backend_test.exclude('test_concat_2d_axis_0_cpu')
-backend_test.exclude('test_concat_2d_axis_1_cpu')
-backend_test.exclude('test_concat_3d_axis_0_cpu')
-backend_test.exclude('test_concat_3d_axis_1_cpu')
-backend_test.exclude('test_concat_3d_axis_2_cpu')
 
 # These layers are supported. Need to fix these tests
 backend_test.exclude('test_Softsign_cpu')
@@ -217,6 +211,10 @@ backend_test.exclude('test_shape_example_cpu')
 backend_test.exclude('test_size_cpu')
 backend_test.exclude('test_size_example_cpu')
 backend_test.exclude('test_top_k_cpu')
+backend_test.exclude('test_concat_2d_axis_0_cpu')
+backend_test.exclude('test_concat_2d_axis_1_cpu')
+backend_test.exclude('test_concat_3d_axis_1_cpu')
+backend_test.exclude('test_concat_3d_axis_2_cpu')
 
 # Supported ops, but Unsupported parameters by CoreML
 backend_test.exclude('test_thresholdedrelu_example_cpu')

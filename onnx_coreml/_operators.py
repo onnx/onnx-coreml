@@ -9,6 +9,7 @@ from typing import Sequence, Callable, List, Tuple, Optional, Text, Any
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from ._graph import Node
 
+_SEQUENCE_LAYERS_REGISTRY = set(["LSTM"])
 
 def _compare(a, b, encoding="utf8"): #type: (Text, Text, Text) -> bool
     if isinstance(a, bytes):
@@ -317,13 +318,27 @@ def _convert_leaky_relu(builder, node, graph):  # type: (NeuralNetworkBuilder, N
 
 def _convert_concat(builder, node, graph):  # type: (NeuralNetworkBuilder, Node) -> None
     axis = node.attrs.get("axis", 1)
-    if axis != 0 and axis != 1:
+    first_input_shape = graph.shape_dict[node.inputs[0]]
+    parent_op_type = graph.blob_from_op_type.get(node.inputs[0], None)
+
+    mode = None
+    if parent_op_type in _SEQUENCE_LAYERS_REGISTRY and \
+        len(first_input_shape) == 3:
+        if axis == 0:
+            mode = 'SEQUENCE_CONCAT'
+        if axis == 2:
+            mode = 'CONCAT'
+    elif (len(first_input_shape) == 1 and axis == 0) or \
+        (len(first_input_shape) == 3 and axis == 0) or \
+        (len(first_input_shape) == 4 and axis == 1):
+        mode = 'CONCAT'
+
+    if mode is None:
         raise ValueError(
-            "Unsupported axis {}. Only sequence or "
-            "channel axis is supported now"
-            .format(axis,)
+            "Concat op: Concatenation unsupported by CoreML along "
+            "axis {} in input shape of shape {}."
+            .format(axis, str(first_input_shape))
         )
-    mode = "CONCAT"
 
     builder.add_elementwise(
         name=node.name,
@@ -679,8 +694,6 @@ def _convert_reorganize_data(builder, node, graph): # type: (NeuralNetworkBuilde
          mode=mode,
          block_size=block_size
     )
-
-<<<<<<< HEAD
 
 def _convert_upsample(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
     height_scale = int(node.attrs["height_scale"]);

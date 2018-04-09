@@ -16,7 +16,7 @@ from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
 
 from typing import Tuple
 
-from ._operators import _convert_node
+from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY
 from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
@@ -27,6 +27,13 @@ inputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
 def _make_coreml_input_features(graph): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+    '''
+    ONNX shapes to CoreML static shapes mapping
+    length==1: [C]
+    length==2: [H,W]
+    length==3: [C,H,W] or [Seq,B,C]
+    length==4: [B,C,H,W]
+    '''
     inputs = graph.inputs
     op_types = graph.blob_to_op_type
     features = []
@@ -44,7 +51,7 @@ def _make_coreml_input_features(graph): # type: (...) -> Sequence[Tuple[Text, da
             # assume [C,H,W] unless its connected to recurrent related ops
             if input_[0] in op_types and \
                 len(op_types[input_[0]]) == 1 and \
-                str(op_types[input_[0]][0]) == 'LSTM':
+                str(op_types[input_[0]][0]) in _SEQUENCE_LAYERS_REGISTRY:
                 # onnx shape: (Seq,B,C)
                 shape = [shape[2]]
         elif len(shape) == 4:  # (B,C,H,W) --> (C,H,W)
@@ -70,7 +77,7 @@ def _make_coreml_output_features(graph):  # type: (...) -> Sequence[Tuple[Text, 
             pass
         elif len(shape) == 3:
             if output_[0] in op_types and \
-                str(op_types[output_[0]]) == 'LSTM':
+                str(op_types[output_[0]]) in _SEQUENCE_LAYERS_REGISTRY:
                 # onnx shape: (Seq,B,C)
                 shape = [shape[2]]
         else:
@@ -368,7 +375,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     # add description to inputs/outputs that feed in/out of recurrent layers
     for node_ in graph.nodes:
-        if str(node_.op_type) == 'LSTM':
+        if str(node_.op_type) in _SEQUENCE_LAYERS_REGISTRY:
             input_ = node_.inputs[0]
             output_ = node_.outputs[0]
             for i, inputs in enumerate(builder.spec.description.input):
