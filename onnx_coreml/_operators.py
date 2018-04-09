@@ -336,7 +336,7 @@ def _convert_concat(builder, node, graph):  # type: (NeuralNetworkBuilder, Node)
     if mode is None:
         raise ValueError(
             "Concat op: Concatenation unsupported by CoreML along "
-            "axis {} in input shape of shape {}."
+            "axis {} in input of shape {}."
             .format(axis, str(first_input_shape))
         )
 
