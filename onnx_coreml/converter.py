@@ -26,18 +26,22 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
 inputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_input_features(inputs, op_types): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_input_features(graph): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+    inputs = graph.inputs
+    op_types = graph.blob_to_op_type
     features = []
     for input_ in inputs:
         shape = input_[2]
         if len(shape) == 0:
             shape = [1, 1, 1]
         elif len(shape) == 1:
+            # assume [C]
             pass
         elif len(shape) == 2:
             # assume [Batch,C]
             shape = [shape[1]]
         elif len(shape) == 3:
+            # assume [C,H,W] unless its connected to recurrent related ops
             if input_[0] in op_types and \
                 len(op_types[input_[0]]) == 1 and \
                 str(op_types[input_[0]][0]) == 'LSTM':
@@ -54,8 +58,10 @@ def _make_coreml_input_features(inputs, op_types): # type: (...) -> Sequence[Tup
 outputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_output_features(outputs, op_types):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_output_features(graph):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
+    outputs = graph.outputs
+    op_types = graph.blob_from_op_type
     for output_ in outputs:
         shape = output_[2]
         if len(shape) == 0:
@@ -279,8 +285,8 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     #Make CoreML input and output features by gathering shape info and
     #interpreting it for CoreML
-    input_features = _make_coreml_input_features(graph.inputs, graph.blob_to_op_type)
-    output_features = _make_coreml_output_features(graph.outputs, graph.blob_from_op_type)
+    input_features = _make_coreml_input_features(graph)
+    output_features = _make_coreml_output_features(graph)
 
     builder = NeuralNetworkBuilder(input_features, output_features)
     _transform_coreml_dtypes(builder, graph.inputs, graph.outputs)
@@ -322,7 +328,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
-        _convert_node(builder, node)
+        _convert_node(builder, node, graph)
 
     if add_deprocess:
         for f in output_features:
