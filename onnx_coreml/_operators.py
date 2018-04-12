@@ -8,6 +8,8 @@ import numpy as np
 from typing import Sequence, Callable, List, Tuple, Optional, Text, Any
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from ._graph import Node, Graph
+from coremltools.proto import NeuralNetwork_pb2 #type: ignore
+from ._graph import Node
 from ._error_utils import ErrorHandling
 
 _SEQUENCE_LAYERS_REGISTRY = set(["LSTM"])
@@ -841,6 +843,31 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
                     cell_clip_threshold=50000.0, reverse_input=False)
 
 
+def _convert_custom(builder, node, err): # type: (NeuralNetworkBuilder, Node, ErrorHandling) -> None
+
+    if node.op_type in err.custom_conversion_functions:
+        func = err.custom_conversion_functions[node.op_type]
+        params = func(node)
+    else:
+        params = NeuralNetwork_pb2.CustomLayerParams()
+        params.className = node.op_type
+        params.description = "Custom layer that corresponds to the ONNX op {}".format(node.op_type,)
+
+    inputs_ = []
+    # skip the inputs that are initializers
+    for inp in node.inputs:
+        if inp not in node.input_tensors:
+            inputs_.append(inp)
+
+    builder.add_custom(name=node.name,
+                       input_names=inputs_,
+                       output_names=node.outputs,
+                       custom_proto_spec=params)
+
+    err.custom_layer_nodes.append(node)
+
+
+
 _ONNX_NODE_REGISTRY = {
     "Conv": _convert_conv,
     "ConvTranspose": _convert_conv,
@@ -910,7 +937,7 @@ def _get_node_converter_fn(builder, node, err):  # type: (NeuralNetworkBuilder, 
     if op_type in _ONNX_NODE_REGISTRY:
         return _ONNX_NODE_REGISTRY[op_type]
     else:
-        return err.unsupported_op(builder, node)
+        return err.unsupported_op(node)
 
 def _convert_node(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     converter_fn = _get_node_converter_fn(builder, node, err)

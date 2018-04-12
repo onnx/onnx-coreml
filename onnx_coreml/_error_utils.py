@@ -13,26 +13,28 @@ class ErrorHandling(object):
 
   def __init__(self,
                add_custom_layers = False, # type: bool
-               add_custom_layers_for_unsupported_attributes = False, # type: bool
                custom_conversion_functions = dict(), # type: Dict[Text, Any]
                ):
       # type: (...) -> None
       self.add_custom_layers = add_custom_layers
-      self.add_custom_layers_for_unsupported_attributes = add_custom_layers_for_unsupported_attributes
       self.custom_conversion_functions = custom_conversion_functions
+      self.custom_layer_nodes = []
 
 
   def unsupported_op(self,
-                     builder, # type : NeuralNetworkBuilder
                      node,  # type: Node
                     ):
       # type: (...) -> Callable[[Any, Node], None]
       '''
-      Either raise an error for an unsupported op type or add a custom layer.
+      Either raise an error for an unsupported op type or return custom layer add function
       '''
-      raise TypeError(
-        "ONNX node of type {} is not supported.\n".format(node.op_type,)
-      )
+      if self.add_custom_layers:
+        from ._operators import _convert_custom
+        return _convert_custom
+      else:
+        raise TypeError(
+          "ONNX node of type {} is not supported.\n".format(node.op_type,)
+        )
 
 
   def unsupported_op_configuration(self,
@@ -55,7 +57,7 @@ class ErrorHandling(object):
                           ):
       # type: (...) -> None
       '''
-      Either raise an error for an unsupported attribute or add a custom layer.
+      Missing initializer error
       '''
       raise ValueError(
         "Missing initializer error in op of type {}, with input name = {}, "

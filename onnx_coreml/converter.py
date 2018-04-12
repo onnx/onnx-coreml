@@ -240,7 +240,6 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             class_labels=None,  # type: Union[Text, Iterable[Text], None]
             predicted_feature_name='classLabel',  # type: Text
             add_custom_layers = False,  # type: bool
-            add_custom_layers_for_unsupported_attributes = False, #type: bool
             custom_conversion_functions = {}, #type: Dict[Text, Any]
             ):
     # type: (...) -> MLModel
@@ -340,7 +339,6 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     '''Iterate through all the ops and translate them to CoreML layers. 
     '''
     err = ErrorHandling(add_custom_layers,
-                        add_custom_layers_for_unsupported_attributes,
                         custom_conversion_functions)
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
@@ -394,4 +392,21 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
                 if outputs.name == output_:
                     builder.spec.description.output[i].shortDescription = 'This output is a sequence'
 
-    return MLModel(builder.spec)
+    mlmodel  = MLModel(builder.spec)
+
+    # print information about all ops for which custom layers have been added
+    if len(err.custom_layer_nodes) > 0:
+        print('\n')
+        print("Custom layers have been added to the CoreML model "
+              "corresponding to the following ops in the onnx model: ")
+        for i, node in enumerate(err.custom_layer_nodes):
+            input_info = []
+            for input_ in node.inputs:
+                input_info.append((str(input_), graph.shape_dict.get(input_, str("Shape not available"))))
+            output_info = []
+            for output_ in node.outputs:
+                output_info.append((str(output_), graph.shape_dict.get(output_, str("Shape not available"))))
+            print("{}/{}: op type: {}, op input names and shapes: {}, op output names and shapes: {}".
+                  format(i+1, len(err.custom_layer_nodes), node.op_type, str(input_info), str(output_info)))
+
+    return mlmodel

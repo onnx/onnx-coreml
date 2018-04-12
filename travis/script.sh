@@ -16,4 +16,5 @@ else
   # Test cases that need to run CoreML models won't work on Linux,
   # only run test cases that don't need it.
   time python setup.py test --addopts tests/graph_test.py
+  time python setup.py test --addopts tests/custom_layers_test.py
 fi
