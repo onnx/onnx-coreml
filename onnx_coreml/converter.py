@@ -21,6 +21,7 @@ from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
     PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs
+from ._error_utils import ErrorHandling
 
 '''
 inputs: list of tuples.
@@ -238,6 +239,9 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             deprocessing_args={},  # type: Dict[Text, Any]
             class_labels=None,  # type: Union[Text, Iterable[Text], None]
             predicted_feature_name='classLabel',  # type: Text
+            add_custom_layers = False,  # type: bool
+            add_custom_layers_for_unsupported_attributes = False, #type: bool
+            custom_conversion_functions = {}, #type: Dict[Text, Any]
             ):
     # type: (...) -> MLModel
     """
@@ -333,9 +337,14 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
                     builder.spec, f_name, is_bgr=is_bgr
                 )
 
+    '''Iterate through all the ops and translate them to CoreML layers. 
+    '''
+    err = ErrorHandling(add_custom_layers,
+                        add_custom_layers_for_unsupported_attributes,
+                        custom_conversion_functions)
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
-        _convert_node(builder, node, graph)
+        _convert_node(builder, node, graph, err)
 
     if add_deprocess:
         for f in output_features:

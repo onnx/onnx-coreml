@@ -8,6 +8,7 @@ import numpy as np
 from typing import Sequence, Callable, List, Tuple, Optional, Text, Any
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from ._graph import Node, Graph
+from ._error_utils import ErrorHandling
 
 _SEQUENCE_LAYERS_REGISTRY = set(["LSTM"])
 
@@ -18,25 +19,22 @@ def _compare(a, b, encoding="utf8"): #type: (Text, Text, Text) -> bool
         b = b.decode(encoding)
     return a == b
 
-def _convert_conv(builder, node, graph): # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     #get weights for convolution
     weight_name = node.inputs[1]
     W = None
     if weight_name in node.input_tensors:
         W = node.input_tensors[weight_name]
     else:
-        raise ValueError(
-            "For Convolution layer, with input name = '%s', "
-            "output name = '%s' and weight name = '%s', Weight tensor not found in graph initializer"
-            %(node.inputs[0], node.outputs[0], weight_name)
-        )
+        err.missing_initializer(node,
+                                "Weight tensor: {} not found in the graph initializer".format(weight_name,))
 
     is_deconv = False
     if node.op_type.endswith("Transpose"):
         is_deconv = True
 
     if not is_deconv:
-        W = W.transpose((2, 3, 1, 0))
+        W = W.transpose((2, 3, 1, 0)) # type: ignore
     else:
         W = W.transpose((2, 3, 0, 1))
     bias = None
@@ -107,7 +105,7 @@ def _convert_conv(builder, node, graph): # type: (NeuralNetworkBuilder, Node, Gr
             output_name=node.outputs[0],
         )
 
-def _convert_relu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_relu(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_activation(
         name=node.name,
         non_linearity='RELU',
@@ -115,7 +113,7 @@ def _convert_relu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, G
         output_name=node.outputs[0]
     )
 
-def _convert_thresholdedrelu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_thresholdedrelu(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     alpha = node.attrs.get('alpha', 1.0)
     builder.add_activation(
         name=node.name,
@@ -125,18 +123,14 @@ def _convert_thresholdedrelu(builder, node, graph):  # type: (NeuralNetworkBuild
         params = alpha
     )
 
-def _convert_reshape(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
-
+def _convert_reshape(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     shape_name = node.inputs[1]
     shape = () # type: (Tuple[int, ...])
     if shape_name in node.input_tensors:
         shape = tuple(node.input_tensors[shape_name]) #type: ignore
     else:
-        raise ValueError(
-            "For Reshape layer, with input name = '%s', "
-            "output name = '%s' and shape input name = '%s', Shape tensor not found in graph initializer"
-            %(node.inputs[0], node.outputs[0], shape_name)
-        )
+        err.missing_initializer(node,
+                                "Shape tensor: {} not found in the graph initializer".format(shape_name, ))
 
     def get_coreml_target_shape(target_shape):  # type: (Tuple[int, ...]) -> Optional[Tuple[int, ...]]
         if len(target_shape) == 1:  # (D,)
@@ -154,7 +148,7 @@ def _convert_reshape(builder, node, graph):  # type: (NeuralNetworkBuilder, Node
             if all([d == 1 for d in shape[:diff]]):
                 coreml_shape = shape[diff:]
             else:
-                raise ValueError("Supports only 3d and 4d tensors")
+                err.unsupported_op_configuration(builder, node, "Supports only 3d and 4d tensors")
         else:
             coreml_shape = None
         return coreml_shape
@@ -162,7 +156,7 @@ def _convert_reshape(builder, node, graph):  # type: (NeuralNetworkBuilder, Node
     new_shape = get_coreml_target_shape(shape)
 
     if new_shape is None:
-        raise ValueError("Unsupported shape for reshape")
+        err.unsupported_op_configuration(builder, node, "Unsupported shape for reshape")
 
     builder.add_reshape(
         name=node.name,
@@ -172,15 +166,14 @@ def _convert_reshape(builder, node, graph):  # type: (NeuralNetworkBuilder, Node
         output_name=node.outputs[0]
     )
 
-
-def _convert_transpose(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_transpose(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     perm = node.attrs.get("perm", [0, 3, 2, 1])
     if len(perm) > 4:
         diff = len(perm) - 4
         if all([perm[i] == i for i in range(diff)]):
             perm = [p - diff for p in perm[diff:]]
         else:
-            raise ValueError("Supports only 4d tensors")
+            err.unsupported_op_configuration(builder, node, "Supports only 4d tensors")
     elif len(perm) < 4:
         diff = 4 - len(perm)
         perm = [d for d in range(diff)] + [d + diff for d in perm]
@@ -193,8 +186,7 @@ def _convert_transpose(builder, node, graph):  # type: (NeuralNetworkBuilder, No
         output_name=node.outputs[0]
     )
 
-
-def _convert_pool(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_pool(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     is_global = False
     if node.op_type.startswith('Global'):
         is_global = True
@@ -204,9 +196,7 @@ def _convert_pool(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, G
     elif node.op_type.endswith("AveragePool"):
         layer_type = "AVERAGE"
     else:
-        raise ValueError(
-            "Unsupported pool type {}".format(node.op_type,)
-        )
+        err.unsupported_op_configuration(builder, node, "Unsupported pool type")
 
     pad_b, pad_l, pad_r, pad_t = 0, 0, 0, 0
     stride_height, stride_width = 1, 1
@@ -256,8 +246,7 @@ def _convert_pool(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, G
         same_padding_asymmetry_mode = same_padding_asymmetry_mode
     )
 
-
-def _convert_fc(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_fc(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     W = node.input_tensors[node.inputs[1]]
     b = node.input_tensors.get(node.inputs[2])
     output_channels, input_channels = W.shape
@@ -272,12 +261,9 @@ def _convert_fc(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gra
         output_name=node.outputs[0]
     )
 
-
-def _convert_bn(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_bn(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     if node.attrs["is_test"] == 0:
-        raise ValueError(
-            "BatchNormalization supports only test mode"
-        )
+        err.unsupported_op_configuration(builder, node, "BatchNormalization supports only test mode")
 
     epsilon = node.attrs.get("epsilon", 1e-5)
     scale = node.input_tensors[node.inputs[1]]
@@ -297,8 +283,7 @@ def _convert_bn(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gra
         epsilon=epsilon
     )
 
-
-def _convert_instancenorm(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_instancenorm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     epsilon = node.attrs.get("epsilon", 1e-5)
     scale = node.input_tensors[node.inputs[1]]
     bias = node.input_tensors[node.inputs[2]]
@@ -315,11 +300,10 @@ def _convert_instancenorm(builder, node, graph):  # type: (NeuralNetworkBuilder,
         epsilon=epsilon
     )
 
-
-def _convert_add(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_add(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
-            raise ValueError('Broadcast Add is not supported now')
+            err.unsupported_op_configuration(builder, node, "Broadcast Add is not supported now")
     builder.add_elementwise(
         name=node.name,
         input_names=node.inputs,
@@ -327,11 +311,10 @@ def _convert_add(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         mode="ADD"
     )
 
-
-def _convert_mul(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_mul(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
-            raise ValueError('Broadcast Multiply is not supported now')
+            err.unsupported_op_configuration(builder, node, "Broadcast Multiply is not supported now")
 
     builder.add_elementwise(
         name=node.name,
@@ -340,10 +323,10 @@ def _convert_mul(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         mode="MULTIPLY"
     )
 
-def _convert_div(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_div(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
-            raise ValueError('Broadcast Div is not supported now')
+            err.unsupported_op_configuration(builder, node, "Broadcast Div is not supported now")
 
     builder.add_unary(name=node.name + '_inverse', #type: ignore
                       input_name=node.inputs[1],
@@ -356,7 +339,7 @@ def _convert_div(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         mode="MULTIPLY"
     )
 
-def _convert_leaky_relu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_leaky_relu(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     alpha = node.attrs.get('alpha', 0.01)
     builder.add_activation(
         name=node.name,
@@ -366,8 +349,7 @@ def _convert_leaky_relu(builder, node, graph):  # type: (NeuralNetworkBuilder, N
         output_name=node.outputs[0]
     )
 
-def _convert_concat(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
-
+def _convert_concat(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     axis = node.attrs.get("axis", 1)
     parent_op_type = graph.blob_from_op_type.get(node.inputs[0], None)
     mode = None
@@ -405,7 +387,7 @@ def _convert_concat(builder, node, graph):  # type: (NeuralNetworkBuilder, Node,
         mode=mode
     )
 
-def _convert_reduce(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_reduce(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
 
     axes = node.attrs['axes']
 
@@ -456,10 +438,10 @@ def _convert_reduce(builder, node, graph):  # type: (NeuralNetworkBuilder, Node,
                        axis=coreml_axis,
                        mode=mode)
 
-def _convert_softmax(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_softmax(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     axis = node.attrs.get('axis', 1)
     if axis != 1:
-        raise ValueError("Unsupported axis {} for softmax".format(axis,))
+        err.unsupported_op_configuration(builder, node, "Unsupported axis {} for softmax".format(axis,))
 
     builder.add_softmax(
         name=node.name,
@@ -467,7 +449,7 @@ def _convert_softmax(builder, node, graph):  # type: (NeuralNetworkBuilder, Node
         output_name=node.outputs[0]
     )
 
-def _convert_gemm(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_gemm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
 
     weight_name = node.inputs[1]
     W = None
@@ -481,23 +463,17 @@ def _convert_gemm(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, G
         )
 
     if node.attrs["broadcast"] != 1 or node.attrs["transB"] != 1:
-        raise ValueError(
-            "Gemm is supported only for inner_product layer"
-        )
+        err.unsupported_op_configuration(builder, node, "Gemm is supported only for inner_product layer")
 
     b = None
     if len(node.inputs) > 2:
         b = node.input_tensors[node.inputs[2]]
     if len(W.shape) != 2 or (b is not None and len(b.shape) != 1):
-        raise ValueError(
-            "Gemm is supported only for inner_product layer"
-        )
+        err.unsupported_op_configuration(builder, node, "Gemm is supported only for inner_product layer")
 
     if b is not None:
         if W.shape[0] != b.shape[0]:
-            raise ValueError(
-                "Gemm is supported only for inner_product layer"
-            )
+            err.unsupported_op_configuration(builder, node, "Gemm is supported only for inner_product layer")
 
     input_channels = W.shape[1]
     output_channels = W.shape[0]
@@ -512,8 +488,7 @@ def _convert_gemm(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, G
         output_name=node.outputs[0]
     )
 
-
-def _convert_lrn(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_lrn(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     alpha = node.attrs["alpha"]
     beta = node.attrs["beta"]
     bias = node.attrs["bias"]
@@ -528,8 +503,7 @@ def _convert_lrn(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         local_size=size
     )
 
-
-def _convert_sigmoid(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_sigmoid(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_activation(
         name=node.name,
         non_linearity='SIGMOID',
@@ -537,8 +511,7 @@ def _convert_sigmoid(builder, node, graph):  # type: (NeuralNetworkBuilder, Node
         output_name=node.outputs[0]
     )
 
-
-def _convert_elu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_elu(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     alpha = node.attrs.get('alpha', 1.0)
     builder.add_activation(
         name=node.name,
@@ -548,7 +521,7 @@ def _convert_elu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         output_name=node.outputs[0]
     )
 
-def _convert_selu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_selu(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     alpha = node.attrs.get('alpha', 1.6732)
     gamma = node.attrs.get('gamma', 1.0507)
     builder.add_activation(
@@ -566,8 +539,7 @@ def _convert_selu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, G
         alpha=gamma
     )
 
-
-def _convert_prelu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_prelu(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     slope = node.input_tensors[node.inputs[1]]
     builder.add_activation(
         name=node.name,
@@ -577,8 +549,7 @@ def _convert_prelu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, 
         output_name=node.outputs[0]
     )
 
-
-def _convert_tanh(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_tanh(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_activation(
         name=node.name,
         non_linearity='TANH',
@@ -586,8 +557,7 @@ def _convert_tanh(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, G
         output_name=node.outputs[0]
     )
 
-
-def _convert_abs(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_abs(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_unary(
         name=node.name,
         input_name=node.inputs[0],
@@ -595,8 +565,7 @@ def _convert_abs(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         mode='abs'
     )
 
-
-def _convert_pad(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_pad(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     mode = node.attrs['mode']
     if mode == 'reflect' or mode == b'reflect':
         mode = 'reflection'
@@ -605,7 +574,11 @@ def _convert_pad(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
     else:
         mode = 'constant'
     pads = node.attrs['pads']
-    assert len(pads) % 2 == 0 and len(pads) >= 2
+    if not (len(pads) % 2 == 0 and len(pads) >= 2):
+        err.unsupported_op_configuration(builder, node,
+                                         "pads attribute: {}."
+                                         "Length of pads must be a multiple of 2".format(str(pads)))
+
     start = pads[:len(pads)//2]
     end = pads[len(pads)//2:]
     if len(start) < 2:
@@ -616,9 +589,8 @@ def _convert_pad(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         return x.count(0) == len(x)
 
     if not _all_zero(start[:-2]) and not _all_zero(end[:-2]):
-        raise NotImplementedError(
-            "Paddings value {} not supported".format(pads,)
-        )
+        err.unsupported_op_configuration(builder, node, "Paddings value {} not supported".format(pads,))
+
     pad_t = start[-2]
     pad_b = end[-2]
     pad_l = start[-1]
@@ -636,12 +608,12 @@ def _convert_pad(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         padding_type=mode
     )
 
-
-def _convert_slice(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_slice(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     # TODO: support multi-axis slice
     axes = node.attrs.get('axes', [])
     if len(axes) != 1:
-        raise NotImplementedError("Only single axis Slice is supported now")
+        err.unsupported_op_configuration(builder, node, "Only single axis Slice is supported now")
+
     starts = node.attrs['starts']
     ends = node.attrs['ends']
     axes = node.attrs.get('axes', [])
@@ -653,9 +625,10 @@ def _convert_slice(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, 
             axis = 'height'
         elif axes[0] == 2:
             axis = 'width'
-        raise NotImplementedError("Slice is supported only along H, W or C dimensions")
+        else:
+            err.unsupported_op_configuration(builder, node, "Slice is supported only along H, W or C dimensions")
     else:
-        raise NotImplementedError("Slice is supported only along one axis for 3D or 4D Tensors")
+        err.unsupported_op_configuration(builder, node, "Slice is supported only along one axis for 3D or 4D Tensors")
     builder.add_slice(
         name=node.name,
         input_name=node.inputs[0],
@@ -666,8 +639,7 @@ def _convert_slice(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, 
         stride=1
     )
 
-
-def _convert_exp(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_exp(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_unary(
         name=node.name,
         input_name=node.inputs[0],
@@ -675,8 +647,7 @@ def _convert_exp(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         mode='exp'
     )
 
-
-def _convert_flatten(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_flatten(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_flatten(
         name=node.name,
         input_name=node.inputs[0],
@@ -684,8 +655,7 @@ def _convert_flatten(builder, node, graph):  # type: (NeuralNetworkBuilder, Node
         mode=0
     )
 
-
-def _convert_max(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_max(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     if len(node.inputs) == 1:
         inputs = [node.inputs[0], node.inputs[0]]
     else:
@@ -697,8 +667,7 @@ def _convert_max(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         mode='MAX'
     )
 
-
-def _convert_min(builder, node, graph): # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_min(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     if len(node.inputs) == 1:
         inputs = [node.inputs[0], node.inputs[0]]
     else:
@@ -710,7 +679,7 @@ def _convert_min(builder, node, graph): # type: (NeuralNetworkBuilder, Node, Gra
         mode='MIN'
     )
 
-def _convert_softsign(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_softsign(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_activation(
         name=node.name,
         input_name=node.inputs[0],
@@ -718,8 +687,7 @@ def _convert_softsign(builder, node, graph):  # type: (NeuralNetworkBuilder, Nod
         non_linearity='SOFTSIGN'
     )
 
-
-def _convert_softplus(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_softplus(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_activation(
         name=node.name,
         input_name=node.inputs[0],
@@ -727,7 +695,7 @@ def _convert_softplus(builder, node, graph):  # type: (NeuralNetworkBuilder, Nod
         non_linearity='SOFTPLUS'
     )
 
-def _convert_hardsigmoid(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_hardsigmoid(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     alpha = node.attrs.get('alpha', 0.2)
     beta = node.attrs.get('beta', 0.5)
     builder.add_activation(
@@ -738,12 +706,11 @@ def _convert_hardsigmoid(builder, node, graph):  # type: (NeuralNetworkBuilder, 
         params = [alpha, beta]
     )
 
-def _convert_logsoftmax(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_logsoftmax(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     axis = node.attrs.get('axis', 1)
     if axis != 1:
-            raise ValueError(
-                "Unsupported axis {} for logsoftmax".format(axis,)
-            )
+        err.unsupported_op_configuration(builder, node, "Unsupported axis {} for logsoftmax".format(axis,))
+
     builder.add_softmax(
         name=node.name + '_softmax', #type: ignore
         input_name=node.inputs[0],
@@ -757,8 +724,7 @@ def _convert_logsoftmax(builder, node, graph):  # type: (NeuralNetworkBuilder, N
     )
 
 
-
-def _convert_neg(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_neg(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_elementwise(
         name=node.name,
         input_names=node.inputs,
@@ -767,7 +733,7 @@ def _convert_neg(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         alpha=-1.0
     )
 
-def _convert_split(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_split(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     axis = node.attrs.get("axis", 0)
     if not (axis == 0 or axis == 1):
         raise NotImplementedError("Split is supported for axis = 0 or 1 only")
@@ -777,8 +743,7 @@ def _convert_split(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, 
         output_names=node.outputs
     )
 
-
-def _convert_log(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_log(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_unary(
         name=node.name,
         input_name=node.inputs[0],
@@ -786,8 +751,7 @@ def _convert_log(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Gr
         mode='log'
     )
 
-
-def _convert_sqrt(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_sqrt(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_unary(
         name=node.name,
         input_name=node.inputs[0],
@@ -795,7 +759,7 @@ def _convert_sqrt(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, G
         mode='sqrt'
     )
 
-def _convert_reciprocal(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_reciprocal(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     builder.add_unary(
         name=node.name,
         input_name=node.inputs[0],
@@ -803,7 +767,7 @@ def _convert_reciprocal(builder, node, graph):  # type: (NeuralNetworkBuilder, N
         mode='inverse'
     )
 
-def _convert_reorganize_data(builder, node, graph): # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_reorganize_data(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     mode = 'SPACE_TO_DEPTH'
     if node.op_type == 'DepthToSpace':
         mode = 'DEPTH_TO_SPACE'
@@ -815,7 +779,7 @@ def _convert_reorganize_data(builder, node, graph): # type: (NeuralNetworkBuilde
          block_size=block_size
     )
 
-def _convert_upsample(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_upsample(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     height_scale = int(node.attrs["height_scale"]);
     mode_convert = {
         "nearest": "NN",
@@ -832,7 +796,7 @@ def _convert_upsample(builder, node, graph):  # type: (NeuralNetworkBuilder, Nod
         mode=mode,
     )
 
-def _convert_lstm(builder, node, graph): # type: (NeuralNetworkBuilder, Node, Graph) -> None
+def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     W_name = node.inputs[1]
     R_name = node.inputs[2]
     B = None
@@ -842,7 +806,7 @@ def _convert_lstm(builder, node, graph): # type: (NeuralNetworkBuilder, Node, Gr
     W = node.input_tensors.get(W_name, None)
     R = node.input_tensors.get(R_name, None)
     if W is None or R is None:
-        raise ValueError("Matrix parameters for LSTM layer not found in weight initializer.")
+        err.unsupported_op_configuration(builder, node, "Matrix parameters for LSTM layer not found in weight initializer.")
 
     h = node.attrs["hidden_size"]
     W_i, W_o, W_f, W_c = np.split(W, 4)  #type: ignore
@@ -938,7 +902,7 @@ _ONNX_NODE_REGISTRY = {
 }
 
 
-def _get_node_converter_fn(node):  # type: (Node) -> Callable[[NeuralNetworkBuilder, Node, Graph], None]
+def _get_node_converter_fn(builder, node, err):  # type: (NeuralNetworkBuilder, Node, ErrorHandling) -> Callable[[NeuralNetworkBuilder, Node], None]
     """
     Get the right converter function for ONNX node op_type
     """
@@ -946,11 +910,8 @@ def _get_node_converter_fn(node):  # type: (Node) -> Callable[[NeuralNetworkBuil
     if op_type in _ONNX_NODE_REGISTRY:
         return _ONNX_NODE_REGISTRY[op_type]
     else:
-        raise TypeError(
-            "ONNX node of type {} is not supported.".format(op_type,)
-        )
+        return err.unsupported_op(builder, node)
 
-
-def _convert_node(builder, node, graph):  # type: (NeuralNetworkBuilder, Node, Graph) -> None
-    converter_fn = _get_node_converter_fn(node)
-    return converter_fn(builder, node, graph)
+def _convert_node(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+    converter_fn = _get_node_converter_fn(builder, node, err)
+    return converter_fn(builder, node, graph, err)
