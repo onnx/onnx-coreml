@@ -150,7 +150,7 @@ def _convert_reshape(builder, node, graph, err):  # type: (NeuralNetworkBuilder,
             if all([d == 1 for d in shape[:diff]]):
                 coreml_shape = shape[diff:]
             else:
-                err.unsupported_op_configuration(builder, node, "Supports only 3d and 4d tensors")
+                return err.unsupported_op_configuration(builder, node, "Supports only 3d and 4d tensors")
         else:
             coreml_shape = None
         return coreml_shape
@@ -158,7 +158,7 @@ def _convert_reshape(builder, node, graph, err):  # type: (NeuralNetworkBuilder,
     new_shape = get_coreml_target_shape(shape)
 
     if new_shape is None:
-        err.unsupported_op_configuration(builder, node, "Unsupported shape for reshape")
+        return err.unsupported_op_configuration(builder, node, "Unsupported shape for reshape")
 
     builder.add_reshape(
         name=node.name,
@@ -175,7 +175,7 @@ def _convert_transpose(builder, node, graph, err):  # type: (NeuralNetworkBuilde
         if all([perm[i] == i for i in range(diff)]):
             perm = [p - diff for p in perm[diff:]]
         else:
-            err.unsupported_op_configuration(builder, node, "Supports only 4d tensors")
+            return err.unsupported_op_configuration(builder, node, "Supports only 4d tensors")
     elif len(perm) < 4:
         diff = 4 - len(perm)
         perm = [d for d in range(diff)] + [d + diff for d in perm]
@@ -198,7 +198,7 @@ def _convert_pool(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
     elif node.op_type.endswith("AveragePool"):
         layer_type = "AVERAGE"
     else:
-        err.unsupported_op_configuration(builder, node, "Unsupported pool type")
+        return err.unsupported_op_configuration(builder, node, "Unsupported pool type")
 
     pad_b, pad_l, pad_r, pad_t = 0, 0, 0, 0
     stride_height, stride_width = 1, 1
@@ -265,7 +265,7 @@ def _convert_fc(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node
 
 def _convert_bn(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     if node.attrs["is_test"] == 0:
-        err.unsupported_op_configuration(builder, node, "BatchNormalization supports only test mode")
+        return err.unsupported_op_configuration(builder, node, "BatchNormalization supports only test mode")
 
     epsilon = node.attrs.get("epsilon", 1e-5)
     scale = node.input_tensors[node.inputs[1]]
@@ -305,7 +305,7 @@ def _convert_instancenorm(builder, node, graph, err):  # type: (NeuralNetworkBui
 def _convert_add(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
-            err.unsupported_op_configuration(builder, node, "Broadcast Add is not supported now")
+            return err.unsupported_op_configuration(builder, node, "Broadcast Add is not supported now")
     builder.add_elementwise(
         name=node.name,
         input_names=node.inputs,
@@ -316,7 +316,7 @@ def _convert_add(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
 def _convert_mul(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
-            err.unsupported_op_configuration(builder, node, "Broadcast Multiply is not supported now")
+            return err.unsupported_op_configuration(builder, node, "Broadcast Multiply is not supported now")
 
     builder.add_elementwise(
         name=node.name,
@@ -328,7 +328,7 @@ def _convert_mul(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
 def _convert_div(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
-            err.unsupported_op_configuration(builder, node, "Broadcast Div is not supported now")
+            return err.unsupported_op_configuration(builder, node, "Broadcast Div is not supported now")
 
     builder.add_unary(name=node.name + '_inverse', #type: ignore
                       input_name=node.inputs[1],
@@ -443,7 +443,7 @@ def _convert_reduce(builder, node, graph, err):  # type: (NeuralNetworkBuilder, 
 def _convert_softmax(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     axis = node.attrs.get('axis', 1)
     if axis != 1:
-        err.unsupported_op_configuration(builder, node, "Unsupported axis {} for softmax".format(axis,))
+        return err.unsupported_op_configuration(builder, node, "Unsupported axis {} for softmax".format(axis,))
 
     builder.add_softmax(
         name=node.name,
@@ -465,17 +465,17 @@ def _convert_gemm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
         )
 
     if node.attrs["broadcast"] != 1 or node.attrs["transB"] != 1:
-        err.unsupported_op_configuration(builder, node, "Gemm is supported only for inner_product layer")
+        return err.unsupported_op_configuration(builder, node, "Gemm is supported only for inner_product layer")
 
     b = None
     if len(node.inputs) > 2:
         b = node.input_tensors[node.inputs[2]]
     if len(W.shape) != 2 or (b is not None and len(b.shape) != 1):
-        err.unsupported_op_configuration(builder, node, "Gemm is supported only for inner_product layer")
+        return err.unsupported_op_configuration(builder, node, "Gemm is supported only for inner_product layer")
 
     if b is not None:
         if W.shape[0] != b.shape[0]:
-            err.unsupported_op_configuration(builder, node, "Gemm is supported only for inner_product layer")
+            return err.unsupported_op_configuration(builder, node, "Gemm is supported only for inner_product layer")
 
     input_channels = W.shape[1]
     output_channels = W.shape[0]
@@ -577,7 +577,7 @@ def _convert_pad(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
         mode = 'constant'
     pads = node.attrs['pads']
     if not (len(pads) % 2 == 0 and len(pads) >= 2):
-        err.unsupported_op_configuration(builder, node,
+        return err.unsupported_op_configuration(builder, node,
                                          "pads attribute: {}."
                                          "Length of pads must be a multiple of 2".format(str(pads)))
 
@@ -591,7 +591,7 @@ def _convert_pad(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
         return x.count(0) == len(x)
 
     if not _all_zero(start[:-2]) and not _all_zero(end[:-2]):
-        err.unsupported_op_configuration(builder, node, "Paddings value {} not supported".format(pads,))
+        return err.unsupported_op_configuration(builder, node, "Paddings value {} not supported".format(pads,))
 
     pad_t = start[-2]
     pad_b = end[-2]
@@ -614,7 +614,7 @@ def _convert_slice(builder, node, graph, err):  # type: (NeuralNetworkBuilder, N
     # TODO: support multi-axis slice
     axes = node.attrs.get('axes', [])
     if len(axes) != 1:
-        err.unsupported_op_configuration(builder, node, "Only single axis Slice is supported now")
+        return err.unsupported_op_configuration(builder, node, "Only single axis Slice is supported now")
 
     starts = node.attrs['starts']
     ends = node.attrs['ends']
@@ -628,9 +628,9 @@ def _convert_slice(builder, node, graph, err):  # type: (NeuralNetworkBuilder, N
         elif axes[0] == 2:
             axis = 'width'
         else:
-            err.unsupported_op_configuration(builder, node, "Slice is supported only along H, W or C dimensions")
+            return err.unsupported_op_configuration(builder, node, "Slice is supported only along H, W or C dimensions")
     else:
-        err.unsupported_op_configuration(builder, node, "Slice is supported only along one axis for 3D or 4D Tensors")
+        return err.unsupported_op_configuration(builder, node, "Slice is supported only along one axis for 3D or 4D Tensors")
     builder.add_slice(
         name=node.name,
         input_name=node.inputs[0],
@@ -711,7 +711,7 @@ def _convert_hardsigmoid(builder, node, graph, err):  # type: (NeuralNetworkBuil
 def _convert_logsoftmax(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     axis = node.attrs.get('axis', 1)
     if axis != 1:
-        err.unsupported_op_configuration(builder, node, "Unsupported axis {} for logsoftmax".format(axis,))
+        return err.unsupported_op_configuration(builder, node, "Unsupported axis {} for logsoftmax".format(axis,))
 
     builder.add_softmax(
         name=node.name + '_softmax', #type: ignore
@@ -807,8 +807,12 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
         B = node.input_tensors.get(B_name, None)
     W = node.input_tensors.get(W_name, None)
     R = node.input_tensors.get(R_name, None)
-    if W is None or R is None:
-        err.unsupported_op_configuration(builder, node, "Matrix parameters for LSTM layer not found in weight initializer.")
+    if W is None:
+        err.missing_initializer(node,
+                                "Weight tensor: {} not found in the graph initializer".format(W_name, ))
+    if R is None:
+        err.missing_initializer(node,
+                                "Weight tensor: {} not found in the graph initializer".format(R_name, ))
 
     h = node.attrs["hidden_size"]
     W_i, W_o, W_f, W_c = np.split(W, 4)  #type: ignore

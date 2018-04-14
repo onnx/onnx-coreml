@@ -46,9 +46,13 @@ class ErrorHandling(object):
       '''
       Either raise an error for an unsupported attribute or add a custom layer.
       '''
-      raise TypeError(
-        "Error while converting op of type: {}. Error message: {}\n".format(node.op_type, err_message, )
-      )
+      if self.add_custom_layers:
+        from ._operators import _convert_custom
+        _convert_custom(builder, node, self)
+      else:
+        raise TypeError(
+          "Error while converting op of type: {}. Error message: {}\n".format(node.op_type, err_message, )
+        )
 
 
   def missing_initializer(self,

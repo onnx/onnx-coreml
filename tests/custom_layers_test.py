@@ -11,7 +11,7 @@ from coremltools.proto import NeuralNetwork_pb2 #type: ignore
 
 def _make_model_clip_exp_topk():
   '''
-  make a very simple model for testing 
+  make a very simple model for testing: input->clip->exp->topk->2 outputs
   '''
   inputs = [('input0', (10,))]
   outputs = [('output_values', (3,)), ('output_indices', (3,))]
@@ -28,10 +28,22 @@ def _make_model_clip_exp_topk():
                         axis=0, k=3)
   return _onnx_create_model([clip, exp, topk], inputs, outputs)
 
+def _make_model_concat_axis3():
+  '''
+  make a simple model: 4-D input1, 4-D input2 -> concat (axis=3)-> output 
+  '''
+  inputs = [('input0', (1,3,10,20)), ('input1', (1,3,10,15))]
+  outputs = [('output', (1,3,10,35))]
+  concat = helper.make_node("Concat",
+                            inputs=[inputs[0][0], inputs[1][0]],
+                            outputs=[outputs[0][0]],
+                            axis=3)
+  return _onnx_create_model([concat], inputs, outputs)
+
 
 class CustomLayerTest(unittest.TestCase):
 
-  def test_unsupported_ops_no_custom_functions(self):  # type: () -> None
+  def test_unsupported_ops(self):  # type: () -> None
 
     onnx_model = _make_model_clip_exp_topk()
     coreml_model = convert(onnx_model, add_custom_layers=True)
@@ -44,7 +56,7 @@ class CustomLayerTest(unittest.TestCase):
     self.assertEqual('TopK', layers[2].custom.className)
 
 
-  def test_unsupported_ops(self):  # type: () -> None
+  def test_unsupported_ops_provide_functions(self):  # type: () -> None
 
     def convert_clip(node):
       params = NeuralNetwork_pb2.CustomLayerParams()
@@ -80,14 +92,32 @@ class CustomLayerTest(unittest.TestCase):
     self.assertEqual(3, layers[2].custom.parameters['k'].intValue)
 
 
-  # def test_unsupported_op_attribute(self):  # type: () -> None
-  #
-  #
-  # def test_unsupported_op_attribute_no_custom_function(self):  # type: () -> None
 
+  def test_unsupported_op_attribute(self):  # type: () -> None
 
-    # with open('/tmp/node_model.onnx', 'wb') as f:
-    #   s = onnx_model.SerializeToString()
-    #   f.write(s)
-    # coreml_model.save('/tmp/model.mlmodel')
-    # print(spec)
+    onnx_model = _make_model_concat_axis3()
+    coreml_model = convert(onnx_model, add_custom_layers=True)
+
+    spec = coreml_model.get_spec()
+    layers = spec.neuralNetwork.layers
+    self.assertIsNotNone(layers[0].custom)
+    self.assertEqual('Concat', layers[0].custom.className)
+
+  def test_unsupported_op_attribute_provide_functions(self):  # type: () -> None
+
+    def convert_concat(node):
+      params = NeuralNetwork_pb2.CustomLayerParams()
+      params.className = node.op_type
+      params.description = "Custom layer that corresponds to the ONNX op {}".format(node.op_type, )
+      params.parameters["axis"].intValue = node.attrs['axis']
+      return params
+
+    onnx_model = _make_model_concat_axis3()
+    coreml_model = convert(onnx_model, add_custom_layers=True,
+                           custom_conversion_functions={'Concat': convert_concat})
+
+    spec = coreml_model.get_spec()
+    layers = spec.neuralNetwork.layers
+    self.assertIsNotNone(layers[0].custom)
+    self.assertEqual('Concat', layers[0].custom.className)
+    self.assertEqual(3, layers[0].custom.parameters['axis'].intValue)
