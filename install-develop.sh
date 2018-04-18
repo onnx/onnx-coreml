@@ -15,7 +15,7 @@ _check_submodule_present() {
     fi
 }
 
-_check_submodule_present caffe2
+_check_submodule_present pytorch
 _check_submodule_present onnx
 
 _check_compilers_use_ccache() {
@@ -51,7 +51,11 @@ _pip_install() {
 }
 
 # Install caffe2
-_pip_install -b "$BUILD_DIR/caffe2" "file://$REPOS_DIR/caffe2#egg=caffe2"
+cd $REPOS_DIR/pytorch
+pip install -r caffe2/requirements.txt
+python setup_caffe2.py develop
+cd ../..
+python -c 'from caffe2.python import build; from pprint import pprint; pprint(build.build_options)'
 
 # Install onnx
 _pip_install -e "$REPOS_DIR/onnx"

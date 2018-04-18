@@ -30,8 +30,6 @@ if [ "$TRAVIS_OS_NAME" == "linux" ]; then
     exit 1
   fi
 elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
-  brew install ccache protobuf
-
   # Setup Python.
   export PYTHON_DIR="/usr/local/bin"
   if [ "${PYTHON_VERSION}" == "python3" ]; then
@@ -42,7 +40,7 @@ elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
     echo Unknown Python Version: ${PYTHON_VERSION}
     exit 1
   fi
-  brew install ${PYTHON_VERSION}
+  brew install ccache protobuf ${PYTHON_VERSION}
 else
   echo Unknown OS: $TRAVIS_OS_NAME
   exit 1
@@ -54,4 +52,6 @@ source "${HOME}/virtualenv/bin/activate"
 python --version
 
 # Update all existing python packages
-pip list --outdated --format=freeze | grep -v '^\-e' | cut -d = -f 1  | xargs -n1 pip install -U
+for package in $(pip list --outdated --format=freeze | grep -v '^\-e' | cut -d = -f 1); do
+  pip install -U $package
+done
