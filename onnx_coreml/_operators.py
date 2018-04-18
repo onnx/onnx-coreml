@@ -637,9 +637,9 @@ def _convert_neg(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
 
 
 def _convert_split(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
-    axis = node.attrs["axis"]
-    if axis != 1:
-        raise NotImplementedError("Split is supported for axis = 1 only")
+    axis = node.attrs.get("axis", 0)
+    if not (axis == 0 or axis == 1):
+        raise NotImplementedError("Split is supported for axis = 0 or 1 only")
     builder.add_split(
         name=node.name,
         input_name=node.inputs[0],
@@ -682,6 +682,24 @@ def _convert_reorganize_data(builder, node): # type: (NeuralNetworkBuilder, Node
          output_name = node.outputs[0],
          mode=mode,
          block_size=block_size
+    )
+
+
+def _convert_upsample(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+    height_scale = int(node.attrs["height_scale"]);
+    mode_convert = {
+        "nearest": "NN",
+        "bilinear": "BILINEAR",
+    }
+    mode = mode_convert[node.attrs["mode"].decode("UTF-8")]
+    width_scale = int(node.attrs["width_scale"])
+    builder.add_upsample(
+        name=node.name,
+        scaling_factor_h=height_scale,
+        scaling_factor_w=width_scale,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode=mode,
     )
 
 def _convert_lstm(builder, node): # type: (NeuralNetworkBuilder, Node) -> None
@@ -776,6 +794,7 @@ _ONNX_NODE_REGISTRY = {
     "DepthToSpace": _convert_reorganize_data,
     "SpaceToDepth": _convert_reorganize_data,
     "LSTM": _convert_lstm,
+    "Upsample": _convert_upsample,
 }
 
 

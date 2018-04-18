@@ -37,8 +37,8 @@ def _make_coreml_input_features(inputs, op_types): # type: (...) -> Sequence[Tup
         elif len(shape) == 1:
             pass
         elif len(shape) == 2:
-            # assume [H,W], so map to [1,H,W]
-            shape = [1,shape[0],shape[1]]
+            # assume [Batch,C]
+            shape = [shape[1]]
         elif len(shape) == 3:
             if input_[0] in op_types and \
                 len(op_types[input_[0]]) == 1 and \
