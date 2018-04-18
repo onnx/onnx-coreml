@@ -97,7 +97,7 @@ def _convert_reshape(builder, node):  # type: (NeuralNetworkBuilder, Node) -> No
     shape_name = node.inputs[1]
     shape = () # type: (Tuple[int, ...])
     if shape_name in node.input_tensors:
-        shape = node.input_tensors[shape_name] #type: ignore
+        shape = tuple(node.input_tensors[shape_name]) #type: ignore
     else:
         raise ValueError(
             "For Reshape layer, with input name = '%s', "
