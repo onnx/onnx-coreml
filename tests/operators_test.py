@@ -219,7 +219,7 @@ class SingleOperatorTest(unittest.TestCase):
             size=5
         )
 
-    @unittest.skip("Error while preparing Caffe2 backend. Maybe something is incorrect in ONNX model definition")
+    @unittest.skip("Error while preparing Caffe2 backend. Maybe something is incorrect in ONNX model definition") # type: ignore
     def test_lstm(self):  # type: () -> None
         x = 4
         h = 2
