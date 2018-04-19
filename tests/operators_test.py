@@ -9,6 +9,8 @@ from onnx.numpy_helper import from_array
 import caffe2.python.onnx.backend
 from onnx_coreml import convert
 
+from typing import Text
+
 from tests._test_utils import _test_single_node, \
     _random_array, _conv_pool_output_size, \
     _onnx_create_single_node_model, _assert_outputs
@@ -219,8 +221,8 @@ class SingleOperatorTest(unittest.TestCase):
             size=5
         )
 
-    @unittest.skip("Error while preparing Caffe2 backend. Maybe something is incorrect in ONNX model definition") # type: ignore
-    def test_lstm(self):  # type: () -> None
+    # @unittest.skip("Error while preparing Caffe2 backend. Maybe something is incorrect in ONNX model definition")
+    def skip_test_lstm(self):  # type: () -> None
         x = 4
         h = 2
         seq_length = 3
