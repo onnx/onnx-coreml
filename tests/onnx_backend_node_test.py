@@ -100,7 +100,6 @@ backend_test.exclude('test_reshape_one_dim_cpu')
 backend_test.exclude('test_reshape_reduced_dims_cpu')
 backend_test.exclude('test_reshape_reordered_dims_cpu')
 
-
 # some of these are fixable once input/output shape info is available to the converter.
 # The ones that are not fixed after that should be categorized under "Supported ops, but Unsupported parameters by CoreML"
 backend_test.exclude('test_add_bcast_cpu')
@@ -151,7 +150,6 @@ backend_test.exclude('test_maxpool_1d_default_cpu')
 backend_test.exclude('test_AvgPool1d_cpu')
 backend_test.exclude('test_AvgPool1d_stride_cpu')
 
-
 # These layers are supported. Need to fix these tests
 backend_test.exclude('test_Softsign_cpu')
 backend_test.exclude('test_Upsample_nearest_scale_2d_cpu')
@@ -199,6 +197,9 @@ backend_test.exclude('test_BatchNorm3d_momentum_eval_cpu')
 backend_test.exclude('test_BatchNorm1d_3d_input_eval_cpu')
 backend_test.exclude('test_averagepool_3d_default_cpu')
 backend_test.exclude('test_maxpool_3d_default_cpu')
+backend_test.exclude('test_split_variable_parts_1d_cpu')
+backend_test.exclude('test_split_variable_parts_2d_cpu')
+backend_test.exclude('test_split_variable_parts_default_axis_cpu')
 
 # Supported ops, but Unsupported parameters by CoreML
 backend_test.exclude('test_thresholdedrelu_example_cpu')
