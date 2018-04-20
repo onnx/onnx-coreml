@@ -30,7 +30,7 @@ def _make_coreml_input_features(graph): # type: (...) -> Sequence[Tuple[Text, da
     '''
     ONNX shapes to CoreML static shapes mapping
     length==1: [C]
-    length==2: [H,W]
+    length==2: [B,C]
     length==3: [C,H,W] or [Seq,B,C]
     length==4: [B,C,H,W]
     '''

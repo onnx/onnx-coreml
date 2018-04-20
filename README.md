@@ -96,7 +96,16 @@ convert-onnx-to-coreml [OPTIONS] ONNX_MODEL
 
 ## Currently supported
 ### Models
-Models from https://github.com/onnx/models are supported and tested.
+Models from https://github.com/onnx/models that have been tested to work with this converter:
+
+- Resnet50
+- Inception V1
+- Inception V2
+- Densenet 
+- Shufflenet
+- SqueezeNet
+- VGG
+- Alexnet
 
 ### Operators
 List of ONNX operators that can be converted into their CoreML equivalent:
