@@ -317,21 +317,28 @@ def _convert_leaky_relu(builder, node, graph):  # type: (NeuralNetworkBuilder, N
     )
 
 def _convert_concat(builder, node, graph):  # type: (NeuralNetworkBuilder, Node) -> None
-    axis = node.attrs.get("axis", 1)
-    first_input_shape = graph.shape_dict[node.inputs[0]]
-    parent_op_type = graph.blob_from_op_type.get(node.inputs[0], None)
 
+    axis = node.attrs.get("axis", 1)
+    parent_op_type = graph.blob_from_op_type.get(node.inputs[0], None)
     mode = None
-    if parent_op_type in _SEQUENCE_LAYERS_REGISTRY and \
-        len(first_input_shape) == 3:
-        if axis == 0:
-            mode = 'SEQUENCE_CONCAT'
-        if axis == 2:
+
+    if node.inputs[0] in graph.shape_dict:
+        first_input_shape = graph.shape_dict[node.inputs[0]]
+        if parent_op_type in _SEQUENCE_LAYERS_REGISTRY and \
+            len(first_input_shape) == 3:
+            if axis == 0:
+                mode = 'SEQUENCE_CONCAT'
+            if axis == 2:
+                mode = 'CONCAT'
+        elif (len(first_input_shape) == 1 and axis == 0) or \
+            (len(first_input_shape) == 3 and axis == 0) or \
+            (len(first_input_shape) == 4 and axis == 1):
             mode = 'CONCAT'
-    elif (len(first_input_shape) == 1 and axis == 0) or \
-        (len(first_input_shape) == 3 and axis == 0) or \
-        (len(first_input_shape) == 4 and axis == 1):
-        mode = 'CONCAT'
+    else: # shape info is not available. Fall back to old code.
+        if axis == 0:
+            mode = "SEQUENCE_CONCAT"
+        elif axis == 1:
+            mode = "CONCAT"
 
     if mode is None:
         raise ValueError(
