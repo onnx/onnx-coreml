@@ -68,9 +68,11 @@ class CoreMLTestingBackend(CoreMLBackend):
 # import all test cases at global scope to make them visible to python.unittest
 backend_test = onnx.backend.test.BackendTest(CoreMLTestingBackend, __name__)
 
-
 # Failing due to tolerance (in particular due to the way outputs are compared)
 backend_test.exclude('test_log_example_cpu')
+backend_test.exclude('test_ConvTranspose2d_cpu') #onnx ref out does not match with what the document states: output pad should be zero pad
+backend_test.exclude('test_ConvTranspose2d_no_bias_cpu')  # same as above
+backend_test.exclude('test_operator_convtranspose_cpu') # same as above
 
 # These are failing due to some error in Caffe2 backend
 backend_test.exclude('test_hardsigmoid_cpu')
@@ -138,21 +140,44 @@ backend_test.exclude('test_GLU_cpu')
 backend_test.exclude('test_GLU_dim_cpu')
 backend_test.exclude('test_Linear_cpu')
 backend_test.exclude('test_LogSoftmax_cpu')
-backend_test.exclude('test_MaxPool1d_cpu')
-backend_test.exclude('test_MaxPool1d_stride_cpu')
 backend_test.exclude('test_PReLU_1d_multiparam_cpu')
 backend_test.exclude('test_operator_chunk_cpu')
 backend_test.exclude('test_operator_permute2_cpu')
 backend_test.exclude('test_operator_transpose_cpu')
 backend_test.exclude('test_slice_default_axes_cpu')
-backend_test.exclude('test_averagepool_1d_default_cpu')
-backend_test.exclude('test_maxpool_1d_default_cpu')
-backend_test.exclude('test_AvgPool1d_cpu')
-backend_test.exclude('test_AvgPool1d_stride_cpu')
 backend_test.exclude('test_gather_1_cpu')
 backend_test.exclude('test_gather_0_cpu')
 backend_test.exclude('test_Embedding_cpu')
 backend_test.exclude('test_Embedding_sparse_cpu')
+backend_test.exclude('test_operator_add_broadcast_cpu')
+backend_test.exclude('test_operator_add_size1_broadcast_cpu')
+backend_test.exclude('test_operator_add_size1_right_broadcast_cpu')
+backend_test.exclude('test_operator_add_size1_singleton_broadcast_cpu')
+backend_test.exclude('test_operator_index_cpu')
+backend_test.exclude('test_operator_pow_cpu')
+backend_test.exclude('test_concat_2d_axis_0_cpu')
+
+# 1-D conv/pool cases. an be supported using shape inference
+backend_test.exclude('test_Conv1d_cpu')
+backend_test.exclude('test_Conv1d_dilated_cpu')
+backend_test.exclude('test_Conv1d_groups_cpu')
+backend_test.exclude('test_Conv1d_pad1_cpu')
+backend_test.exclude('test_Conv1d_pad1size1_cpu')
+backend_test.exclude('test_Conv1d_pad2_cpu')
+backend_test.exclude('test_Conv1d_pad2size1_cpu')
+backend_test.exclude('test_Conv1d_stride_cpu')
+backend_test.exclude('test_MaxPool1d_cpu')
+backend_test.exclude('test_MaxPool1d_stride_cpu')
+backend_test.exclude('test_averagepool_1d_default_cpu')
+backend_test.exclude('test_maxpool_1d_default_cpu')
+backend_test.exclude('test_AvgPool1d_cpu')
+backend_test.exclude('test_AvgPool1d_stride_cpu')
+
+# recurrent tests.
+backend_test.exclude('test_operator_rnn_cpu')
+backend_test.exclude('test_operator_rnn_single_layer_cpu')
+backend_test.exclude('test_operator_lstm_cpu')
+
 
 # These layers are supported. Need to fix these tests
 backend_test.exclude('test_Softsign_cpu')
@@ -211,10 +236,14 @@ backend_test.exclude('test_shape_example_cpu')
 backend_test.exclude('test_size_cpu')
 backend_test.exclude('test_size_example_cpu')
 backend_test.exclude('test_top_k_cpu')
-backend_test.exclude('test_concat_2d_axis_0_cpu')
-backend_test.exclude('test_concat_2d_axis_1_cpu')
 backend_test.exclude('test_concat_3d_axis_1_cpu')
 backend_test.exclude('test_concat_3d_axis_2_cpu')
+backend_test.exclude('test_Linear_no_bias_cpu')
+backend_test.exclude('test_PoissonNLLLLoss_no_reduce_cpu')
+backend_test.exclude('test_operator_addconstant_cpu')
+backend_test.exclude('test_operator_mm_cpu')
+backend_test.exclude('test_operator_addmm_cpu')
+backend_test.exclude('test_operator_type_as_cpu')
 
 # Supported ops, but Unsupported parameters by CoreML
 backend_test.exclude('test_thresholdedrelu_example_cpu')

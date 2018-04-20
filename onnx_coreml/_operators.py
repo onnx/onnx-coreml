@@ -39,9 +39,9 @@ def _convert_conv(builder, node, graph): # type: (NeuralNetworkBuilder, Node) ->
         W = W.transpose((2, 3, 1, 0))
     else:
         W = W.transpose((2, 3, 0, 1))
-    b = None
+    bias = None
     if len(node.inputs) > 2:
-        b = node.input_tensors[node.inputs[2]]
+        bias = node.input_tensors[node.inputs[2]]
 
     dilations = node.attrs.get("dilations", [1, 1])
     groups = 1
@@ -50,6 +50,26 @@ def _convert_conv(builder, node, graph): # type: (NeuralNetworkBuilder, Node) ->
 
     pads = node.attrs.get("pads", [0, 0, 0, 0])
     strides = node.attrs["strides"]
+
+    out_shape = None
+    output_name = node.outputs[0]
+    is_post_pad = False
+
+    if is_deconv:
+        if 'output_shape' in node.attrs:
+            out_shape = (node.attrs['output_shape'][-2], node.attrs['output_shape'][-1]) #(Hout, wout)
+        elif 'output_padding' in node.attrs:
+            post_pads = node.attrs['output_padding']
+            if sum(post_pads) != 0:
+                t = l = b = r = 0
+                if len(post_pads) == 2:
+                    b, r = post_pads
+                elif len(post_pads) == 4:
+                    t, l, b, r = post_pads
+                else:
+                    raise ValueError('ConvTranspose: output padding must be either length 2 or 4')
+                is_post_pad = True
+                output_name += '_conv_tranpose_pre_pad'
 
     builder.add_convolution(
         name=node.name,
@@ -62,18 +82,30 @@ def _convert_conv(builder, node, graph): # type: (NeuralNetworkBuilder, Node) ->
         border_mode='valid',
         groups=groups,
         W=W,
-        b=b,
-        has_bias=b is not None,
+        b=bias,
+        has_bias=bias is not None,
         is_deconv=is_deconv,
-        output_shape=None,
+        output_shape=out_shape,
         input_name=node.inputs[0],
-        output_name=node.outputs[0],
+        output_name=output_name,
         dilation_factors=dilations,
         padding_top=pads[0],
         padding_bottom=pads[2],
         padding_left=pads[1],
         padding_right=pads[3]
     )
+
+    if is_post_pad:
+        builder.add_padding(
+            name=node.name + '_post_pad',
+            left=l,
+            right=r,
+            top=t,
+            bottom=b,
+            value=0,
+            input_name=output_name,
+            output_name=node.outputs[0],
+        )
 
 def _convert_relu(builder, node, graph):  # type: (NeuralNetworkBuilder, Node) -> None
     builder.add_activation(
@@ -266,6 +298,24 @@ def _convert_bn(builder, node, graph):  # type: (NeuralNetworkBuilder, Node) -> 
     )
 
 
+def _convert_instancenorm(builder, node, graph):  # type: (NeuralNetworkBuilder, Node) -> None
+    epsilon = node.attrs.get("epsilon", 1e-5)
+    scale = node.input_tensors[node.inputs[1]]
+    bias = node.input_tensors[node.inputs[2]]
+
+    builder.add_batchnorm(
+        name=node.name,
+        channels=scale.shape[0],
+        gamma=scale,
+        beta=bias,
+        compute_mean_var=True,
+        instance_normalization=True,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        epsilon=epsilon
+    )
+
+
 def _convert_add(builder, node, graph):  # type: (NeuralNetworkBuilder, Node) -> None
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
@@ -332,9 +382,10 @@ def _convert_concat(builder, node, graph):  # type: (NeuralNetworkBuilder, Node)
                 mode = 'CONCAT'
         elif (len(first_input_shape) == 1 and axis == 0) or \
             (len(first_input_shape) == 3 and axis == 0) or \
-            (len(first_input_shape) == 4 and axis == 1):
+            (len(first_input_shape) == 4 and axis == 1) or \
+            (len(first_input_shape) == 2 and axis == 1):
             mode = 'CONCAT'
-    else: # shape info is not available. Fall back to old code.
+    else: # shape info is not available. Fall back to guessing (ideally this should not happen)
         if axis == 0:
             mode = "SEQUENCE_CONCAT"
         elif axis == 1:
@@ -354,6 +405,57 @@ def _convert_concat(builder, node, graph):  # type: (NeuralNetworkBuilder, Node)
         mode=mode
     )
 
+def _convert_reduce(builder, node, graph):  # type: (NeuralNetworkBuilder, Node) -> None
+
+    axes = node.attrs['axes']
+
+    def get_coreml_axis(axes):
+        coreml_axis = ""
+        if node.inputs[0] in graph.shape_dict:
+            input_shape = graph.shape_dict[node.inputs[0]]
+            if len(input_shape) == 1: coreml_axis = 'C'
+            elif len(input_shape) == 2:
+                if len(axes) == 1 and axes[0] == 1: coreml_axis = 'C'
+            elif len(input_shape) == 3:
+                for ind in [['C','H','W'][i] for i in axes]: coreml_axis += ind
+            elif len(input_shape) == 4:
+                for ind in [['B','C','H','W'][i] for i in axes]: coreml_axis += ind
+        else:  # shape info is not available. Fall back to guessing (ideally this should not happen)
+            if len(axes) == 1 and axes[0] == 1: coreml_axis = 'C'
+            elif len(axes) == 3: coreml_axis = 'CHW'
+        return coreml_axis
+
+    coreml_axis = get_coreml_axis(axes)
+
+    if coreml_axis not in ['C', 'H', 'W', 'HW', 'CHW']:
+        raise ValueError('{} op: unable to map axes attribute to CoreML axis parameter'.format(node.op_type))
+
+    if node.op_type == 'ReduceMean':
+        mode = 'avg'
+    elif node.op_type == 'ReduceL1':
+        mode = 'L1'
+    elif node.op_type == 'ReduceL2':
+        mode = 'L2'
+    elif node.op_type == 'ReduceLogSum':
+        mode = 'logsum'
+    elif node.op_type == 'ReduceMax':
+        mode = 'max'
+    elif node.op_type == 'ReduceMin':
+        mode = 'min'
+    elif node.op_type == 'ReduceProd':
+        mode = 'prod'
+    elif node.op_type == 'ReduceSum':
+        mode = 'sum'
+    elif node.op_type == 'ReduceSumSquare':
+        mode = 'sumsquare'
+    else:
+        raise ValueError("Unsupported ONNX op {}".format(node.op_type))
+
+    builder.add_reduce(name=node.name,
+                       input_name=node.inputs[0], output_name=node.outputs[0],
+                       axis=coreml_axis,
+                       mode=mode)
+
 def _convert_softmax(builder, node, graph):  # type: (NeuralNetworkBuilder, Node) -> None
     axis = node.attrs.get('axis', 1)
     if axis != 1:
@@ -366,12 +468,23 @@ def _convert_softmax(builder, node, graph):  # type: (NeuralNetworkBuilder, Node
     )
 
 def _convert_gemm(builder, node, graph):  # type: (NeuralNetworkBuilder, Node) -> None
+
+    weight_name = node.inputs[1]
+    W = None
+    if weight_name in node.input_tensors:
+        W = node.input_tensors[weight_name]
+    else:
+        raise ValueError(
+            "For Gemm layer, with input name = '%s', "
+            "output name = '%s' and weight name = '%s', Weight tensor not found in graph initializer"
+            %(node.inputs[0], node.outputs[0], weight_name)
+        )
+
     if node.attrs["broadcast"] != 1 or node.attrs["transB"] != 1:
         raise ValueError(
             "Gemm is supported only for inner_product layer"
         )
 
-    W = node.input_tensors[node.inputs[1]]
     b = None
     if len(node.inputs) > 2:
         b = node.input_tensors[node.inputs[2]]
@@ -702,7 +815,7 @@ def _convert_reorganize_data(builder, node, graph): # type: (NeuralNetworkBuilde
          block_size=block_size
     )
 
-def _convert_upsample(builder, node):  # type: (NeuralNetworkBuilder, Node) -> None
+def _convert_upsample(builder, node, graph):  # type: (NeuralNetworkBuilder, Node) -> None
     height_scale = int(node.attrs["height_scale"]);
     mode_convert = {
         "nearest": "NN",
@@ -775,6 +888,7 @@ _ONNX_NODE_REGISTRY = {
     "FC": _convert_fc,
     "BatchNormalization": _convert_bn,
     "SpatialBN": _convert_bn,
+    "InstanceNormalization": _convert_instancenorm,
     "Add": _convert_add,
     "Sum": _convert_add,
     "Mul": _convert_mul,
@@ -812,6 +926,15 @@ _ONNX_NODE_REGISTRY = {
     "SpaceToDepth": _convert_reorganize_data,
     "LSTM": _convert_lstm,
     "Upsample": _convert_upsample,
+    "ReduceL1": _convert_reduce,
+    "ReduceL2": _convert_reduce,
+    "ReduceLogSum": _convert_reduce,
+    "ReduceMax": _convert_reduce,
+    "ReduceMean": _convert_reduce,
+    "ReduceMin": _convert_reduce,
+    "ReduceProd": _convert_reduce,
+    "ReduceSum": _convert_reduce,
+    "ReduceSumSquare": _convert_reduce,
 }
 
 

@@ -65,7 +65,7 @@ class CoreMLRep(BackendRep):
         output_values = [prediction[name] for name in self.output_names]
         for i, output_ in enumerate(output_values):
             shape = output_.shape
-            #reshape the CoreML output to match Onnx's in shape
+            #reshape the CoreML output to match Onnx's output shape
             try:
                 output_values[i] = np.reshape(output_, self.onnx_outputs_info[self.output_names[i]][2])  # type: ignore
                 if self.onnx_outputs_info[self.output_names[i]][1] == TensorProto.INT64:
