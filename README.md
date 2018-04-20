@@ -96,17 +96,26 @@ convert-onnx-to-coreml [OPTIONS] ONNX_MODEL
 
 ## Currently supported
 ### Models
-Models from https://github.com/onnx/models are supported and tested.
+Models from https://github.com/onnx/models that have been tested to work with this converter:
+
+- Resnet50
+- Inception V1
+- Inception V2
+- Densenet 
+- Shufflenet
+- SqueezeNet
+- VGG
+- Alexnet
 
 ### Operators
 List of ONNX operators that can be converted into their CoreML equivalent:
 
 - Abs
 - Add
-- AveragePool
+- AveragePool (2D)
 - BatchNormalization
 - Concat
-- Conv
+- Conv (2D)
 - DepthToSpace
 - Div
 - Elu
@@ -114,21 +123,30 @@ List of ONNX operators that can be converted into their CoreML equivalent:
 - FC
 - Flatten
 - Gemm
-- GlobalAveragePool
-- GlobalMaxPool
+- GlobalAveragePool (2D)
+- GlobalMaxPool (2D)
 - HardSigmoid
 - LeakyRelu
 - Log
 - LogSoftmax
 - LRN
 - Max
-- MaxPool
+- MaxPool (2D)
 - Min
 - Mul
 - Neg
 - Pad
 - PRelu
 - Reciprocal
+- ReduceL1
+- ReduceL2
+- ReduceLogSum
+- ReduceMax
+- ReduceMean
+- ReduceMin
+- ReduceProd
+- ReduceSum
+- ReduceSumSquare
 - Relu
 - Reshape
 - Selu
@@ -145,7 +163,7 @@ List of ONNX operators that can be converted into their CoreML equivalent:
 - ThresholdedRelu
 - Transpose
 
-Some of operators are partially compatible because CoreML doesn't support broadcasting, gemm for arbitrary tensors, etc.
+Some of the operators are partially compatible because CoreML does not support gemm for arbitrary tensors, has limited support for non 4-rank tensors etc.
 
 ## License
 Copyright (c) 2017 [Prisma Labs, Inc](https://prismalabs.ai/). All rights reserved.

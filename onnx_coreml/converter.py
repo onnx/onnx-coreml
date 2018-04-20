@@ -2,7 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-from typing import Text, Union, Optional, Dict, Any, Iterable, Sequence, Callable
+from typing import Text, Union, Optional, Dict, Any, Iterable, Sequence, Callable, List
 from ._shapeinference import infer_shapes_and_types
 
 import onnx
@@ -16,7 +16,7 @@ from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
 
 from typing import Tuple
 
-from ._operators import _convert_node
+from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY
 from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
@@ -26,23 +26,32 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
 inputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_input_features(inputs, op_types): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_input_features(graph): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+    '''
+    ONNX shapes to CoreML static shapes mapping
+    length==1: [C]
+    length==2: [B,C]
+    length==3: [C,H,W] or [Seq,B,C]
+    length==4: [B,C,H,W]
+    '''
+    inputs = graph.inputs
+    op_types = graph.blob_to_op_type
     features = []
     for input_ in inputs:
-        if input_[1] != TensorProto.FLOAT:
-            raise TypeError("Input must be of of type TensorProto.FLOAT")
         shape = input_[2]
         if len(shape) == 0:
             shape = [1, 1, 1]
         elif len(shape) == 1:
+            # assume [C]
             pass
         elif len(shape) == 2:
             # assume [Batch,C]
             shape = [shape[1]]
         elif len(shape) == 3:
+            # assume [C,H,W] unless its connected to recurrent related ops
             if input_[0] in op_types and \
                 len(op_types[input_[0]]) == 1 and \
-                str(op_types[input_[0]][0]) == 'LSTM':
+                str(op_types[input_[0]][0]) in _SEQUENCE_LAYERS_REGISTRY:
                 # onnx shape: (Seq,B,C)
                 shape = [shape[2]]
         elif len(shape) == 4:  # (B,C,H,W) --> (C,H,W)
@@ -56,11 +65,11 @@ def _make_coreml_input_features(inputs, op_types): # type: (...) -> Sequence[Tup
 outputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_output_features(outputs, op_types):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_output_features(graph):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
+    outputs = graph.outputs
+    op_types = graph.blob_from_op_type
     for output_ in outputs:
-        if output_[1] != TensorProto.FLOAT:
-            raise TypeError("Output must be of of type TensorProto.FLOAT")
         shape = output_[2]
         if len(shape) == 0:
             shape = [1, 1, 1]
@@ -68,7 +77,7 @@ def _make_coreml_output_features(outputs, op_types):  # type: (...) -> Sequence[
             pass
         elif len(shape) == 3:
             if output_[0] in op_types and \
-                str(op_types[output_[0]]) == 'LSTM':
+                str(op_types[output_[0]]) in _SEQUENCE_LAYERS_REGISTRY:
                 # onnx shape: (Seq,B,C)
                 shape = [shape[2]]
         else:
@@ -78,6 +87,48 @@ def _make_coreml_output_features(outputs, op_types):  # type: (...) -> Sequence[
         else:
             features.append((str(output_[0]), datatypes.Array(*shape)))
     return features
+
+
+def _update_multiarray_to_float32(feature, #type: Any
+                                 ): # type : (...) -> None
+  if feature.type.HasField('multiArrayType'):
+    feature.type.multiArrayType.dataType = ft.ArrayFeatureType.FLOAT32
+
+def _update_multiarray_to_int32(feature, #type: Any
+                               ): # type : (...) -> None
+  if feature.type.HasField('multiArrayType'):
+    feature.type.multiArrayType.dataType = ft.ArrayFeatureType.INT32
+
+
+def _transform_coreml_dtypes(builder, # type : NeuralNetworkBuilder
+                             inputs, # type: List[EdgeInfo]
+                             outputs # type: List[EdgeInfo]
+                             ):
+    # type: (...) -> None
+
+    ''' Make sure ONNX input/output data types are mapped to the equivalent CoreML types 
+    '''
+    for i, input_ in enumerate(inputs):
+        onnx_type = input_[1]
+        if onnx_type == TensorProto.FLOAT:
+            _update_multiarray_to_float32(builder.spec.description.input[i])
+        elif onnx_type == TensorProto.DOUBLE:
+            continue
+        elif onnx_type == TensorProto.INT32 or onnx_type == TensorProto.INT64:
+            _update_multiarray_to_int32(builder.spec.description.input[i])
+        else:
+            raise TypeError("Input must be of of type FLOAT, DOUBLE, INT32 or INT64")
+
+    for i, output_ in enumerate(outputs):
+        onnx_type = output_[1]
+        if onnx_type == TensorProto.FLOAT:
+            _update_multiarray_to_float32(builder.spec.description.output[i])
+        elif onnx_type == TensorProto.DOUBLE:
+            continue
+        elif onnx_type == TensorProto.INT32 or onnx_type == TensorProto.INT64:
+            _update_multiarray_to_int32(builder.spec.description.output[i])
+        else:
+            raise TypeError("Output must be of of type FLOAT, DOUBLE, INT32 or INT64")
 
 def _convert_multiarray_output_to_image(spec,  # type: Any
                                         feature_name,  # type: Text
@@ -241,8 +292,11 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     #Make CoreML input and output features by gathering shape info and
     #interpreting it for CoreML
-    input_features = _make_coreml_input_features(graph.inputs, graph.blob_to_op_type)
-    output_features = _make_coreml_output_features(graph.outputs, graph.blob_from_op_type)
+    input_features = _make_coreml_input_features(graph)
+    output_features = _make_coreml_output_features(graph)
+
+    builder = NeuralNetworkBuilder(input_features, output_features)
+    _transform_coreml_dtypes(builder, graph.inputs, graph.outputs)
 
     is_deprocess_bgr_only = (len(deprocessing_args) == 1) and \
                             ("is_bgr" in deprocessing_args)
@@ -257,7 +311,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             mapping[output_name] = graph.get_unique_edge_name(output_name)
         graph = OutputRenamer(mapping)(graph)
 
-    builder = NeuralNetworkBuilder(input_features, output_features, mode)
+
 
     if len(image_input_names) > 0:
         builder.set_pre_processing_parameters(
@@ -281,7 +335,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
-        _convert_node(builder, node)
+        _convert_node(builder, node, graph)
 
     if add_deprocess:
         for f in output_features:
@@ -321,7 +375,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     # add description to inputs/outputs that feed in/out of recurrent layers
     for node_ in graph.nodes:
-        if str(node_.op_type) == 'LSTM':
+        if str(node_.op_type) in _SEQUENCE_LAYERS_REGISTRY:
             input_ = node_.inputs[0]
             output_ = node_.outputs[0]
             for i, inputs in enumerate(builder.spec.description.input):
