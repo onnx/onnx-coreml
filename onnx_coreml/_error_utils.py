@@ -4,7 +4,7 @@ from __future__ import print_function
 
 from typing import Dict, Text, Any, Callable
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
-from ._graph import Node
+from ._graph import Node, Graph
 
 class ErrorHandling(object):
   '''
@@ -14,17 +14,18 @@ class ErrorHandling(object):
   def __init__(self,
                add_custom_layers = False, # type: bool
                custom_conversion_functions = dict(), # type: Dict[Text, Any]
+               custom_layer_nodes = [], # type : List[Node]
                ):
       # type: (...) -> None
       self.add_custom_layers = add_custom_layers
       self.custom_conversion_functions = custom_conversion_functions
-      self.custom_layer_nodes = []
+      self.custom_layer_nodes = custom_layer_nodes
 
 
   def unsupported_op(self,
                      node,  # type: Node
                     ):
-      # type: (...) -> Callable[[Any, Node], None]
+      # type: (...) -> Callable[[Any, Node, Graph, ErrorHandling], None]
       '''
       Either raise an error for an unsupported op type or return custom layer add function
       '''
@@ -40,6 +41,7 @@ class ErrorHandling(object):
   def unsupported_op_configuration(self,
                                    builder, # type: NeuralNetworkBuilder
                                    node, # type: Node
+                                   graph, # type: Graph
                                    err_message, # type: Text
                                    ):
       # type: (...) -> None
@@ -48,7 +50,7 @@ class ErrorHandling(object):
       '''
       if self.add_custom_layers:
         from ._operators import _convert_custom
-        _convert_custom(builder, node, self)
+        _convert_custom(builder, node, graph, self)
       else:
         raise TypeError(
           "Error while converting op of type: {}. Error message: {}\n".format(node.op_type, err_message, )

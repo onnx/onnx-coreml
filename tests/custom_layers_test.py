@@ -5,11 +5,11 @@ from __future__ import print_function
 import unittest
 
 from tests._test_utils import _onnx_create_model
-from onnx import helper, numpy_helper
+from onnx import helper, numpy_helper, ModelProto
 from onnx_coreml import convert
 from coremltools.proto import NeuralNetwork_pb2 #type: ignore
 
-def _make_model_clip_exp_topk():
+def _make_model_clip_exp_topk(): # type: (...) -> ModelProto
   '''
   make a very simple model for testing: input->clip->exp->topk->2 outputs
   '''
@@ -28,7 +28,7 @@ def _make_model_clip_exp_topk():
                         axis=0, k=3)
   return _onnx_create_model([clip, exp, topk], inputs, outputs)
 
-def _make_model_concat_axis3():
+def _make_model_concat_axis3(): # type: (...) -> ModelProto
   '''
   make a simple model: 4-D input1, 4-D input2 -> concat (axis=3)-> output 
   '''
