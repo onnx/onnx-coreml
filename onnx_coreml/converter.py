@@ -80,6 +80,8 @@ def _make_coreml_output_features(graph):  # type: (...) -> Sequence[Tuple[Text, 
                 str(op_types[output_[0]]) in _SEQUENCE_LAYERS_REGISTRY:
                 # onnx shape: (Seq,B,C)
                 shape = [shape[2]]
+        elif len(shape) == 4:  # (B,C,H,W) --> (C,H,W)
+            shape = shape[1:]
         else:
             shape = None #output shape need not be specified for CoreML.
         if shape is None:
