@@ -16,11 +16,12 @@ from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
 
 from typing import Tuple
 
-from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY
+from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY, _ONNX_NODE_REGISTRY
 from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
     PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs
+from ._error_utils import ErrorHandling
 
 '''
 inputs: list of tuples.
@@ -89,6 +90,17 @@ def _make_coreml_output_features(graph):  # type: (...) -> Sequence[Tuple[Text, 
         else:
             features.append((str(output_[0]), datatypes.Array(*shape)))
     return features
+
+def _check_unsupported_ops(nodes): # type: (...) -> None
+    unsupported_op_types = [] # type: List[Text]
+    for node in nodes:
+        if node.op_type not in _ONNX_NODE_REGISTRY and \
+          node.op_type not in unsupported_op_types:
+            unsupported_op_types.append(node.op_type)
+
+    if len(unsupported_op_types) > 0:
+        raise NotImplementedError("Unsupported ONNX ops of type: %s" % (
+            ','.join(unsupported_op_types)))
 
 
 def _update_multiarray_to_float32(feature, #type: Any
@@ -240,6 +252,8 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             deprocessing_args={},  # type: Dict[Text, Any]
             class_labels=None,  # type: Union[Text, Iterable[Text], None]
             predicted_feature_name='classLabel',  # type: Text
+            add_custom_layers = False,  # type: bool
+            custom_conversion_functions = {}, #type: Dict[Text, Any]
             ):
     # type: (...) -> MLModel
     """
@@ -335,9 +349,15 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
                     builder.spec, f_name, is_bgr=is_bgr
                 )
 
+    '''Iterate through all the ops and translate them to CoreML layers. 
+    '''
+    if not add_custom_layers:
+        _check_unsupported_ops(graph.nodes)
+    err = ErrorHandling(add_custom_layers,
+                        custom_conversion_functions)
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
-        _convert_node(builder, node, graph)
+        _convert_node(builder, node, graph, err)
 
     if add_deprocess:
         for f in output_features:
@@ -387,4 +407,21 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
                 if outputs.name == output_:
                     builder.spec.description.output[i].shortDescription = 'This output is a sequence'
 
-    return MLModel(builder.spec)
+    mlmodel  = MLModel(builder.spec)
+
+    # print information about all ops for which custom layers have been added
+    if len(err.custom_layer_nodes) > 0:
+        print('\n')
+        print("Custom layers have been added to the CoreML model "
+              "corresponding to the following ops in the onnx model: ")
+        for i, node in enumerate(err.custom_layer_nodes):
+            input_info = []
+            for input_ in node.inputs:
+                input_info.append((str(input_), graph.shape_dict.get(input_, str("Shape not available"))))
+            output_info = []
+            for output_ in node.outputs:
+                output_info.append((str(output_), graph.shape_dict.get(output_, str("Shape not available"))))
+            print("{}/{}: op type: {}, op input names and shapes: {}, op output names and shapes: {}".
+                  format(i+1, len(err.custom_layer_nodes), node.op_type, str(input_info), str(output_info)))
+
+    return mlmodel

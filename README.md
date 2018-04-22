@@ -14,9 +14,10 @@ pip install -U onnx-coreml
 
 ### Install From Source
 
-To get the latest version of the converter, install from source by cloning the repository and running the install-develop.sh script. That is,
+To get the latest version of the converter, install from source by cloning the repository along with its submodules and running the install-develop.sh script. That is,
 ```bash
 git clone --recursive https://github.com/onnx/onnx-coreml.git
+cd onnx-coreml
 ./install-develop.sh
 ```
 
@@ -35,8 +36,6 @@ To implement converters you should use single function "convert" from onnx_corem
 from onnx_coreml import convert
 ```
 
-This function is simple enough to be self-describing:
-
 ```python
 def convert(model,
             mode=None,
@@ -45,7 +44,9 @@ def convert(model,
             image_output_names=[],
             deprocessing_args={},
             class_labels=None,
-            predicted_feature_name='classLabel')
+            predicted_feature_name='classLabel',
+            add_custom_layers = False,
+            custom_conversion_functions = {})
 ```
 
 ### Parameters
@@ -84,6 +85,17 @@ __predicted_feature_name__: str
       Name of the output feature for the class labels exposed in the Core ML  
       model (applies to classifiers only). Defaults to 'classLabel'  
 
+__add_custom_layers__: bool  
+	  If True, then ['custom'](https://developer.apple.com/documentation/coreml/core_ml_api/integrating_custom_layers?language=objc) layers will be added to the model in place of unsupported onnx ops or for the ops
+	  that have unsupported attributes.   
+	  Parameters for these custom layers should be filled manually by editing the mlmodel  
+	  or the 'custom_conversion_functions' argument can be used to do the same during the process of conversion
+
+__custom_conversion_functions__: dict (str: (node -> (CustomLayerParams)))  
+	 A dictionary with keys corresponding to the names of onnx ops and values
+     as functions taking an object of class 'Node' (see `onnx-coreml/_graph.Node`) and returning CoreML custom layer parameters.  
+     To see examples of this argument in action, look at the testing script `tests/custom_layers_test.py`
+
 ### Returns
 __model__: A coreml model.
 
@@ -92,6 +104,28 @@ __model__: A coreml model.
 Also you can use command-line script for simplicity:
 ```
 convert-onnx-to-coreml [OPTIONS] ONNX_MODEL
+```
+
+
+## Running Unit Tests
+
+In order to run unit tests, you need pytest.
+
+```shell
+pip install pytest
+pip install pytest-cov
+```
+
+To run all unit tests, navigate to the `tests/` folder and run
+
+```shell
+pytest
+```
+
+To run a specific unit test, for instance the custom layer test, run
+
+```shell
+pytest -s custom_layers_test.py::CustomLayerTest::test_unsupported_ops_provide_functions
 ```
 
 ## Currently supported
@@ -163,7 +197,9 @@ List of ONNX operators that can be converted into their CoreML equivalent:
 - ThresholdedRelu
 - Transpose
 
-Some of the operators are partially compatible because CoreML does not support gemm for arbitrary tensors, has limited support for non 4-rank tensors etc.
+Some of the operators are partially compatible because CoreML does not support gemm for arbitrary tensors, has limited support for non 4-rank tensors etc.   
+For unsupported ops or unsupported attributes within supported ops, CoreML custom layers can be used.   
+See the testing script `tests/custom_layers_test.py` on how to produce CoreML models with custom layers. 
 
 ## License
 Copyright (c) 2017 [Prisma Labs, Inc](https://prismalabs.ai/). All rights reserved.
