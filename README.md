@@ -36,8 +36,6 @@ To implement converters you should use single function "convert" from onnx_corem
 from onnx_coreml import convert
 ```
 
-This function is simple enough to be self-describing:
-
 ```python
 def convert(model,
             mode=None,
@@ -106,6 +104,28 @@ __model__: A coreml model.
 Also you can use command-line script for simplicity:
 ```
 convert-onnx-to-coreml [OPTIONS] ONNX_MODEL
+```
+
+
+## Running Unit Tests
+
+In order to run unit tests, you need pytest.
+
+```shell
+pip install pytest
+pip install pytest-cov
+```
+
+To run all unit tests, navigate to the `tests/` folder and run
+
+```shell
+pytest
+```
+
+To run a specific unit test, for instance the custom layer test, run
+
+```shell
+pytest -s custom_layers_test.py::CustomLayerTest::test_unsupported_ops_provide_functions
 ```
 
 ## Currently supported

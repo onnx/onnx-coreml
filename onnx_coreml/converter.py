@@ -16,7 +16,7 @@ from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
 
 from typing import Tuple
 
-from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY
+from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY, _ONNX_NODE_REGISTRY
 from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
@@ -88,6 +88,17 @@ def _make_coreml_output_features(graph):  # type: (...) -> Sequence[Tuple[Text, 
         else:
             features.append((str(output_[0]), datatypes.Array(*shape)))
     return features
+
+def _check_unsupported_ops(nodes): # type: (...) -> None
+    unsupported_op_types = [] # type: List[Text]
+    for node in nodes:
+        if node.op_type not in _ONNX_NODE_REGISTRY and \
+          node.op_type not in unsupported_op_types:
+            unsupported_op_types.append(node.op_type)
+
+    if len(unsupported_op_types) > 0:
+        raise NotImplementedError("Unsupported ONNX ops of type: %s" % (
+            ','.join(unsupported_op_types)))
 
 
 def _update_multiarray_to_float32(feature, #type: Any
@@ -338,6 +349,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     '''Iterate through all the ops and translate them to CoreML layers. 
     '''
+    _check_unsupported_ops(graph.nodes)
     err = ErrorHandling(add_custom_layers,
                         custom_conversion_functions)
     for i, node in enumerate(graph.nodes):

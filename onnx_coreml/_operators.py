@@ -9,7 +9,6 @@ from typing import Sequence, Callable, List, Tuple, Optional, Text, Any
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from ._graph import Node, Graph
 from coremltools.proto import NeuralNetwork_pb2 #type: ignore
-from ._graph import Node
 from ._error_utils import ErrorHandling
 
 _SEQUENCE_LAYERS_REGISTRY = set(["LSTM"])
