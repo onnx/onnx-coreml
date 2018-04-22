@@ -349,7 +349,8 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     '''Iterate through all the ops and translate them to CoreML layers. 
     '''
-    _check_unsupported_ops(graph.nodes)
+    if not add_custom_layers:
+        _check_unsupported_ops(graph.nodes)
     err = ErrorHandling(add_custom_layers,
                         custom_conversion_functions)
     for i, node in enumerate(graph.nodes):
