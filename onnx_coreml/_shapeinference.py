@@ -1,13 +1,19 @@
-import caffe2
-from caffe2.python.onnx.workspace import Workspace
-from caffe2.python.onnx.backend_rep import Caffe2Rep
 from typing import NamedTuple, Sequence, Dict, Text
 from onnx import ModelProto, GraphProto, helper
-from caffe2.python.onnx import backend
+try:
+    import caffe2
+    from caffe2.python.onnx.workspace import Workspace
+    from caffe2.python.onnx.backend_rep import Caffe2Rep
+    from caffe2.python.onnx import backend
+    CAFFE2_AVAILABLE = True
+except ImportError:
+    CAFFE2_AVAILABLE = False
 
 
 # Infer shapes for all intermediate values and write them into GraphProto.value_info
 def infer_shapes_and_types(graph):  # type: (GraphProto) -> None
+    if not CAFFE2_AVAILABLE:
+        return
     model = helper.make_model(graph)
     c2_backend = _load_model(model)
     #TODO Gate the following two lines with "with c2_backend.workspace:" once fixed
