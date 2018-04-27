@@ -19,6 +19,7 @@ class NodesFuser(object):
                  num_nodes,  # type: int
                  ):
         # type: (...) -> None
+        assert num_nodes >= 2, "Algorithm only works if fusing multiple nodes"
         self.num_nodes = num_nodes
 
     def __call__(self, graph):  # type: (Graph) -> Graph
@@ -458,4 +459,22 @@ class AddModelInputsOutputs(object):
                     if output_ not in output_names:
                         graph.outputs.append(tuple((output_, TensorProto.FLOAT, (h,))))  #type: ignore
                     graph.blob_from_op_type[output_] = 'LSTM'
+        return graph
+
+
+class ConstantsToInitializers(object):
+    '''
+    Takes onnx Constant nodes and puts the tensor into graph initializers instead.
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        output_names = [str(output_[0]) for output_ in graph.outputs]
+        remaining_nodes = []
+        for node in graph.nodes:
+            if node.op_type != 'Constant' or node.name in output_names:
+                remaining_nodes.append(node)
+                continue
+            for child in node.children:
+                child.input_tensors[node.outputs[0]] = node.attrs["value"]
+
+        graph.nodes = remaining_nodes
         return graph

@@ -20,7 +20,8 @@ from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY, _ONNX_NODE_REG
 from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
-    PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs
+    PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs, \
+    ConstantsToInitializers
 from ._error_utils import ErrorHandling
 
 '''
@@ -120,7 +121,7 @@ def _transform_coreml_dtypes(builder, # type : NeuralNetworkBuilder
                              ):
     # type: (...) -> None
 
-    ''' Make sure ONNX input/output data types are mapped to the equivalent CoreML types 
+    ''' Make sure ONNX input/output data types are mapped to the equivalent CoreML types
     '''
     for i, input_ in enumerate(inputs):
         onnx_type = input_[1]
@@ -295,6 +296,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         )
 
     transformers = [
+        ConstantsToInitializers(),
         ReshapeInitTensorFuser(),
         DropoutRemover(),
         ConvAddFuser(),
@@ -349,7 +351,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
                     builder.spec, f_name, is_bgr=is_bgr
                 )
 
-    '''Iterate through all the ops and translate them to CoreML layers. 
+    '''Iterate through all the ops and translate them to CoreML layers.
     '''
     if not add_custom_layers:
         _check_unsupported_ops(graph.nodes)
@@ -407,7 +409,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
                 if outputs.name == output_:
                     builder.spec.description.output[i].shortDescription = 'This output is a sequence'
 
-    mlmodel  = MLModel(builder.spec)
+    mlmodel = MLModel(builder.spec)
 
     # print information about all ops for which custom layers have been added
     if len(err.custom_layer_nodes) > 0:
