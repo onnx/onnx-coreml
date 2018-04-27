@@ -106,6 +106,8 @@ Also you can use command-line script for simplicity:
 convert-onnx-to-coreml [OPTIONS] ONNX_MODEL
 ```
 
+The command-line script currently doesn't support all options mentioned above. For more advanced use cases, you have to call the python function directly.
+
 
 ## Running Unit Tests
 
