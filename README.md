@@ -16,11 +16,20 @@ pip install -U onnx-coreml
 
 ### Install From Source
 
+To get the latest version of the converter, install from source by cloning the repository along with its submodules and running the install.sh script. That is,
+```bash
+git clone --recursive https://github.com/onnx/onnx-coreml.git
+cd onnx-coreml
+./install.sh
+```
+
+### Install From Source (for contributors)
+
 To get the latest version of the converter, install from source by cloning the repository along with its submodules and running the install-develop.sh script. That is,
 ```bash
 git clone --recursive https://github.com/onnx/onnx-coreml.git
 cd onnx-coreml
-./install-develop.sh
+./install-develop.sh.sh
 ```
 
 ## Dependencies
