@@ -54,6 +54,15 @@ def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Nod
     output_name = node.outputs[0]
     is_post_pad = False
 
+    padding_type = 'valid'
+    same_padding_asymmetry_mode = 'BOTTOM_RIGHT_HEAVY'
+
+    if "auto_pad" in node.attrs and \
+            not _compare(node.attrs["auto_pad"], 'VALID'):
+        padding_type = 'same'
+        if _compare(node.attrs["auto_pad"], 'SAME_LOWER'):
+            same_padding_asymmetry_mode = 'TOP_LEFT_HEAVY'
+
     if is_deconv:
         if 'output_shape' in node.attrs:
             out_shape = (node.attrs['output_shape'][-2], node.attrs['output_shape'][-1]) #(Hout, wout)
@@ -78,7 +87,8 @@ def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Nod
         width=kernel_shape[1],
         stride_height=strides[0],
         stride_width=strides[1],
-        border_mode='valid',
+        border_mode=padding_type,
+        same_padding_asymmetry_mode=same_padding_asymmetry_mode,
         groups=groups,
         W=W,
         b=bias,
@@ -125,12 +135,15 @@ def _convert_thresholdedrelu(builder, node, graph, err):  # type: (NeuralNetwork
     )
 
 def _convert_reshape(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-    shape_name = node.inputs[1]
-    shape = () # type: (Tuple[int, ...])
-    if shape_name in node.input_tensors:
-        shape = tuple(node.input_tensors[shape_name]) #type: ignore
-    else:
-        err.missing_initializer(node,
+
+    shape = tuple(node.attrs.get('shape', ())) # type: (Tuple[int, ...])
+
+    if len(shape) == 0:
+        shape_name = node.inputs[1]
+        if shape_name in node.input_tensors:
+            shape = tuple(node.input_tensors[shape_name]) #type: ignore
+        else:
+            err.missing_initializer(node,
                                 "Shape tensor: {} not found in the graph initializer".format(shape_name, ))
 
     def get_coreml_target_shape(target_shape):  # type: (Tuple[int, ...]) -> Optional[Tuple[int, ...]]
@@ -302,6 +315,19 @@ def _convert_instancenorm(builder, node, graph, err):  # type: (NeuralNetworkBui
     )
 
 def _convert_add(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+
+    # check if its equivalent to a bias layer
+    if len(node.inputs) > 1:
+        if node.inputs[1] in node.input_tensors:
+            second_input = np.squeeze(node.input_tensors[node.inputs[1]])
+            if len(second_input.shape) == 1:
+                builder.add_bias(name=node.name,
+                                 b=second_input,
+                                 input_name=node.inputs[0],
+                                 output_name=node.outputs[0],
+                                 shape_bias=[second_input.shape[0]])
+                return
+
     if 'broadcast' in node.attrs:
         if node.attrs['broadcast'] == 1:
             return err.unsupported_op_configuration(builder, node, graph, "Broadcast Add is not supported now")
@@ -482,6 +508,32 @@ def _convert_gemm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
         input_name=node.inputs[0],
         output_name=node.outputs[0]
     )
+
+def _convert_matmul(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+
+    weight_name = node.inputs[1]
+    if weight_name in node.input_tensors:
+        W = node.input_tensors[weight_name]
+    else:
+        err.missing_initializer(node,
+                                "Weight tensor: {} not found in the graph initializer".format(weight_name, ))
+
+    if len(W.shape) != 2:
+        return err.unsupported_op_configuration(builder, node, graph, "Gemm is supported only for inner_product layer")
+
+    input_channels = W.shape[0]
+    output_channels = W.shape[1]
+    builder.add_inner_product(
+        name=node.name,
+        W=np.transpose(W), # type: ignore
+        b=None,
+        input_channels=input_channels,
+        output_channels=output_channels,
+        has_bias=False,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
 
 def _convert_lrn(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     alpha = node.attrs["alpha"]
@@ -886,6 +938,7 @@ _ONNX_NODE_REGISTRY = {
     "GlobalMaxPool": _convert_pool,
     "Softmax": _convert_softmax,
     "Gemm": _convert_gemm,
+    "MatMul": _convert_matmul,
     "LRN": _convert_lrn,
     "Sigmoid": _convert_sigmoid,
     "Abs": _convert_abs,

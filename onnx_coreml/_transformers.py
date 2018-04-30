@@ -253,21 +253,32 @@ class ReshapeInitTensorFuser(object):
         for node in nodes:
             if node.op_type != 'Reshape':
                 continue
-            if len(node.input_tensors) != 2:
+            if not (len(node.input_tensors) == 2 or len(node.input_tensors) == 1):
                 continue
             tensor_name = node.inputs[0]
-            shape_name = node.inputs[1]
             if tensor_name not in node.input_tensors:
                 continue
-            if shape_name not in node.input_tensors:
+            if len(node.inputs) > 1:
+                shape_name = node.inputs[1]
+                if shape_name not in node.input_tensors:
+                    continue
+            is_non_constant_parent = False
+            if len(node.parents) > 0:
+                for parent in node.parents:
+                    if parent.op_type != 'Constant':
+                        is_non_constant_parent = True
+                        break
+            if is_non_constant_parent:
                 continue
-            assert len(node.parents) == 0
 
             removed.append(node)
             output_name = node.outputs[0]
 
             tensor = node.input_tensors[tensor_name]
-            shape = node.input_tensors[shape_name]
+            if 'shape' in node.attrs:
+                shape = tuple(node.attrs["shape"])
+            else:
+                shape = node.input_tensors[shape_name] # type: ignore
 
             # ONNX spec supports setting dimension to '0', in which case
             # it should be taken from old dimension.
@@ -276,7 +287,7 @@ class ReshapeInitTensorFuser(object):
             if any([s == 0 for s in shape]):
                 continue
 
-            reshaped_tensor = tensor.reshape(shape) #type: ignore
+            reshaped_tensor = tensor.reshape(shape)
 
             for child in node.children:
                 child.parents.remove(node)
@@ -478,3 +489,32 @@ class ConstantsToInitializers(object):
 
         graph.nodes = remaining_nodes
         return graph
+
+
+class ImageScalerRemover(object):
+    '''
+    Removes ImageScaler layer if connected to a model input and single parent child nodes
+    '''
+
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        input_names = [str(input_[0]) for input_ in graph.inputs]
+        nodes_to_be_removed = []
+        for node in graph.nodes:
+            if (node.op_type != 'ImageScaler') or (len(node.parents) != 0) or (node.inputs[0] not in input_names):
+                continue
+            is_eligible = True
+            for child in node.children:
+                if not (len(child.parents) == 1 and child.inputs[0] == node.outputs[0]):
+                    is_eligible = False
+                    break
+                child.inputs[0] = node.inputs[0]
+                child.parents = []
+            if not is_eligible:
+                continue
+            nodes_to_be_removed.append(node.name)
+
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node.name not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)

@@ -15,10 +15,14 @@ def infer_shapes_and_types(graph):  # type: (GraphProto) -> None
     if not CAFFE2_AVAILABLE:
         return
     model = helper.make_model(graph)
-    c2_backend = _load_model(model)
-    #TODO Gate the following two lines with "with c2_backend.workspace:" once fixed
-    inference_result = _infer(c2_backend)
-    _add_shapes_and_types_to_graph(graph, inference_result)
+    try:
+        c2_backend = _load_model(model)
+        #TODO Gate the following two lines with "with c2_backend.workspace:" once fixed
+        inference_result = _infer(c2_backend)
+        _add_shapes_and_types_to_graph(graph, inference_result)
+    except:
+        return
+
 
 
 def _load_model(onnx_model):  # type: (ModelProto) -> Caffe2Rep

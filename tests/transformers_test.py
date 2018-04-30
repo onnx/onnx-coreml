@@ -9,8 +9,9 @@ import numpy.testing as npt  # type: ignore
 
 from onnx import helper, numpy_helper
 
+from onnx_coreml import convert
 from onnx_coreml._graph import Graph
-from onnx_coreml._transformers import ConvAddFuser
+from onnx_coreml._transformers import ConvAddFuser, DropoutRemover, ImageScalerRemover
 from tests._test_utils import _onnx_create_model, _test_onnx_model, \
     _conv_pool_output_size, _random_array
 
@@ -124,6 +125,69 @@ class ConvAddFuserTest(unittest.TestCase):
         self.assertEqual(len(node.inputs), 3)
         npt.assert_equal(node.input_tensors[node.inputs[2]], b * 2)
         self.assertEqual(fused_graph.nodes[0].outputs[0], outputs[0][0])
+
+
+class NodeRemoverTests(unittest.TestCase):
+
+    def test_dropout_remover(self): # type: () -> None
+        inputs = [('input', (1,3,50,50))]
+        outputs = [('out', (1,5,50,50))]
+        weight = numpy_helper.from_array(_random_array((5, 3, 1, 1)), name="weight")
+        conv = helper.make_node(
+            "Conv",
+            inputs=["input", "weight"],
+            outputs=["conv_output"],
+            kernel_shape=(1,1),
+            strides=(1,1)
+        )
+        drop = helper.make_node("Dropout",
+                                inputs = ["conv_output"],
+                                outputs = ["drop_output"],
+                                )
+        exp = helper.make_node("Exp",
+                               inputs=["drop_output"],
+                               outputs=['out'])
+
+        onnx_model = _onnx_create_model([conv, drop, exp], inputs, outputs)
+
+        graph = Graph.from_onnx(onnx_model.graph)
+        new_graph = graph.transformed([DropoutRemover()])
+        self.assertEqual(len(graph.nodes), 3)
+        self.assertEqual(len(new_graph.nodes), 2)
+        self.assertEqual(new_graph.nodes[0].inputs[0], 'input')
+        self.assertEqual(new_graph.nodes[1].inputs[0], new_graph.nodes[0].outputs[0])
+        self.assertEqual(new_graph.nodes[1].outputs[0], 'out')
+
+    def test_image_scaler_remover(self): # type: () -> None
+        inputs = [('input', (1,3,50,50))]
+        outputs = [('out', (1,5,50,50))]
+
+        im_scaler = helper.make_node("ImageScaler",
+                                     inputs = ['input'],
+                                     outputs = ['scaler_out'],
+                                     bias = [10,-6,20], scale=3.0)
+
+        exp = helper.make_node("Exp",
+                               inputs=["scaler_out"],
+                               outputs=['out'])
+
+        onnx_model = _onnx_create_model([im_scaler, exp], inputs, outputs)
+
+        graph = Graph.from_onnx(onnx_model.graph)
+        new_graph = graph.transformed([ImageScalerRemover()])
+        self.assertEqual(len(graph.nodes), 2)
+        self.assertEqual(len(new_graph.nodes), 1)
+        self.assertEqual(new_graph.nodes[0].inputs[0], 'input')
+        self.assertEqual(new_graph.nodes[0].outputs[0], 'out')
+
+        coreml_model = convert(onnx_model)
+        spec = coreml_model.get_spec()
+
+        self.assertEqual(spec.neuralNetwork.preprocessing[0].scaler.channelScale, 3.0)
+        self.assertEqual(spec.neuralNetwork.preprocessing[0].scaler.blueBias, 20.0)
+        self.assertEqual(spec.neuralNetwork.preprocessing[0].scaler.greenBias, -6.0)
+        self.assertEqual(spec.neuralNetwork.preprocessing[0].scaler.redBias, 10.0)
+
 
 
 class PixelShuffleFuserTest(unittest.TestCase):

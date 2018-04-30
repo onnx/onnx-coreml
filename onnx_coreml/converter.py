@@ -21,7 +21,7 @@ from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
     PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs, \
-    ConstantsToInitializers
+    ConstantsToInitializers, ImageScalerRemover
 from ._error_utils import ErrorHandling
 
 '''
@@ -282,6 +282,12 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     predicted_feature_name:
         Name of the output feature for the class labels exposed in the Core ML
         model (applies to classifiers only). Defaults to 'classLabel'
+    add_custom_layers: bool
+        Flag to turn on addition of custom CoreML layers for unsupported ONNX ops or attributes within
+        a supported op.
+    custom_conversion_functions: dict()
+        A dictionary with keys corresponding to the names of onnx ops and values as functions taking 
+        an object of class 'Node' (see onnx-coreml/_graph.Node) and returning CoreML custom layer parameters.
     Returns
     -------
     model: A coreml model.
@@ -308,12 +314,40 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     graph = _prepare_onnx_graph(onnx_model.graph, transformers)
 
+    # are there ImageScaler nodes in the Graph?
+    # If yes then add the info from it to the preprocessing dictionary, if the dictionary is not
+    # already provided by the user
+    if not bool(preprocessing_args):
+        for node in graph.nodes:
+            if node.op_type == 'ImageScaler':
+                inp_name = node.inputs[0]
+                scale = node.attrs.get('scale', 1.0)
+                bias = node.attrs.get('bias', [0,0,0])
+                if not (len(bias) == 1 or len(bias) == 3):
+                    continue
+                bias_r_g_b_gray = [0,0,0,0]
+                if len(bias) == 1:
+                    bias_r_g_b_gray[3] = bias[0]
+                else:
+                    bias_r_g_b_gray[:3] = bias
+                if inp_name not in image_input_names:
+                    image_input_names.append(inp_name) # type: ignore
+                preprocessing_args['is_bgr'] = {inp_name: False}
+                preprocessing_args['red_bias'] = {inp_name: bias_r_g_b_gray[0]}
+                preprocessing_args['green_bias'] = {inp_name: bias_r_g_b_gray[1]}
+                preprocessing_args['blue_bias'] = {inp_name: bias_r_g_b_gray[2]}
+                preprocessing_args['gray_bias'] = {inp_name: bias_r_g_b_gray[3]}
+                preprocessing_args['image_scale'] = {inp_name: scale}
+
+    # remove all ImageScaler ops
+    graph = graph.transformed([ImageScalerRemover()])
+
     #Make CoreML input and output features by gathering shape info and
     #interpreting it for CoreML
     input_features = _make_coreml_input_features(graph)
     output_features = _make_coreml_output_features(graph)
 
-    builder = NeuralNetworkBuilder(input_features, output_features)
+    builder = NeuralNetworkBuilder(input_features, output_features, mode = mode)
     _transform_coreml_dtypes(builder, graph.inputs, graph.outputs)
 
     is_deprocess_bgr_only = (len(deprocessing_args) == 1) and \

@@ -24,8 +24,8 @@ backend_test.include('test_squeezenet')
 
 #Slow tests. Skipping for now.
 backend_test.exclude('test_vgg19')
-backend_test.exclude('test_vgg16')
 backend_test.exclude('test_bvlc_alexnet')
+backend_test.exclude('test_zfnet')
 
 globals().update(backend_test
                  .enable_report()

@@ -31,9 +31,8 @@ cd onnx-coreml
 * onnx (0.2.1+)
 
 ## How to use
-Using this library you can implement converter for your models.
 
-To implement converters you should use single function "convert" from onnx_coreml:
+To convert models use single function "convert" from onnx_coreml:
 
 ```python
 from onnx_coreml import convert
@@ -51,6 +50,27 @@ def convert(model,
             add_custom_layers = False,
             custom_conversion_functions = {})
 ```
+
+The function returns a coreml model instance that can be saved to a .mlmodel file, e.g.: 
+
+```python
+mlmodel = convert(onnx_model)
+mlmodel.save('coreml_model.mlmodel')
+```
+
+CoreML model spec can be obtained from the model instance, which can be used to update model properties such as output names, input names etc. For e.g.:
+
+```python
+import coremltools
+from coremltools.models import MLModel
+
+spec = mlmodel.get_spec()
+new_mlmodel = MLModel(spec)
+coremltools.utils.rename_feature(spec, 'old_output_name', 'new_output_name')
+coremltools.utils.save_spec(spec, 'model_new_output_name.mlmodel')
+```
+
+For more details see coremltools [documentation](https://apple.github.io/coremltools/#). 
 
 ### Parameters
 __model__: ONNX model | str  
@@ -82,7 +102,7 @@ __class_labels__: A string or list of strings.
       As a string it represents the name of the file which contains  
       the classification labels (one per line).  
       As a list of strings it represents a list of categories that map  
-      the index of the output of a neural network to labels in a classifierself.
+      the index of the output of a neural network to labels in a classifier.
  
 __predicted_feature_name__: str  
       Name of the output feature for the class labels exposed in the Core ML  
@@ -102,7 +122,6 @@ __custom_conversion_functions__: dict (str: (node -> (CustomLayerParams)))
 ### Returns
 __model__: A coreml model.
 
-
 ### CLI
 Also you can use command-line script for simplicity:
 ```
@@ -110,7 +129,6 @@ convert-onnx-to-coreml [OPTIONS] ONNX_MODEL
 ```
 
 The command-line script currently doesn't support all options mentioned above. For more advanced use cases, you have to call the python function directly.
-
 
 ## Running Unit Tests
 
@@ -137,14 +155,21 @@ pytest -s custom_layers_test.py::CustomLayerTest::test_unsupported_ops_provide_f
 ### Models
 Models from https://github.com/onnx/models that have been tested to work with this converter:
 
-- Resnet50
+- BVLC Alexnet
+- BVLC Caffenet
+- BVLC Googlenet
+- BVLC reference_rcnn_ilsvrc13
+- Densenet 
+- Emotion-FERPlus 
 - Inception V1
 - Inception V2
-- Densenet 
+- MNIST
+- Resnet50
 - Shufflenet
 - SqueezeNet
 - VGG
-- Alexnet
+- ZFNet
+
 
 ### Operators
 List of ONNX operators that can be converted into their CoreML equivalent:
@@ -169,6 +194,7 @@ List of ONNX operators that can be converted into their CoreML equivalent:
 - Log
 - LogSoftmax
 - LRN
+- MatMul
 - Max
 - MaxPool (2D)
 - Min

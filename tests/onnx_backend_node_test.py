@@ -177,6 +177,13 @@ backend_test.exclude('test_AvgPool1d_stride_cpu')
 backend_test.exclude('test_operator_rnn_cpu')
 backend_test.exclude('test_operator_rnn_single_layer_cpu')
 backend_test.exclude('test_operator_lstm_cpu')
+backend_test.exclude('test_gru_defaults_cpu')
+backend_test.exclude('test_gru_with_initial_bias_cpu')
+backend_test.exclude('test_lstm_defaults_cpu')
+backend_test.exclude('test_lstm_with_initial_bias_cpu')
+backend_test.exclude('test_lstm_with_peepholes_cpu')
+backend_test.exclude('test_simple_rnn_defaults_cpu')
+backend_test.exclude('test_simple_rnn_with_initial_bias_cpu')
 
 
 # These layers are supported. Need to fix these tests
@@ -244,6 +251,8 @@ backend_test.exclude('test_operator_addconstant_cpu')
 backend_test.exclude('test_operator_mm_cpu')
 backend_test.exclude('test_operator_addmm_cpu')
 backend_test.exclude('test_operator_type_as_cpu')
+backend_test.exclude('test_tile_cpu')
+backend_test.exclude('test_tile_precomputed_cpu')
 
 # Supported ops, but Unsupported parameters by CoreML
 backend_test.exclude('test_thresholdedrelu_example_cpu')
@@ -298,7 +307,6 @@ backend_test.exclude('test_greater_cpu')
 backend_test.exclude('test_less_bcast_cpu')
 backend_test.exclude('test_less_cpu')
 
-
 # exclude all the model zoo tests. They are tested elsewhere.
 backend_test.exclude('test_bvlc_alexnet')
 backend_test.exclude('test_resnet50')
@@ -309,6 +317,7 @@ backend_test.exclude('test_inception_v1')
 backend_test.exclude('test_inception_v2')
 backend_test.exclude('test_shufflenet')
 backend_test.exclude('test_squeezenet')
+backend_test.exclude('test_zfnet')
 
 globals().update(backend_test
                  .enable_report()
