@@ -242,6 +242,6 @@ For unsupported ops or unsupported attributes within supported ops, CoreML custo
 See the testing script `tests/custom_layers_test.py` on how to produce CoreML models with custom layers. 
 
 ## License
-Copyright (c) 2017 [Prisma Labs, Inc](https://prismalabs.ai/). All rights reserved.
+Copyright © 2018 by Apple Inc., Facebook Inc., and Prisma Labs Inc.
 
 Use of this source code is governed by the [MIT License](https://opensource.org/licenses/MIT) that can be found in the LICENSE.txt file.
