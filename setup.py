@@ -28,6 +28,7 @@ setup(
     description='Convert ONNX (Open Neural Network Exchange)'
                 'models into Apple CoreML format.',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     url='https://github.com/onnx/onnx-coreml/',
     author='Oleg Poyaganov',
     author_email='oleg@prisma-ai.com',
