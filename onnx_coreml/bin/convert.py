@@ -24,3 +24,7 @@ def onnx_to_coreml(onnx_model, output):  # type: (IO[str], str) -> None
     onnx_model_proto.ParseFromString(onnx_model.read())
     coreml_model = convert(onnx_model_proto)
     coreml_model.save(output)
+
+
+if __name__ == '__main__':
+    onnx_to_coreml()
