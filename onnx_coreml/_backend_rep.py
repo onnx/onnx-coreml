@@ -48,7 +48,7 @@ class CoreMLRep(BackendRep):
             inputs,  # type: Any
             **kwargs  # type: Any
             ):
-        # type: (...) -> namedtupledict
+        # type: (...) -> Tuple[Any, ...]
         super(CoreMLRep, self).run(inputs, **kwargs)
         inputs_ = inputs
         _reshaped = False
@@ -73,6 +73,7 @@ class CoreMLRep(BackendRep):
             except RuntimeError:
                 print("Output '%s' shape incompatible between CoreML (%s) and onnx (%s)"
                       %(self.output_names[i], output_.shape,
-                        self.onnx_outputs[self.output_names[i]]))
-        return namedtupledict('Outputs',
-                              self.output_names)(*output_values)
+                        self.onnx_outputs_info[self.output_names[i]]))
+        result = namedtupledict('Outputs',
+                              self.output_names)(*output_values)  # type: Tuple[Any, ...]
+        return result
