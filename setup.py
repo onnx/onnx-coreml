@@ -30,8 +30,8 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/onnx/onnx-coreml/',
-    author='Oleg Poyaganov',
-    author_email='oleg@prisma-ai.com',
+    author='ONNX-CoreML Team',
+    author_email='onnx-coreml@apple.com',
     license='MIT',
     classifiers=[
         'Development Status :: 4 - Beta',
