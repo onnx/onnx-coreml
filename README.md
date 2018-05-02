@@ -29,7 +29,7 @@ To get the latest version of the converter, install from source by cloning the r
 ```bash
 git clone --recursive https://github.com/onnx/onnx-coreml.git
 cd onnx-coreml
-./install-develop.sh.sh
+./install-develop.sh
 ```
 
 ## Dependencies
