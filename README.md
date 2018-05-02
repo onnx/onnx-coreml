@@ -4,7 +4,7 @@
 
 This tool converts [ONNX](https://onnx.ai/) models to Apple CoreML format. To convert CoreML models to ONNX, use [ONNXMLTools](https://github.com/onnx/onnxmltools).
 
-There's a comprehensive [Tutorial](https://github.com/onnx/tutorials/tree/master/examples/CoreML/ONNXLive) showing how to convert PyTorch style transfer models through ONNX to CoreML models and run them in an iOS app.
+There's a comprehensive [Tutorial](https://github.com/onnx/tutorials/tree/master/examples/CoreML/ONNXLive/README.md) showing how to convert PyTorch style transfer models through ONNX to CoreML models and run them in an iOS app.
 
 ## Installation
 
