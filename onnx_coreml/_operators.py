@@ -276,8 +276,8 @@ def _convert_fc(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node
     )
 
 def _convert_bn(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-    if node.attrs["is_test"] == 0:
-        return err.unsupported_op_configuration(builder, node, graph, "BatchNormalization supports only test mode")
+    if len(node.outputs) > 1:
+        return err.unsupported_op_configuration(builder, node, graph, "This converter only supports BatchNormalization with one output")
 
     epsilon = node.attrs.get("epsilon", 1e-5)
     scale = node.input_tensors[node.inputs[1]]
@@ -414,28 +414,29 @@ def _convert_concat(builder, node, graph, err):  # type: (NeuralNetworkBuilder, 
 
 def _convert_reduce(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
 
-    axes = node.attrs['axes']
+    axes = node.attrs.get('axes', None)
+    if axes is None:
+        assert node.inputs[0] in graph.shape_dict, "Shape inference failed for reduce op"
+        shape = graph.shape_dict[node.inputs[0]]
+        axes = range(0, len(shape))
 
     def get_coreml_axis(axes): # type: (List[int]) -> Text
         coreml_axis = ""
-        if node.inputs[0] in graph.shape_dict:
-            input_shape = graph.shape_dict[node.inputs[0]]
-            if len(input_shape) == 1: coreml_axis = 'C'
-            elif len(input_shape) == 2:
-                if len(axes) == 1 and axes[0] == 1: coreml_axis = 'C'
-            elif len(input_shape) == 3:
-                for ind in [['C','H','W'][i] for i in axes]: coreml_axis += ind
-            elif len(input_shape) == 4:
-                for ind in [['B','C','H','W'][i] for i in axes]: coreml_axis += ind
-        else:  # shape info is not available. Fall back to guessing (ideally this should not happen)
+        assert node.inputs[0] in graph.shape_dict, "Shape inference failed for reduce op"
+        input_shape = graph.shape_dict[node.inputs[0]]
+        if len(input_shape) == 1: coreml_axis = 'C'
+        elif len(input_shape) == 2:
             if len(axes) == 1 and axes[0] == 1: coreml_axis = 'C'
-            elif len(axes) == 3: coreml_axis = 'CHW'
+        elif len(input_shape) == 3:
+            for ind in [['C','H','W'][i] for i in axes]: coreml_axis += ind
+        elif len(input_shape) == 4:
+            for ind in [['B','C','H','W'][i] for i in axes]: coreml_axis += ind
         return coreml_axis
 
     coreml_axis = get_coreml_axis(axes)
 
     if coreml_axis not in ['C', 'H', 'W', 'HW', 'CHW']:
-        return err.unsupported_op_configuration(builder, node, graph, "Unable to translate axes attribute to CoreML axis parameter")
+        return err.unsupported_op_configuration(builder, node, graph, "Unable to translate axes attribute to CoreML axis parameter for %s" % axes)
 
     if node.op_type == 'ReduceMean':
         mode = 'avg'
@@ -444,7 +445,7 @@ def _convert_reduce(builder, node, graph, err):  # type: (NeuralNetworkBuilder, 
     elif node.op_type == 'ReduceL2':
         mode = 'L2'
     elif node.op_type == 'ReduceLogSum':
-        mode = 'logsum'
+        return err.unsupported_op_configuration(builder, node, graph, "ReduceLogSum is not supported. Note: CoreML does support a logsum, but CoreML logsum computes sum(log(elements)), and ONNX defines logsum to be log(sum(elements))")
     elif node.op_type == 'ReduceMax':
         mode = 'max'
     elif node.op_type == 'ReduceMin':
@@ -483,7 +484,7 @@ def _convert_gemm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
         err.missing_initializer(node,
                                 "Weight tensor: {} not found in the graph initializer".format(weight_name, ))
 
-    if node.attrs["broadcast"] != 1 or node.attrs["transB"] != 1:
+    if node.attrs["transB"] != 1:
         return err.unsupported_op_configuration(builder, node, graph, "Gemm is supported only for inner_product layer")
 
     b = None
@@ -536,9 +537,9 @@ def _convert_matmul(builder, node, graph, err):  # type: (NeuralNetworkBuilder, 
 
 
 def _convert_lrn(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-    alpha = node.attrs["alpha"]
-    beta = node.attrs["beta"]
-    bias = node.attrs["bias"]
+    alpha = node.attrs.get("alpha", 1.0e-4)
+    beta = node.attrs.get("beta", 0.75)
+    bias = node.attrs.get("bias", 1.0)
     size = node.attrs["size"]
     builder.add_lrn(
         name=node.name,
@@ -827,13 +828,16 @@ def _convert_reorganize_data(builder, node, graph, err):  # type: (NeuralNetwork
     )
 
 def _convert_upsample(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-    height_scale = int(node.attrs["height_scale"]);
+    scales = node.attrs["scales"]
+    if len(scales) != 4 or scales[0] != 1.0 or scales[1] != 1.0:
+        err.unsupported_op_configuration(builder, node, graph, "Unsupported scales {} for upsample".format(scales))
+    height_scale = int(scales[2])
+    width_scale = int(scales[3])
     mode_convert = {
         "nearest": "NN",
         "bilinear": "BILINEAR",
     }
     mode = mode_convert[node.attrs["mode"].decode("UTF-8")]
-    width_scale = int(node.attrs["width_scale"])
     builder.add_upsample(
         name=node.name,
         scaling_factor_h=height_scale,

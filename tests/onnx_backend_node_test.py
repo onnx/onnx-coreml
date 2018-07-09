@@ -253,17 +253,65 @@ backend_test.exclude('test_operator_addmm_cpu')
 backend_test.exclude('test_operator_type_as_cpu')
 backend_test.exclude('test_tile_cpu')
 backend_test.exclude('test_tile_precomputed_cpu')
+backend_test.exclude('test_acos_cpu')
+backend_test.exclude('test_acos_example_cpu')
+backend_test.exclude('test_asin_cpu')
+backend_test.exclude('test_asin_example_cpu')
+backend_test.exclude('test_atan_cpu')
+backend_test.exclude('test_atan_example_cpu')
+backend_test.exclude('test_cos_cpu')
+backend_test.exclude('test_cos_example_cpu')
+backend_test.exclude('test_sin_cpu')
+backend_test.exclude('test_sin_example_cpu')
+backend_test.exclude('test_tan_cpu')
+backend_test.exclude('test_tan_example_cpu')
+backend_test.exclude('test_dropout_cpu')
+backend_test.exclude('test_dropout_default_cpu')
+backend_test.exclude('test_dropout_random_cpu')
+backend_test.exclude('test_gru_seq_length_cpu')
+backend_test.exclude('test_identity_cpu')
+backend_test.exclude('test_pow_bcast_scalar_cpu')
+backend_test.exclude('test_pow_bcast_array_cpu')
+backend_test.exclude('test_asin_example_cpu')
+backend_test.exclude('test_reduce_log_sum_exp_default_axes_keepdims_example_cpu')
+backend_test.exclude('test_reduce_log_sum_exp_default_axes_keepdims_random_cpu')
+backend_test.exclude('test_reduce_log_sum_exp_do_not_keepdims_example_cpu')
+backend_test.exclude('test_reduce_log_sum_exp_do_not_keepdims_random_cpu')
+backend_test.exclude('test_reduce_log_sum_exp_keepdims_example_cpu')
+backend_test.exclude('test_reduce_log_sum_exp_keepdims_random_cpu')
+backend_test.exclude('test_rnn_seq_length_cpu')
+backend_test.exclude('test_operator_repeat_cpu')
+backend_test.exclude('test_operator_repeat_dim_overflow_cpu')
+backend_test.exclude('test_reduce_log_sum_default_cpu')
 
-# Supported ops, but Unsupported parameters by CoreML
+
+# Supported ops, but ONNX passes in dynamic inputs that CoreML needs to be constant graph initializers
 backend_test.exclude('test_thresholdedrelu_example_cpu')
-
-# maybe these can be fixed if we find a way to convert the "weight" input to a graph initializer field
-# otherwise they fall in the category of "supported ops, but unsupported parameters by CoreML"
+backend_test.exclude('test_batchnorm_epsilon_cpu')
+backend_test.exclude('test_batchnorm_example_cpu')
+backend_test.exclude('test_gemm_broadcast_cpu')
+backend_test.exclude('test_gemm_nobroadcast_cpu')
+backend_test.exclude('test_instancenorm_epsilon_cpu')
+backend_test.exclude('test_instancenorm_example_cpu')
+backend_test.exclude('test_prelu_example_cpu')
 backend_test.exclude('test_basic_conv_with_padding_cpu')
 backend_test.exclude('test_basic_conv_without_padding_cpu')
 backend_test.exclude('test_conv_with_strides_and_asymmetric_padding_cpu')
 backend_test.exclude('test_conv_with_strides_no_padding_cpu')
 backend_test.exclude('test_conv_with_strides_padding_cpu')
+backend_test.exclude('test_convtranspose_1d_cpu')
+backend_test.exclude('test_convtranspose_3d_cpu')
+backend_test.exclude('test_convtranspose_cpu')
+backend_test.exclude('test_convtranspose_output_shape_cpu')
+backend_test.exclude('test_convtranspose_pad_cpu')
+backend_test.exclude('test_convtranspose_pads_cpu')
+backend_test.exclude('test_prelu_broadcast_cpu')
+
+# CoreML doesn't support tensor layout
+backend_test.exclude('test_reduce_log_sum_desc_axes_cpu')
+backend_test.exclude('test_reduce_log_sum_cpu')
+backend_test.exclude('test_reduce_log_sum_asc_axes_cpu')
+
 
 # Unsupported input data type and op
 backend_test.exclude('test_and2d_cpu')
@@ -306,6 +354,14 @@ backend_test.exclude('test_greater_bcast_cpu')
 backend_test.exclude('test_greater_cpu')
 backend_test.exclude('test_less_bcast_cpu')
 backend_test.exclude('test_less_cpu')
+backend_test.exclude('test_and_bcast3v1d_cpu')
+backend_test.exclude('test_and_bcast3v2d_cpu')
+backend_test.exclude('test_and_bcast4v2d_cpu')
+backend_test.exclude('test_and_bcast4v3d_cpu')
+backend_test.exclude('test_and_bcast4v4d_cpu')
+backend_test.exclude('test_or_bcast4v4d_cpu')
+backend_test.exclude('test_xor_bcast4v4d_cpu')
+
 
 # exclude all the model zoo tests. They are tested elsewhere.
 backend_test.exclude('test_bvlc_alexnet')
@@ -326,3 +382,4 @@ globals().update(backend_test
 
 if __name__ == '__main__':
     unittest.main()
+

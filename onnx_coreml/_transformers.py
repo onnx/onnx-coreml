@@ -344,6 +344,8 @@ class PixelShuffleFuser(NodesFuser):
             return False
         if nodes[2].op_type != 'Reshape':
             return False
+        if len(nodes[0].inputs) == 1:
+            return False # it's an old version of onnx Reshape op that had shape as an attribute
         if nodes[0].inputs[1] not in nodes[0].input_tensors:
             return False
         if nodes[2].inputs[1] not in nodes[2].input_tensors:

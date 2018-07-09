@@ -175,7 +175,6 @@ class SingleOperatorTest(unittest.TestCase):
                 [(1, 3, 224, 224)],
                 [(1, 3, 224, 224)],
                 initializer=[scale, bias, mean, var],
-                is_test=1,
                 epsilon=epsilon,
                 momentum=momentum
             )
@@ -186,7 +185,6 @@ class SingleOperatorTest(unittest.TestCase):
                 [(1, 3, 224, 224)],
                 [(1, 3, 224, 224)],
                 initializer=[scale, bias, mean, var],
-                is_test=1,
                 # epsilon=epsilon,
                 momentum=momentum
             )
@@ -206,7 +204,6 @@ class SingleOperatorTest(unittest.TestCase):
             [output_shape],
             initializer=[W, b],
             decimal=3,
-            broadcast=1,
             transB=1
         )
 
