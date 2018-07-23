@@ -240,7 +240,7 @@ def _set_deprocessing(is_grayscale,  # type: bool
 
 
 def _prepare_onnx_graph(graph, transformers):  # type: (Graph, Iterable[Transformer]) -> Graph
-    infer_shapes_and_types(graph)
+    graph = infer_shapes_and_types(graph)
     graph_ = Graph.from_onnx(graph)
     return graph_.transformed(transformers)
 
@@ -286,7 +286,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         Flag to turn on addition of custom CoreML layers for unsupported ONNX ops or attributes within
         a supported op.
     custom_conversion_functions: dict()
-        A dictionary with keys corresponding to the names of onnx ops and values as functions taking 
+        A dictionary with keys corresponding to the names of onnx ops and values as functions taking
         an object of class 'Node' (see onnx-coreml/_graph.Node) and returning CoreML custom layer parameters.
     Returns
     -------

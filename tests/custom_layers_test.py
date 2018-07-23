@@ -5,7 +5,7 @@ from __future__ import print_function
 import unittest
 
 from tests._test_utils import _onnx_create_model
-from onnx import helper, numpy_helper, ModelProto
+from onnx import helper, numpy_helper, ModelProto, TensorProto
 from onnx_coreml import convert
 from coremltools.proto import NeuralNetwork_pb2 #type: ignore
 
@@ -14,7 +14,7 @@ def _make_model_clip_exp_topk(): # type: (...) -> ModelProto
   make a very simple model for testing: input->clip->exp->topk->2 outputs
   '''
   inputs = [('input0', (10,))]
-  outputs = [('output_values', (3,)), ('output_indices', (3,))]
+  outputs = [('output_values', (3,), TensorProto.FLOAT), ('output_indices', (3,), TensorProto.INT64)]
   clip = helper.make_node("Clip",
                           inputs=[inputs[0][0]],
                           outputs=['clip_out'],
@@ -30,10 +30,10 @@ def _make_model_clip_exp_topk(): # type: (...) -> ModelProto
 
 def _make_model_concat_axis3(): # type: (...) -> ModelProto
   '''
-  make a simple model: 4-D input1, 4-D input2 -> concat (axis=3)-> output 
+  make a simple model: 4-D input1, 4-D input2 -> concat (axis=3)-> output
   '''
   inputs = [('input0', (1,3,10,20)), ('input1', (1,3,10,15))]
-  outputs = [('output', (1,3,10,35))]
+  outputs = [('output', (1,3,10,35), TensorProto.FLOAT)]
   concat = helper.make_node("Concat",
                             inputs=[inputs[0][0], inputs[1][0]],
                             outputs=[outputs[0][0]],

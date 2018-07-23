@@ -5,7 +5,7 @@ from __future__ import unicode_literals
 
 import unittest
 
-from onnx import helper, numpy_helper
+from onnx import helper, numpy_helper, TensorProto
 
 from tests._test_utils import _onnx_create_single_node_model, \
     _onnx_create_model, _conv_pool_output_size, _random_array
@@ -48,7 +48,7 @@ class GraphTest(unittest.TestCase):
         output_shape = (1, int(weight.dims[0]), output_size[0], output_size[1])
 
         inputs = [('input0', input_shape)]
-        outputs = [('output0', output_shape)]
+        outputs = [('output0', output_shape, TensorProto.FLOAT)]
 
         conv = helper.make_node(
             "Conv",

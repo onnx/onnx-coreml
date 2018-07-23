@@ -7,7 +7,7 @@ import unittest
 import numpy as np
 import numpy.testing as npt  # type: ignore
 
-from onnx import helper, numpy_helper
+from onnx import helper, numpy_helper, TensorProto
 
 from onnx_coreml import convert
 from onnx_coreml._graph import Graph
@@ -34,7 +34,7 @@ class ConvAddFuserTest(unittest.TestCase):
         output_shape = (1, int(weight.dims[0]), output_size[0], output_size[1])
 
         inputs = [('input0', input_shape)]
-        outputs = [('output0', output_shape)]
+        outputs = [('output0', output_shape, TensorProto.FLOAT)]
 
         conv = helper.make_node(
             "Conv",
@@ -93,7 +93,7 @@ class ConvAddFuserTest(unittest.TestCase):
         output_shape = (1, int(weight.dims[0]), output_size[0], output_size[1])
 
         inputs = [('input0', input_shape)]
-        outputs = [('output0', output_shape)]
+        outputs = [('output0', output_shape, TensorProto.FLOAT)]
 
         conv = helper.make_node(
             "Conv",
@@ -131,7 +131,7 @@ class NodeRemoverTests(unittest.TestCase):
 
     def test_dropout_remover(self): # type: () -> None
         inputs = [('input', (1,3,50,50))]
-        outputs = [('out', (1,5,50,50))]
+        outputs = [('out', (1,5,50,50), TensorProto.FLOAT)]
         weight = numpy_helper.from_array(_random_array((5, 3, 1, 1)), name="weight")
         conv = helper.make_node(
             "Conv",
@@ -160,7 +160,7 @@ class NodeRemoverTests(unittest.TestCase):
 
     def test_image_scaler_remover(self): # type: () -> None
         inputs = [('input', (1,3,50,50))]
-        outputs = [('out', (1,5,50,50))]
+        outputs = [('out', (1,3,50,50), TensorProto.FLOAT)]
 
         im_scaler = helper.make_node("ImageScaler",
                                      inputs = ['input'],
@@ -202,7 +202,7 @@ class PixelShuffleFuserTest(unittest.TestCase):
         )
 
         inputs = [('input0', input_shape)]
-        outputs = [('output0', output_shape)]
+        outputs = [('output0', output_shape, TensorProto.FLOAT)]
 
         shape1 = [
             output_shape[0],

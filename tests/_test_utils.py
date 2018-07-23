@@ -15,7 +15,7 @@ from onnx_coreml._graph import Node
 
 def _onnx_create_model(nodes,  # type: Sequence[Node]
                        inputs,  # type: Sequence[Tuple[Text,Tuple[int, ...]]]
-                       outputs,  # type: Sequence[Tuple[Text,Tuple[int, ...]]]
+                       outputs,  # type: Sequence[Tuple[Text,Tuple[int, ...], int]]
                        initializer=[],  # type: Sequence[TensorProto]
                        ):
     # type: (...) -> ModelProto
@@ -40,7 +40,7 @@ def _onnx_create_model(nodes,  # type: Sequence[Node]
         outputs=[
             helper.make_tensor_value_info(
                 output_[0],
-                TensorProto.FLOAT,
+                output_[2],
                 output_[1]
             ) for output_ in outputs
         ],
@@ -62,7 +62,7 @@ def _onnx_create_single_node_model(op_type,  # type: Text
         for i in range(len(input_shapes))
     ]
     outputs = [
-        ("output{}".format(i,), output_shapes[i])
+        ("output{}".format(i,), output_shapes[i], TensorProto.FLOAT)
         for i in range(len(output_shapes))
     ]
 
