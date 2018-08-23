@@ -136,7 +136,7 @@ def _coreml_forward_onnx_model(model,  # type: ModelProto
     return _coreml_forward_model(coreml_model, input_dict, output_names)
 
 
-def _random_array(shape, random_seed=10):  # type: (Tuple[int, ...]) -> np._ArrayLike[float]
+def _random_array(shape, random_seed=10):  # type: (Tuple[int, ...], Any) -> np._ArrayLike[float]
     if random_seed:
         npr.seed(random_seed)
     return npr.ranf(shape).astype("float32")
@@ -178,8 +178,8 @@ def _assert_outputs(output1,  # type: np.ndarray[_T]
         )
 
 
-def _prepare_inputs_for_onnx(model,  # type: ModelProto,
-                             test_name = '', # type: Text
+def _prepare_inputs_for_onnx(model,  # type: ModelProto
+                             test_name = '', # type: str
                              values=None,  # type: Optional[List[np._ArrayLike[Any]]]
                              ):
     # type: (...) -> Dict[Text, np._ArrayLike[Any]]
@@ -226,7 +226,7 @@ def _test_single_node(op_type,  # type: Text
                       output_shapes,  # type: Sequence[Tuple[int, ...]]
                       initializer=[],  # type: Sequence[TensorProto]
                       decimal=5,  # type: int
-                      test_name = '', # type: int
+                      test_name = '', # type: str
                       **kwargs  # type: Any
                       ):
     # type: (...) -> None
