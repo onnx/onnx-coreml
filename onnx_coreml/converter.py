@@ -389,8 +389,10 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     '''
     if not add_custom_layers:
         _check_unsupported_ops(graph.nodes)
+
     err = ErrorHandling(add_custom_layers,
                         custom_conversion_functions)
+
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
         _convert_node(builder, node, graph, err)

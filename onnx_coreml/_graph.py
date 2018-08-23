@@ -212,7 +212,9 @@ class Graph(object):
                                value_info, # type: ValueInfoProto[...]
                                ):
             # type: (...) -> None
-            shape_dict[value_info.name] = tuple([int(dim.dim_value) for dim in value_info.type.tensor_type.shape.dim])
+            t = tuple([int(dim.dim_value) for dim in value_info.type.tensor_type.shape.dim])
+            if t:
+                shape_dict[value_info.name] = t
 
         for value_info in graph.value_info:
             extract_value_info(shape_dict, value_info)
