@@ -153,15 +153,12 @@ class BNBroadcastedMulFuser(NodesFuser):
             return False
         if child.op_type != 'Mul':
             return False
-        if "broadcast" not in child.attrs:
-            return False
-        if child.attrs["broadcast"] != 1:
-            return False
-        if "axis" not in child.attrs:
-            return False
-        if child.attrs["axis"] != 1:
+        if len(child.inputs) != 2:
             return False
         if child.inputs[1] not in child.input_tensors:
+            return False
+        t = child.input_tensors[child.inputs[1]]
+        if len(np.squeeze(t).shape) != 1:
             return False
         if parent.inputs[1] not in parent.input_tensors:
             return False
@@ -195,17 +192,14 @@ class BNBroadcastedAddFuser(NodesFuser):
             return False
         if child.op_type != 'Add':
             return False
-        if "broadcast" not in child.attrs:
-            return False
-        if child.attrs["broadcast"] != 1:
-            return False
-        if "axis" not in child.attrs:
-            return False
-        if child.attrs["axis"] != 1:
-            return False
         if len(child.inputs) != 2:
             return False
         if child.inputs[1] not in child.input_tensors:
+            return False
+        t = child.input_tensors[child.inputs[1]]
+        if len(np.squeeze(t).shape) != 1:
+            return False
+        if parent.inputs[1] not in parent.input_tensors:
             return False
         if parent.inputs[2] not in parent.input_tensors:
             return False
