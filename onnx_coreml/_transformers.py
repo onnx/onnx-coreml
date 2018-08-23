@@ -170,7 +170,7 @@ class BNBroadcastedMulFuser(NodesFuser):
         parent, child = nodes[0], nodes[1]
         weight = parent.input_tensors[parent.inputs[1]]
         bias = parent.input_tensors[parent.inputs[2]]
-        W = child.input_tensors[child.inputs[1]]
+        W = np.squeeze(child.input_tensors[child.inputs[1]])
         parent.input_tensors[parent.inputs[1]] = np.multiply(weight, W)
         parent.input_tensors[parent.inputs[2]] = np.multiply(bias, W)
         parent.outputs = child.outputs
@@ -208,7 +208,7 @@ class BNBroadcastedAddFuser(NodesFuser):
     def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
         parent, child = nodes[0], nodes[1]
         bias = parent.input_tensors[parent.inputs[2]]
-        b = child.input_tensors[child.inputs[1]]
+        b = np.squeeze(child.input_tensors[child.inputs[1]])
         parent.input_tensors[parent.inputs[2]] = bias + b
         parent.outputs = child.outputs
         parent.children.remove(child)
@@ -514,3 +514,29 @@ class ImageScalerRemover(object):
             if node.name not in nodes_to_be_removed:
                 transformed_nodes.append(node)
         return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+
+class UnsqueezeRemover(object):
+    '''
+    Removes Unsqueeze op, if its input is constant
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        nodes_to_be_removed = []
+        for node in graph.nodes:
+            if node.op_type == 'Unsqueeze' and len(node.parents) == 0 and node.inputs[0] in node.input_tensors:
+                nodes_to_be_removed.append(node)
+                x = node.input_tensors[node.inputs[0]]
+                axes = node.attrs['axes']
+                axes.sort()
+                for axis in axes:
+                    x = np.expand_dims(x, axis=axis)
+                graph.shape_dict[node.outputs[0]] = x.shape
+                for child_node in node.children:
+                    child_node.parents.remove(node)
+                    child_node.input_tensors[node.outputs[0]] = x
+
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+
