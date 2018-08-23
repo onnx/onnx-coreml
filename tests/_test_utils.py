@@ -215,6 +215,8 @@ def _test_onnx_model(model,  # type: ModelProto
                      decimal=5  # type: int
                      ):
     # type: (...) -> None
+    if not test_name:
+        test_name = sys._getframe(1).f_code.co_name
     W = _prepare_inputs_for_onnx(model, test_name=test_name)
     c2_outputs = _forward_onnx_model(model, W, test_name=test_name)
     coreml_outputs = _coreml_forward_onnx_model(model, W)
@@ -233,7 +235,6 @@ def _test_single_node(op_type,  # type: Text
     model = _onnx_create_single_node_model(
         op_type, input_shapes, output_shapes, initializer, **kwargs
     )
-    if test_name:
-        _test_onnx_model(model, test_name=test_name, decimal=decimal)
-    else:
-        _test_onnx_model(model, test_name=sys._getframe(1).f_code.co_name, decimal=decimal)
+    if not test_name:
+        test_name = sys._getframe(1).f_code.co_name
+    _test_onnx_model(model, test_name=test_name, decimal=decimal)
