@@ -218,6 +218,16 @@ class SingleOperatorTest(unittest.TestCase):
             size=5
         )
 
+    def test_slice_axis_3_rank_4(self):  # type: () -> None
+        _test_single_node(
+            "Slice",
+            [(1, 3, 224, 224)],
+            [(1, 3, 224, 222)],
+            axes=[3],
+            starts=[1],
+            ends=[223]
+        )
+
     # @unittest.skip("Error while preparing Caffe2 backend. Maybe something is incorrect in ONNX model definition")
     def skip_test_lstm(self):  # type: () -> None
         x = 4
