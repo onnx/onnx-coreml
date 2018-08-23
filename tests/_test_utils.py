@@ -7,10 +7,47 @@ import numpy as np
 import numpy.testing as npt  # type: ignore
 import numpy.random as npr
 from onnx import helper, TensorProto, ModelProto, ValueInfoProto, TensorProto
-import caffe2.python.onnx.backend
 from typing import Any, Sequence, Text, Tuple, Optional, Dict, List, TypeVar
 from onnx_coreml import convert
 from onnx_coreml._graph import Node
+import sys
+import shutil
+import os
+
+'''
+0: dynamically generate random inputs, 
+   use caffe2 backend for onnx and 
+   also save out the generated input and output dicts for future use 
+1: use the already saved out input and output dicts for testing
+'''
+TEST_MODE = 1
+
+def _forward_onnx_model(model,  # type: ModelProto
+                        input_dict,  # type: Dict[Text, np._ArrayLike[Any]]
+                        test_name = '' # type: Text
+                        ):
+    # type: (...) -> np.ndarray[Any]
+    if TEST_MODE:
+        loaded_obj = np.load('./test_data/' + test_name + '/output.npy')
+        out = loaded_obj.item()
+    else:
+        import caffe2.python.onnx.backend
+        prepared_backend = caffe2.python.onnx.backend.prepare(model)
+        out = prepared_backend.run(input_dict)
+        out_dict = {}
+        out_names = [v.name for v in model.graph.output]
+        for out_name in out_names:
+            out_dict[out_name] = out[out_name]
+        dir = './test_data/' + test_name + '/'
+        np.save(dir + 'output.npy', out_dict)
+
+    result = [out[v.name] for v in model.graph.output]
+    output_shapes = [
+        _shape_from_onnx_value_info(o) for o in model.graph.output
+    ]
+    for i, output in enumerate(result):
+        result[i] = output.reshape(output_shapes[i])
+    return np.array(result)
 
 
 def _onnx_create_model(nodes,  # type: Sequence[Node]
@@ -78,22 +115,6 @@ def _onnx_create_single_node_model(op_type,  # type: Text
 def _shape_from_onnx_value_info(v):  # type: (ValueInfoProto) -> Sequence[Tuple[int, ...]]
     return tuple([d.dim_value for d in v.type.tensor_type.shape.dim])
 
-
-def _forward_onnx_model(model,  # type: ModelProto
-                        input_dict,  # type: Dict[Text, np._ArrayLike[Any]]
-                        ):
-    # type: (...) -> np.ndarray[Any]
-    prepared_backend = caffe2.python.onnx.backend.prepare(model)
-    out = prepared_backend.run(input_dict)
-    result = [out[v.name] for v in model.graph.output]
-    output_shapes = [
-        _shape_from_onnx_value_info(o) for o in model.graph.output
-    ]
-    for i, output in enumerate(result):
-        result[i] = output.reshape(output_shapes[i])
-    return np.array(result)
-
-
 def _coreml_forward_model(model,  # type: ModelProto
                           input_dict,  # type: Dict[Text, np._ArrayLike[Any]]
                           output_names,  # type: Sequence[Text]
@@ -115,7 +136,9 @@ def _coreml_forward_onnx_model(model,  # type: ModelProto
     return _coreml_forward_model(coreml_model, input_dict, output_names)
 
 
-def _random_array(shape):  # type: (Tuple[int, ...]) -> np._ArrayLike[float]
+def _random_array(shape, random_seed=10):  # type: (Tuple[int, ...]) -> np._ArrayLike[float]
+    if random_seed:
+        npr.seed(random_seed)
     return npr.ranf(shape).astype("float32")
 
 
@@ -155,7 +178,8 @@ def _assert_outputs(output1,  # type: np.ndarray[_T]
         )
 
 
-def _prepare_inputs_for_onnx(model,  # type: ModelProto
+def _prepare_inputs_for_onnx(model,  # type: ModelProto,
+                             test_name = '', # type: Text
                              values=None,  # type: Optional[List[np._ArrayLike[Any]]]
                              ):
     # type: (...) -> Dict[Text, np._ArrayLike[Any]]
@@ -169,20 +193,30 @@ def _prepare_inputs_for_onnx(model,  # type: ModelProto
         for i in graph.input if i.name not in initializer_names
     ]
 
-    if values is None:
-        inputs = [_random_array(shape) for shape in input_shapes]
+    if TEST_MODE:
+        loaded_obj = np.load('./test_data/' + test_name + '/input.npy')
+        return loaded_obj.item()
     else:
-        inputs = values
-
-    return dict(zip(input_names, inputs))
+        if values is None:
+            inputs = [_random_array(shape) for shape in input_shapes]
+        else:
+            inputs = values
+        input_dict = dict(zip(input_names, inputs))
+        dir = './test_data/' + test_name + '/'
+        if os.path.exists(dir):
+            shutil.rmtree(dir)
+        os.makedirs(dir)
+        np.save(dir + 'input.npy', input_dict)
+        return input_dict
 
 
 def _test_onnx_model(model,  # type: ModelProto
-                     decimal=5,  # type: int
+                     test_name='', # type: Text
+                     decimal=5  # type: int
                      ):
     # type: (...) -> None
-    W = _prepare_inputs_for_onnx(model)
-    c2_outputs = _forward_onnx_model(model, W)
+    W = _prepare_inputs_for_onnx(model, test_name=test_name)
+    c2_outputs = _forward_onnx_model(model, W, test_name=test_name)
     coreml_outputs = _coreml_forward_onnx_model(model, W)
     _assert_outputs(c2_outputs, coreml_outputs, decimal=decimal)
 
@@ -192,10 +226,14 @@ def _test_single_node(op_type,  # type: Text
                       output_shapes,  # type: Sequence[Tuple[int, ...]]
                       initializer=[],  # type: Sequence[TensorProto]
                       decimal=5,  # type: int
+                      test_name = '', # type: int
                       **kwargs  # type: Any
                       ):
     # type: (...) -> None
     model = _onnx_create_single_node_model(
         op_type, input_shapes, output_shapes, initializer, **kwargs
     )
-    _test_onnx_model(model, decimal=decimal)
+    if test_name:
+        _test_onnx_model(model, test_name=test_name, decimal=decimal)
+    else:
+        _test_onnx_model(model, test_name=sys._getframe(1).f_code.co_name, decimal=decimal)
