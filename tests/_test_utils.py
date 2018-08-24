@@ -51,7 +51,7 @@ def _forward_onnx_model(model,  # type: ModelProto
     return np.array(result)
 
 
-def _onnx_create_model(nodes,  # type: Sequence[Node]
+def _onnx_create_model(nodes,  # type: Sequence[NodeProto]
                        inputs,  # type: Sequence[Tuple[Text,Tuple[int, ...]]]
                        outputs,  # type: Sequence[Tuple[Text,Tuple[int, ...], int]]
                        initializer=[],  # type: Sequence[TensorProto]
