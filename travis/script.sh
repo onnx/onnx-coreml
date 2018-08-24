@@ -2,7 +2,6 @@
 
 source "${0%/*}/setup.sh"
 
-#Skip mypy test when priority is to make sure that other tests pass
 #Mypy only works with Python 3
 if [ "${PYTHON_VERSION}" != "python2" ]; then
   time mypy .
