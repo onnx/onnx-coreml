@@ -6,7 +6,6 @@ from __future__ import unicode_literals
 import unittest
 import numpy as np
 from onnx.numpy_helper import from_array
-import caffe2.python.onnx.backend
 from onnx_coreml import convert
 
 from typing import Text
@@ -112,6 +111,7 @@ class SingleOperatorTest(unittest.TestCase):
             "MaxPool",
             [input_shape],
             [output_shape],
+            test_name='test_max_pool_1',
             kernel_shape=kernel_shape,
             pads=pads,
             strides=strides
@@ -125,6 +125,7 @@ class SingleOperatorTest(unittest.TestCase):
             "MaxPool",
             [input_shape],
             [output_shape],
+            test_name='test_max_pool_2',
             kernel_shape=kernel_shape,
             strides=strides
         )
@@ -142,6 +143,7 @@ class SingleOperatorTest(unittest.TestCase):
             "AveragePool",
             [input_shape],
             [output_shape],
+            test_name='test_avg_pool_1',
             kernel_shape=kernel_shape,
             pads=pads,
             strides=strides
@@ -155,6 +157,7 @@ class SingleOperatorTest(unittest.TestCase):
             "AveragePool",
             [input_shape],
             [output_shape],
+            test_name='test_avg_pool_2',
             kernel_shape=kernel_shape,
             strides=strides
         )
@@ -218,46 +221,57 @@ class SingleOperatorTest(unittest.TestCase):
             size=5
         )
 
-    # @unittest.skip("Error while preparing Caffe2 backend. Maybe something is incorrect in ONNX model definition")
-    def skip_test_lstm(self):  # type: () -> None
-        x = 4
-        h = 2
-        seq_length = 3
-        W = from_array(_random_array((4*h, x)), name="gate_weights")
-        R = from_array(_random_array((4*h, h)), name="recursion_weights")
-        B = from_array(_random_array((8*h,)), name="biases")
-        seq_lens_input = from_array(np.array([seq_length]).astype(np.int32), name='seq_lens_input')
-        initial_h = from_array(np.zeros((1, 1, h)).astype(np.float32), name='initial_h')
-        initial_c = from_array(np.zeros((1, 1, h)).astype(np.float32), name='initial_c')
-
-        input_shape = (seq_length, 1, x)
-        output_shape_all = (seq_length, 1, h)
-        output_shape_last = (1, 1, h)
-
-        onnx_model =  _onnx_create_single_node_model(
-            "LSTM",
-            [input_shape],
-            [output_shape_all, output_shape_last],
-            initializer=[W, R, B, seq_lens_input, initial_h, initial_c],
-            hidden_size=h
+    def test_slice_axis_3_rank_4(self):  # type: () -> None
+        _test_single_node(
+            "Slice",
+            [(1, 3, 224, 224)],
+            [(1, 3, 224, 222)],
+            axes=[3],
+            starts=[1],
+            ends=[223]
         )
-        X = np.random.rand(*input_shape).astype("float32")  #type: ignore
-        prepared_backend = caffe2.python.onnx.backend.prepare(onnx_model)
-        out = prepared_backend.run({'input0': X})
-        caffe2_out_all = out['output0']
-        caffe2_out_last = out['output1']
 
-        coreml_model = convert(onnx_model)
-        inputdict = {}
-        inputdict['input0'] = X
-        inputdict['initial_h'] = np.zeros((h), dtype=np.float32)
-        inputdict['initial_c'] = np.zeros((h), dtype=np.float32)
-        coreml_out_dict = coreml_model.predict(inputdict, useCPUOnly=True)
-        coreml_out_all = coreml_out_dict['output0']
-        coreml_out_last = coreml_out_dict['output1']
-
-        _assert_outputs(caffe2_out_all.flatten(), coreml_out_all.flatten(), decimal=5)
-        _assert_outputs(caffe2_out_last.flatten(), coreml_out_last.flatten(), decimal=5)
+    # @unittest.skip("Error while preparing Caffe2 backend. Maybe something is incorrect in ONNX model definition")
+    # def skip_test_lstm(self):  # type: () -> None
+    #     x = 4
+    #     h = 2
+    #     seq_length = 3
+    #     W = from_array(_random_array((4*h, x)), name="gate_weights")
+    #     R = from_array(_random_array((4*h, h)), name="recursion_weights")
+    #     B = from_array(_random_array((8*h,)), name="biases")
+    #     seq_lens_input = from_array(np.array([seq_length]).astype(np.int32), name='seq_lens_input')
+    #     initial_h = from_array(np.zeros((1, 1, h)).astype(np.float32), name='initial_h')
+    #     initial_c = from_array(np.zeros((1, 1, h)).astype(np.float32), name='initial_c')
+    #
+    #     input_shape = (seq_length, 1, x)
+    #     output_shape_all = (seq_length, 1, h)
+    #     output_shape_last = (1, 1, h)
+    #
+    #     onnx_model =  _onnx_create_single_node_model(
+    #         "LSTM",
+    #         [input_shape],
+    #         [output_shape_all, output_shape_last],
+    #         initializer=[W, R, B, seq_lens_input, initial_h, initial_c],
+    #         hidden_size=h
+    #     )
+    #     X = np.random.rand(*input_shape).astype("float32")  #type: ignore
+    #     import caffe2.python.onnx.backend
+    #     prepared_backend = caffe2.python.onnx.backend.prepare(onnx_model)
+    #     out = prepared_backend.run({'input0': X})
+    #     caffe2_out_all = out['output0']
+    #     caffe2_out_last = out['output1']
+    #
+    #     coreml_model = convert(onnx_model)
+    #     inputdict = {}
+    #     inputdict['input0'] = X
+    #     inputdict['initial_h'] = np.zeros((h), dtype=np.float32)
+    #     inputdict['initial_c'] = np.zeros((h), dtype=np.float32)
+    #     coreml_out_dict = coreml_model.predict(inputdict, useCPUOnly=True)
+    #     coreml_out_all = coreml_out_dict['output0']
+    #     coreml_out_last = coreml_out_dict['output1']
+    #
+    #     _assert_outputs(caffe2_out_all.flatten(), coreml_out_all.flatten(), decimal=5)
+    #     _assert_outputs(caffe2_out_last.flatten(), coreml_out_last.flatten(), decimal=5)
 
 
 if __name__ == '__main__':

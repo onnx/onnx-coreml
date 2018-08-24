@@ -658,15 +658,16 @@ def _convert_pad(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
 
 def _convert_slice(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     # TODO: support multi-axis slice
-    axes = node.attrs.get('axes', [])
+    input_shape = graph.shape_dict.get(node.inputs[0], None)
+    starts = node.attrs['starts']
+    ends = node.attrs['ends']
+    axes = node.attrs.get('axes', range(len(starts)))
     if len(axes) != 1:
         return err.unsupported_op_configuration(builder, node, graph, "Only single axis Slice is supported now")
 
-    starts = node.attrs['starts']
-    ends = node.attrs['ends']
-    axes = node.attrs.get('axes', [])
-    if len(axes) == 0: axes = range(len(starts))
-    if len(axes) == 1:
+    if input_shape and len(input_shape) == 4 and len(axes) == 1:
+        axis = ['B','channel','height','width'][axes[0]]
+    elif len(axes) == 1:
         if axes[0] == 0:
             axis = 'channel'
         elif axes[0] == 1:
@@ -677,6 +678,7 @@ def _convert_slice(builder, node, graph, err):  # type: (NeuralNetworkBuilder, N
             return err.unsupported_op_configuration(builder, node, graph, "Slice is supported only along H, W or C dimensions")
     else:
         return err.unsupported_op_configuration(builder, node, graph, "Slice is supported only along one axis for 3D or 4D Tensors")
+
     builder.add_slice(
         name=node.name,
         input_name=node.inputs[0],
