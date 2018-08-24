@@ -528,7 +528,7 @@ class UnsqueezeRemover(object):
                 axes = node.attrs['axes']
                 axes.sort()
                 for axis in axes:
-                    x = np.expand_dims(x, axis=axis)
+                    x = np.expand_dims(x, axis=axis) # type: ignore
                 graph.shape_dict[node.outputs[0]] = x.shape
                 for child_node in node.children:
                     child_node.parents.remove(node)

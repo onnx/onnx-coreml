@@ -6,7 +6,7 @@ from __future__ import unicode_literals
 import numpy as np
 import numpy.testing as npt  # type: ignore
 import numpy.random as npr
-from onnx import helper, TensorProto, ModelProto, ValueInfoProto, TensorProto
+from onnx import helper, TensorProto, ModelProto, ValueInfoProto, TensorProto, NodeProto
 from typing import Any, Sequence, Text, Tuple, Optional, Dict, List, TypeVar
 from onnx_coreml import convert
 from onnx_coreml._graph import Node
@@ -29,10 +29,10 @@ def _forward_onnx_model(model,  # type: ModelProto
     # type: (...) -> np.ndarray[Any]
     if TEST_MODE:
         current_dir_path = os.path.dirname(os.path.realpath(__file__))
-        loaded_obj = np.load(current_dir_path + '/test_data/' + test_name + '/output.npy')
+        loaded_obj = np.load(current_dir_path + '/test_data/' + test_name + '/output.npy') #type: ignore
         out = loaded_obj.item()
     else:
-        import caffe2.python.onnx.backend
+        import caffe2.python.onnx.backend # type: ignore
         prepared_backend = caffe2.python.onnx.backend.prepare(model)
         out = prepared_backend.run(input_dict)
         out_dict = {}
@@ -40,7 +40,7 @@ def _forward_onnx_model(model,  # type: ModelProto
         for out_name in out_names:
             out_dict[out_name] = out[out_name]
         dir = os.path.dirname(os.path.realpath(__file__)) + '/test_data/' + test_name + '/'
-        np.save(dir + 'output.npy', out_dict)
+        np.save(dir + 'output.npy', out_dict) #type: ignore
 
     result = [out[v.name] for v in model.graph.output]
     output_shapes = [
@@ -139,7 +139,7 @@ def _coreml_forward_onnx_model(model,  # type: ModelProto
 
 def _random_array(shape, random_seed=10):  # type: (Tuple[int, ...], Any) -> np._ArrayLike[float]
     if random_seed:
-        npr.seed(random_seed)
+        npr.seed(random_seed) # type: ignore
     return npr.ranf(shape).astype("float32")
 
 
@@ -180,7 +180,7 @@ def _assert_outputs(output1,  # type: np.ndarray[_T]
 
 
 def _prepare_inputs_for_onnx(model,  # type: ModelProto
-                             test_name = '', # type: str
+                             test_name = '', # type: Text
                              values=None,  # type: Optional[List[np._ArrayLike[Any]]]
                              ):
     # type: (...) -> Dict[Text, np._ArrayLike[Any]]
@@ -196,7 +196,7 @@ def _prepare_inputs_for_onnx(model,  # type: ModelProto
 
     if TEST_MODE:
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        loaded_obj = np.load(dir_path + '/test_data/' + test_name + '/input.npy')
+        loaded_obj = np.load(dir_path + '/test_data/' + test_name + '/input.npy') # type: ignore
         return loaded_obj.item()
     else:
         if values is None:
@@ -208,7 +208,7 @@ def _prepare_inputs_for_onnx(model,  # type: ModelProto
         if os.path.exists(dir):
             shutil.rmtree(dir)
         os.makedirs(dir)
-        np.save(dir + 'input.npy', input_dict)
+        np.save(dir + 'input.npy', input_dict) # type: ignore
         return input_dict
 
 
@@ -230,7 +230,7 @@ def _test_single_node(op_type,  # type: Text
                       output_shapes,  # type: Sequence[Tuple[int, ...]]
                       initializer=[],  # type: Sequence[TensorProto]
                       decimal=5,  # type: int
-                      test_name = '', # type: str
+                      test_name = '', # type: Text
                       **kwargs  # type: Any
                       ):
     # type: (...) -> None
