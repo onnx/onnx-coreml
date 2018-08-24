@@ -197,7 +197,7 @@ def _prepare_inputs_for_onnx(model,  # type: ModelProto
     if TEST_MODE:
         dir_path = os.path.dirname(os.path.realpath(__file__))
         loaded_obj = np.load(dir_path + '/test_data/' + test_name + '/input.npy') # type: ignore
-        return loaded_obj.item()
+        return loaded_obj.item() # type: ignore
     else:
         if values is None:
             inputs = [_random_array(shape) for shape in input_shapes]
