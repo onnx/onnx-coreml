@@ -28,7 +28,8 @@ def _forward_onnx_model(model,  # type: ModelProto
                         ):
     # type: (...) -> np.ndarray[Any]
     if TEST_MODE:
-        loaded_obj = np.load('./test_data/' + test_name + '/output.npy')
+        current_dir_path = os.path.dirname(os.path.realpath(__file__))
+        loaded_obj = np.load(current_dir_path + '/test_data/' + test_name + '/output.npy')
         out = loaded_obj.item()
     else:
         import caffe2.python.onnx.backend
@@ -38,7 +39,7 @@ def _forward_onnx_model(model,  # type: ModelProto
         out_names = [v.name for v in model.graph.output]
         for out_name in out_names:
             out_dict[out_name] = out[out_name]
-        dir = './test_data/' + test_name + '/'
+        dir = os.path.dirname(os.path.realpath(__file__)) + '/test_data/' + test_name + '/'
         np.save(dir + 'output.npy', out_dict)
 
     result = [out[v.name] for v in model.graph.output]
@@ -194,7 +195,8 @@ def _prepare_inputs_for_onnx(model,  # type: ModelProto
     ]
 
     if TEST_MODE:
-        loaded_obj = np.load('./test_data/' + test_name + '/input.npy')
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        loaded_obj = np.load(dir_path + '/test_data/' + test_name + '/input.npy')
         return loaded_obj.item()
     else:
         if values is None:
@@ -202,7 +204,7 @@ def _prepare_inputs_for_onnx(model,  # type: ModelProto
         else:
             inputs = values
         input_dict = dict(zip(input_names, inputs))
-        dir = './test_data/' + test_name + '/'
+        dir = os.path.dirname(os.path.realpath(__file__)) + '/test_data/' + test_name + '/'
         if os.path.exists(dir):
             shutil.rmtree(dir)
         os.makedirs(dir)
