@@ -44,6 +44,41 @@ class CoreMLBackend(Backend):
         return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU')
 
     @classmethod
+    def is_compatible(cls,
+                       model,  # type: ModelProto
+                       device='CPU',  # type: Text
+                       **kwargs  # type: Any
+                       ):  # type: (...) -> bool
+         # Return whether the model is compatible with CoreML.
+         '''
+         This function will gradually grow to cover more cases. 
+         Need to be careful of false negatives. There are some cases that seemingly 
+         are not supported on CoreML, which the graph transformer optimizes and converts to 
+         a graph that can be converted to CoreML. 
+         
+         1. Check whether the layers for which CoreML expects constant weights are in
+            the list of initializers in the onnx graph
+            
+         '''
+
+         node_set = set()
+         initializer_set = set()
+         graph = model.graph
+         for t in graph.initializer:
+             initializer_set.add(t.name)
+         for node in graph.node:
+             if node.op_type in ['ConvTranspose',
+                                 'Conv',
+                                 'BatchNormalization',
+                                 'InstanceNormalization',
+                                 'PRelu']:
+                if len(node.input) > 1 and node.input[1] not in initializer_set:
+                    return False
+             node_set.add(node.op_type)
+
+         return True
+
+    @classmethod
     def supports_device(cls,
                         device,  # type: Text
                         ):

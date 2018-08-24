@@ -12,8 +12,6 @@ import numpy
 
 from onnx_coreml._backend import CoreMLBackend
 
-
-# TODO: don't use caffe2 to infer output shapes
 class CoreMLTestingBackend(CoreMLBackend):
     @classmethod
     def run_node(cls,
@@ -283,29 +281,13 @@ backend_test.exclude('test_rnn_seq_length_cpu')
 backend_test.exclude('test_operator_repeat_cpu')
 backend_test.exclude('test_operator_repeat_dim_overflow_cpu')
 backend_test.exclude('test_reduce_log_sum_default_cpu')
+backend_test.exclude('test_thresholdedrelu_example_cpu') #different convention for CoreML
 
 
 # Supported ops, but ONNX passes in dynamic inputs that CoreML needs to be constant graph initializers
-backend_test.exclude('test_thresholdedrelu_example_cpu')
-backend_test.exclude('test_batchnorm_epsilon_cpu')
-backend_test.exclude('test_batchnorm_example_cpu')
 backend_test.exclude('test_gemm_broadcast_cpu')
 backend_test.exclude('test_gemm_nobroadcast_cpu')
-backend_test.exclude('test_instancenorm_epsilon_cpu')
-backend_test.exclude('test_instancenorm_example_cpu')
-backend_test.exclude('test_prelu_example_cpu')
-backend_test.exclude('test_basic_conv_with_padding_cpu')
-backend_test.exclude('test_basic_conv_without_padding_cpu')
-backend_test.exclude('test_conv_with_strides_and_asymmetric_padding_cpu')
-backend_test.exclude('test_conv_with_strides_no_padding_cpu')
-backend_test.exclude('test_conv_with_strides_padding_cpu')
-backend_test.exclude('test_convtranspose_1d_cpu')
-backend_test.exclude('test_convtranspose_3d_cpu')
-backend_test.exclude('test_convtranspose_cpu')
-backend_test.exclude('test_convtranspose_output_shape_cpu')
-backend_test.exclude('test_convtranspose_pad_cpu')
-backend_test.exclude('test_convtranspose_pads_cpu')
-backend_test.exclude('test_prelu_broadcast_cpu')
+
 
 # CoreML doesn't support tensor layout
 backend_test.exclude('test_reduce_log_sum_desc_axes_cpu')
