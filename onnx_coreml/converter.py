@@ -326,19 +326,23 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
                 bias = node.attrs.get('bias', [0,0,0])
                 if not (len(bias) == 1 or len(bias) == 3):
                     continue
-                bias_r_g_b_gray = [0,0,0,0]
-                if len(bias) == 1:
-                    bias_r_g_b_gray[3] = bias[0]
+                if 'image_scale' in preprocessing_args:
+                    preprocessing_args['image_scale'][inp_name] = scale
                 else:
-                    bias_r_g_b_gray[:3] = bias
+                    preprocessing_args['image_scale'] = {inp_name: scale}
+                if len(bias) == 3:
+                    for i, color in enumerate(['red', 'green', 'blue']):
+                        if color + '_bias' in preprocessing_args:
+                            preprocessing_args[color + '_bias'][inp_name] = bias[i]
+                        else:
+                            preprocessing_args[color + '_bias'] = {inp_name: bias[i]}
+                else:
+                    if 'gray_bias' in preprocessing_args:
+                        preprocessing_args['gray_bias'][inp_name] = bias[0]
+                    else:
+                        preprocessing_args['gray_bias'] = {inp_name: bias[0]}
                 if inp_name not in image_input_names:
                     image_input_names.append(inp_name) # type: ignore
-                preprocessing_args['is_bgr'] = {inp_name: False}
-                preprocessing_args['red_bias'] = {inp_name: bias_r_g_b_gray[0]}
-                preprocessing_args['green_bias'] = {inp_name: bias_r_g_b_gray[1]}
-                preprocessing_args['blue_bias'] = {inp_name: bias_r_g_b_gray[2]}
-                preprocessing_args['gray_bias'] = {inp_name: bias_r_g_b_gray[3]}
-                preprocessing_args['image_scale'] = {inp_name: scale}
 
     # remove all ImageScaler ops
     graph = graph.transformed([ImageScalerRemover()])
@@ -376,6 +380,8 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             gray_bias=preprocessing_args.get('gray_bias', 0.0),
             image_scale=preprocessing_args.get('image_scale', 1.0)
         )
+
+    preprocessing_args.clear()
 
     if len(image_output_names) > 0:
         for f in output_features:

@@ -188,6 +188,37 @@ class NodeRemoverTests(unittest.TestCase):
         self.assertEqual(spec.neuralNetwork.preprocessing[0].scaler.greenBias, -6.0)
         self.assertEqual(spec.neuralNetwork.preprocessing[0].scaler.redBias, 10.0)
 
+    def test_multiple_image_scaler(self): # type : () -> None
+        inputs = [('input_color', (1,3,10,10)), ('input_gray', (1,1,10,10))]
+        outputs = [('out', (1,4,10,10), TensorProto.FLOAT)]
+
+        im_scaler1 = helper.make_node("ImageScaler",
+                                     inputs = ['input_color'],
+                                     outputs = ['scaler_out_1'],
+                                     bias = [10,-6,20], scale=3.0)
+
+        im_scaler2 = helper.make_node("ImageScaler",
+                                     inputs = ['input_gray'],
+                                     outputs = ['scaler_out_2'],
+                                     bias = [-13], scale=5.0)
+
+        concat = helper.make_node("Concat",
+                                  inputs=['scaler_out_1', 'scaler_out_2'],
+                                  outputs=['out'],
+                                  axis = 1)
+
+        onnx_model = _onnx_create_model([im_scaler1, im_scaler2, concat], inputs, outputs)
+
+        spec = convert(onnx_model).get_spec()
+        self.assertEqual(len(spec.neuralNetwork.layers), 1)
+        self.assertEqual(len(spec.neuralNetwork.preprocessing), 2)
+        self.assertEqual(spec.neuralNetwork.preprocessing[0].scaler.channelScale, 3.0)
+        self.assertEqual(spec.neuralNetwork.preprocessing[0].scaler.blueBias, 20.0)
+        self.assertEqual(spec.neuralNetwork.preprocessing[0].scaler.greenBias, -6.0)
+        self.assertEqual(spec.neuralNetwork.preprocessing[0].scaler.redBias, 10.0)
+        self.assertEqual(spec.neuralNetwork.preprocessing[1].scaler.channelScale, 5.0)
+        self.assertEqual(spec.neuralNetwork.preprocessing[1].scaler.grayBias, -13.0)
+
 
 
 class PixelShuffleFuserTest(unittest.TestCase):

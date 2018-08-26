@@ -498,16 +498,13 @@ class ImageScalerRemover(object):
         for node in graph.nodes:
             if (node.op_type != 'ImageScaler') or (len(node.parents) != 0) or (node.inputs[0] not in input_names):
                 continue
-            is_eligible = True
-            for child in node.children:
-                if not (len(child.parents) == 1 and child.inputs[0] == node.outputs[0]):
-                    is_eligible = False
-                    break
-                child.inputs[0] = node.inputs[0]
-                child.parents = []
-            if not is_eligible:
-                continue
             nodes_to_be_removed.append(node.name)
+            for child in node.children:
+                for i, child_input in enumerate(child.inputs):
+                    if child_input == node.outputs[0]:
+                        child.inputs[i] = node.inputs[0]
+                        child.parents.remove(node)
+                        break
 
         transformed_nodes = []
         for node in graph.nodes:
