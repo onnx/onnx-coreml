@@ -29,7 +29,7 @@ def _forward_onnx_model(model,  # type: ModelProto
     # type: (...) -> np.ndarray[Any]
     if TEST_MODE:
         current_dir_path = os.path.dirname(os.path.realpath(__file__))
-        loaded_obj = np.load(current_dir_path + '/test_data/' + test_name + '/output.npy') #type: ignore
+        loaded_obj = np.load(current_dir_path + '/test_data/' + test_name + '/output.npy', encoding='bytes') #type: ignore
         out = loaded_obj.item()
     else:
         import caffe2.python.onnx.backend # type: ignore
@@ -196,7 +196,7 @@ def _prepare_inputs_for_onnx(model,  # type: ModelProto
 
     if TEST_MODE:
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        loaded_obj = np.load(dir_path + '/test_data/' + test_name + '/input.npy') # type: ignore
+        loaded_obj = np.load(dir_path + '/test_data/' + test_name + '/input.npy', encoding='bytes') # type: ignore
         return loaded_obj.item() # type: ignore
     else:
         if values is None:
