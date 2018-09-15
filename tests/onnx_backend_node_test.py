@@ -154,6 +154,14 @@ backend_test.exclude('test_operator_add_size1_singleton_broadcast_cpu')
 backend_test.exclude('test_operator_index_cpu')
 backend_test.exclude('test_operator_pow_cpu')
 backend_test.exclude('test_concat_2d_axis_0_cpu')
+backend_test.exclude('test_argmax_default_axis_example_cpu')
+backend_test.exclude('test_argmin_default_axis_example_cpu')
+backend_test.exclude('test_argmax_no_keepdims_example_cpu')
+backend_test.exclude('test_argmin_no_keepdims_example_cpu')
+
+backend_test.exclude('test_mvn_cpu')
+backend_test.exclude('test_maxpool_with_argmax_2d_precomputed_pads_cpu')
+backend_test.exclude('test_maxpool_with_argmax_2d_precomputed_strides_cpu')
 
 # 1-D conv/pool cases. an be supported using shape inference
 backend_test.exclude('test_Conv1d_cpu')
@@ -282,7 +290,12 @@ backend_test.exclude('test_operator_repeat_cpu')
 backend_test.exclude('test_operator_repeat_dim_overflow_cpu')
 backend_test.exclude('test_reduce_log_sum_default_cpu')
 backend_test.exclude('test_thresholdedrelu_example_cpu') #different convention for CoreML
-
+backend_test.exclude('test_expand_shape_model1_cpu')
+backend_test.exclude('test_expand_shape_model2_cpu')
+backend_test.exclude('test_expand_shape_model3_cpu')
+backend_test.exclude('test_expand_shape_model4_cpu')
+backend_test.exclude('test_expand_dim_changed_cpu')
+backend_test.exclude('test_expand_dim_unchanged_cpu')
 
 # Supported ops, but ONNX passes in dynamic inputs that CoreML needs to be constant graph initializers
 backend_test.exclude('test_gemm_broadcast_cpu')
@@ -356,6 +369,10 @@ backend_test.exclude('test_inception_v2')
 backend_test.exclude('test_shufflenet')
 backend_test.exclude('test_squeezenet')
 backend_test.exclude('test_zfnet')
+
+
+
+
 
 globals().update(backend_test
                  .enable_report()

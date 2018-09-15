@@ -231,7 +231,7 @@ class DropoutRemover(NodesFuser):
         parent, child = nodes[0], nodes[1]
         parent.children.remove(child)
         child.parents.remove(parent)
-        parent.outputs = child.outputs
+        parent.outputs = [child.outputs[0]]
         return [parent]
 
 

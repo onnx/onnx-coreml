@@ -15,18 +15,17 @@ def _make_model_clip_exp_topk(): # type: (...) -> ModelProto
   '''
   inputs = [('input0', (10,))]
   outputs = [('output_values', (3,), TensorProto.FLOAT), ('output_indices', (3,), TensorProto.INT64)]
-  clip = helper.make_node("Clip",
+  acos = helper.make_node("Acos",
                           inputs=[inputs[0][0]],
-                          outputs=['clip_out'],
-                          max=10.0, min=5.0)
+                          outputs=['acos_out'])
   exp = helper.make_node("Exp",
-                        inputs=[clip.output[0]],
+                        inputs=[acos.output[0]],
                         outputs=['exp_out'])
   topk = helper.make_node("TopK",
                         inputs=[exp.output[0]],
                         outputs=[outputs[0][0], outputs[1][0]],
                         axis=0, k=3)
-  return _onnx_create_model([clip, exp, topk], inputs, outputs)
+  return _onnx_create_model([acos, exp, topk], inputs, outputs)
 
 def _make_model_concat_axis3(): # type: (...) -> ModelProto
   '''
@@ -52,18 +51,16 @@ class CustomLayerTest(unittest.TestCase):
     layers = spec.neuralNetwork.layers
     self.assertIsNotNone(layers[0].custom)
     self.assertIsNotNone(layers[2].custom)
-    self.assertEqual('Clip', layers[0].custom.className)
+    self.assertEqual('Acos', layers[0].custom.className)
     self.assertEqual('TopK', layers[2].custom.className)
 
 
   def test_unsupported_ops_provide_functions(self):  # type: () -> None
 
-    def convert_clip(node):
+    def convert_acos(node):
       params = NeuralNetwork_pb2.CustomLayerParams()
       params.className = node.op_type
       params.description = "Custom layer that corresponds to the ONNX op {}".format(node.op_type, )
-      params.parameters["min"].doubleValue = node.attrs['min']
-      params.parameters["max"].doubleValue = node.attrs['max']
       return params
 
 
@@ -78,16 +75,14 @@ class CustomLayerTest(unittest.TestCase):
     onnx_model = _make_model_clip_exp_topk()
     coreml_model = convert(model=onnx_model,
                            add_custom_layers=True,
-                           custom_conversion_functions={'Clip':convert_clip, 'TopK':convert_topk})
+                           custom_conversion_functions={'Acos':convert_acos, 'TopK':convert_topk})
 
     spec = coreml_model.get_spec()
     layers = spec.neuralNetwork.layers
     self.assertIsNotNone(layers[0].custom)
     self.assertIsNotNone(layers[2].custom)
-    self.assertEqual('Clip', layers[0].custom.className)
+    self.assertEqual('Acos', layers[0].custom.className)
     self.assertEqual('TopK', layers[2].custom.className)
-    self.assertEqual(10.0, layers[0].custom.parameters['max'].doubleValue)
-    self.assertEqual(5.0, layers[0].custom.parameters['min'].doubleValue)
     self.assertEqual(0, layers[2].custom.parameters['axis'].intValue)
     self.assertEqual(3, layers[2].custom.parameters['k'].intValue)
 
