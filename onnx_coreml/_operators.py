@@ -212,6 +212,9 @@ def _convert_pool(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
     else:
         return err.unsupported_op_configuration(builder, node, graph, "Unsupported pool type")
 
+    if len(node.outputs) == 2:
+        return err.unsupported_op_configuration(builder, node, graph, "argmax with pool unsupported")
+
     pad_b, pad_l, pad_r, pad_t = 0, 0, 0, 0
     stride_height, stride_width = 1, 1
     padding_type = 'VALID'
@@ -241,6 +244,8 @@ def _convert_pool(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
             if _compare(node.attrs["auto_pad"], 'SAME_LOWER'):
                 same_padding_asymmetry_mode = 'TOP_LEFT_HEAVY'
 
+    exclude_pad_area = node.attrs.get('count_include_pad',0) == 0
+
     builder.add_pooling(
         name=node.name,
         height=height,
@@ -249,7 +254,7 @@ def _convert_pool(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
         stride_width=stride_width,
         layer_type=layer_type,
         padding_type=padding_type,
-        exclude_pad_area=True,
+        exclude_pad_area=exclude_pad_area,
         is_global=is_global,
         input_name=node.inputs[0],
         output_name=node.outputs[0],
@@ -414,7 +419,10 @@ def _convert_concat(builder, node, graph, err):  # type: (NeuralNetworkBuilder, 
 
 def _convert_reduce(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
 
-    axes = node.attrs.get('axes', None)
+    if node.op_type == 'ArgMax' or node.op_type == 'ArgMin':
+        axes = [node.attrs.get('axis', 0)]
+    else:
+        axes = node.attrs.get('axes', None)
     if axes is None:
         assert node.inputs[0] in graph.shape_dict, "Shape inference failed for reduce op"
         shape = graph.shape_dict[node.inputs[0]]
@@ -438,6 +446,8 @@ def _convert_reduce(builder, node, graph, err):  # type: (NeuralNetworkBuilder, 
     if coreml_axis not in ['C', 'H', 'W', 'HW', 'CHW']:
         return err.unsupported_op_configuration(builder, node, graph, "Unable to translate axes attribute to CoreML axis parameter for %s" % axes)
 
+    input_name = node.inputs[0]
+
     if node.op_type == 'ReduceMean':
         mode = 'avg'
     elif node.op_type == 'ReduceL1':
@@ -456,11 +466,21 @@ def _convert_reduce(builder, node, graph, err):  # type: (NeuralNetworkBuilder, 
         mode = 'sum'
     elif node.op_type == 'ReduceSumSquare':
         mode = 'sumsquare'
+    elif node.op_type == 'ArgMax':
+        mode = 'argmax'
+    elif node.op_type == 'ArgMin':
+        mode = 'argmax'
+        builder.add_elementwise(name=node.name+'_multiply_minus_1',  # type: ignore
+                                input_names=[input_name],
+                                output_name=input_name+'_multiply_minus_1',
+                                mode='MULTIPLY',
+                                alpha=-1)
+        input_name += '_multiply_minus_1'
     else:
         return err.unsupported_op_configuration(builder, node, graph, "Unsupported op")
 
     builder.add_reduce(name=node.name,
-                       input_name=node.inputs[0], output_name=node.outputs[0],
+                       input_name=input_name, output_name=node.outputs[0],
                        axis=coreml_axis,
                        mode=mode)
 
@@ -849,6 +869,35 @@ def _convert_upsample(builder, node, graph, err):  # type: (NeuralNetworkBuilder
         mode=mode,
     )
 
+def _convert_clip(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+    max_limit = node.attrs.get('max',float(2^16-1))
+    min_limit = node.attrs.get('min',float(-(2^16-1)))
+    delta = max_limit - min_limit
+    builder.add_activation(name = node.name + '_scale_0_1', # type: ignore
+                           non_linearity = 'LINEAR',
+                           input_name = node.inputs[0],
+                           output_name = node.inputs[0] + '_scale_0_1',
+                           params = [1.0/delta, -min_limit/delta])
+    builder.add_activation(name = node.name + '_clip_0_1', # type: ignore
+                           non_linearity = 'SIGMOID_HARD',
+                           input_name = node.inputs[0] + '_scale_0_1',
+                           output_name = node.inputs[0] + '_clip_0_1',
+                           params = [1.0, 0.0])
+    builder.add_activation(name = node.name,
+                           non_linearity = 'LINEAR',
+                           input_name = node.inputs[0] + '_clip_0_1',
+                           output_name = node.outputs[0],
+                           params = [delta, min_limit])
+
+
+def _convert_mvn(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+    builder.add_mvn(name=node.name,
+                    input_name=node.inputs[0],
+                    output_name=node.outputs[0],
+                    across_channels = node.attrs.get('across_channels', 0),
+                    normalize_variance = node.attrs.get('normalize_variance', 1),
+                    epsilon = 1e-5)
+
 def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     W_name = node.inputs[1]
     R_name = node.inputs[2]
@@ -982,6 +1031,10 @@ _ONNX_NODE_REGISTRY = {
     "ReduceProd": _convert_reduce,
     "ReduceSum": _convert_reduce,
     "ReduceSumSquare": _convert_reduce,
+    "ArgMax": _convert_reduce,
+    "ArgMin": _convert_reduce,
+    "Clip": _convert_clip,
+    "MeanVarianceNormalization": _convert_mvn,
 }
 
 
