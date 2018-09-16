@@ -242,8 +242,11 @@ def _set_deprocessing(is_grayscale,  # type: bool
 def _prepare_onnx_graph(graph, transformers):  # type: (Graph, Iterable[Transformer]) -> Graph
     graph = infer_shapes_and_types(graph)
     graph_ = Graph.from_onnx(graph)
-    return graph_.transformed(transformers)
-
+    from .graph_viz import plot_graph
+    plot_graph(graph_, '/tmp/graph_raw.png')
+    graph_ = graph_.transformed(transformers)
+    plot_graph(graph_, '/tmp/graph_opt.png')
+    return graph_
 
 def convert(model,  # type: Union[onnx.ModelProto, Text]
             mode=None,  # type: Optional[Text]
