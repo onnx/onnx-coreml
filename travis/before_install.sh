@@ -56,3 +56,7 @@ python --version
 for package in $(pip list --outdated --format=freeze | grep -v '^\-e' | cut -d = -f 1); do
   pip install -U $package
 done
+
+if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
+	pip install torch
+fi
