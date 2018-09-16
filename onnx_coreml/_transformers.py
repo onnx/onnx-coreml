@@ -537,3 +537,25 @@ class UnsqueezeRemover(object):
                 transformed_nodes.append(node)
         return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
 
+class TransposeConstantRemover(object):
+    '''
+    Removes Transpose op, if its input is constant
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        nodes_to_be_removed = []
+        for node in graph.nodes:
+            if node.op_type == 'Transpose' and len(node.parents) == 0 and node.inputs[0] in node.input_tensors:
+                nodes_to_be_removed.append(node)
+                x = node.input_tensors[node.inputs[0]]
+                perm = node.attrs.get('perm', None)
+                x = np.transpose(x, axes = perm)  # type: ignore
+                graph.shape_dict[node.outputs[0]] = x.shape
+                for child_node in node.children:
+                    child_node.parents.remove(node)
+                    child_node.input_tensors[node.outputs[0]] = x
+
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)

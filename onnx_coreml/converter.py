@@ -21,7 +21,7 @@ from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
     PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs, \
-    ConstantsToInitializers, ImageScalerRemover, UnsqueezeRemover
+    ConstantsToInitializers, ImageScalerRemover, UnsqueezeRemover, TransposeConstantRemover
 from ._error_utils import ErrorHandling
 
 '''
@@ -306,6 +306,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         ReshapeInitTensorFuser(),
         DropoutRemover(),
         UnsqueezeRemover(),
+        TransposeConstantRemover(),
         ConvAddFuser(),
         BNBroadcastedMulFuser(),
         BNBroadcastedAddFuser(),
