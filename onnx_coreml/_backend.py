@@ -39,6 +39,9 @@ class CoreMLBackend(Backend):
                 ):
         # type: (...) -> CoreMLRep
         super(CoreMLBackend, cls).prepare(model, device, **kwargs)
+        # with open('/tmp/node_model.onnx', 'wb') as f:
+        #     s = model.SerializeToString()
+        #     f.write(s)
         coreml_model = convert(model)
         onnx_outputs_info = _get_onnx_outputs_info(model)
         return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU')
@@ -58,6 +61,7 @@ class CoreMLBackend(Backend):
          
          1. Check whether the layers for which CoreML expects constant weights are in
             the list of initializers in the onnx graph
+         2. unsupported ops like "And", "Or" etc
             
          '''
 
@@ -75,6 +79,20 @@ class CoreMLBackend(Backend):
                 if len(node.input) > 1 and node.input[1] not in initializer_set:
                     return False
              node_set.add(node.op_type)
+
+         # unsupported ops remove
+         for node in graph.node:
+             if node.op_type in ['Cast',
+                                 'And',
+                                 'Or',
+                                 'Xor',
+                                 'Not',
+                                 'Less',
+                                 'Greater',
+                                 'Equal',
+                                 'Ceil',
+                                 'Floor']:
+                 return False
 
          return True
 

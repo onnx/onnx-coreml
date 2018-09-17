@@ -123,10 +123,13 @@ __add_custom_layers__: bool
 	  Parameters for these custom layers should be filled manually by editing the mlmodel  
 	  or the 'custom_conversion_functions' argument can be used to do the same during the process of conversion
 
-__custom_conversion_functions__: dict (str: (node -> (CustomLayerParams)))  
-	 A dictionary with keys corresponding to the names of onnx ops and values
-     as functions taking an object of class 'Node' (see `onnx-coreml/_graph.Node`) and returning CoreML custom layer parameters.  
-     To see examples of this argument in action, look at the testing script `tests/custom_layers_test.py`
+__onnx_coreml_input_shape_map__: dict (str: List[int])  
+    (Optional) A dictionary with keys corresponding to the model input names. Values are a list of integers that specify
+    how the shape of the input is mapped to CoreML. Convention used for CoreML shapes is:  
+    0: Sequence, 1: Batch, 2: channel, 3: height, 4: width.  
+    For example, an input of rank 2 could be mapped as [3,4] (i.e. H,W) or [1,2] (i.e. B,C) etc.  
+
+     
 
 ### Returns
 __model__: A coreml model.
@@ -185,27 +188,33 @@ List of ONNX operators that can be converted into their CoreML equivalent:
 
 - Abs
 - Add
-- AveragePool (2D)
+- ArgMax
+- ArgMin
+- AveragePool
 - BatchNormalization
+- Clip
 - Concat
-- Conv (2D)
+- Conv
+- ConvTranspose 
 - DepthToSpace
 - Div
 - Elu
 - Exp
-- FC
 - Flatten
 - Gemm
-- GlobalAveragePool (2D)
-- GlobalMaxPool (2D)
+- GlobalAveragePool 
+- GlobalMaxPool 
 - HardSigmoid
+- InstanceNormalization
 - LeakyRelu
 - Log
 - LogSoftmax
 - LRN
 - MatMul
 - Max
-- MaxPool (2D)
+- MaxPool 
+- Mean
+- MeanVarianceNormalization
 - Min
 - Mul
 - Neg
@@ -226,16 +235,18 @@ List of ONNX operators that can be converted into their CoreML equivalent:
 - Selu
 - Sigmoid
 - Slice
+- Softmax
 - Softplus
 - Softsign
-- Softmax
 - SpaceToDepth
 - Split
 - Sqrt
+- Sub
 - Sum
 - Tanh
 - ThresholdedRelu
 - Transpose
+- Upsample
 
 Some of the operators are partially compatible because CoreML does not support gemm for arbitrary tensors, has limited support for non 4-rank tensors etc.   
 For unsupported ops or unsupported attributes within supported ops, CoreML custom layers can be used.   
