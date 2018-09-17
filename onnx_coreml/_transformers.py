@@ -568,7 +568,7 @@ class UnsqueezeConstantRemover(object):
                         x = np.expand_dims(x, axis=axis) # type: ignore
                 else:
                     axes = node.attrs.get('axes', None)
-                    x = np.squeeze(x, axis = axes) 
+                    x = np.squeeze(x, axis = tuple(axes)) 
                 graph.shape_dict[node.outputs[0]] = x.shape
                 for child_node in node.children:
                     child_node.parents.remove(node)
