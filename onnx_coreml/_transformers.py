@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
-from typing import Sequence, Text, Dict, List
+from typing import Sequence, Text, Dict, List, Tuple
 import numpy as np
 
 from onnx import TensorProto
@@ -475,16 +475,54 @@ class ConstantsToInitializers(object):
     '''
     def __call__(self, graph):  # type: (Graph) -> Graph
         output_names = [str(output_[0]) for output_ in graph.outputs]
-        remaining_nodes = []
+        nodes_to_be_removed = []
         for node in graph.nodes:
-            if node.op_type != 'Constant' or node.name in output_names:
-                remaining_nodes.append(node)
-                continue
-            for child in node.children:
-                child.input_tensors[node.outputs[0]] = node.attrs["value"]
+            if node.op_type == 'Constant' and (node.name not in output_names):
+                nodes_to_be_removed.append(node)
+                x = node.attrs["value"]
+                for child in node.children:
+                    child.input_tensors[node.outputs[0]] = x
+                    child.parents.remove(node)
+                graph.shape_dict[node.outputs[0]] = x.shape
 
-        graph.nodes = remaining_nodes
-        return graph
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+
+
+class ShapeOpRemover(object):
+    '''
+    remove shape op, if the input shape is fully known
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        nodes_to_be_removed = []
+        output_names = [str(output_[0]) for output_ in graph.outputs]
+        for node in graph.nodes:
+            if node.op_type == 'Shape' and (node.name not in output_names) and node.inputs[0] in graph.shape_dict:
+                x_tuple = graph.shape_dict[node.inputs[0]] # type: Tuple[int, ...]
+                is_well_defined = True
+                for i in x_tuple:
+                    if not (isinstance(i, int) and i > 0):
+                        is_well_defined = False
+                        break
+                if is_well_defined:
+                    x = np.asarray(x_tuple, dtype=np.float32)
+                    nodes_to_be_removed.append(node)
+                    for child in node.children:
+                        child.input_tensors[node.outputs[0]] = x
+                        child.parents.remove(node)
+                    for parent in node.parents:
+                        parent.children.remove(node)
+                    graph.shape_dict[node.outputs[0]] = x.shape
+
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+
 
 
 class ImageScalerRemover(object):
@@ -512,20 +550,55 @@ class ImageScalerRemover(object):
                 transformed_nodes.append(node)
         return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
 
-class UnsqueezeRemover(object):
+class UnsqueezeConstantRemover(object):
     '''
-    Removes Unsqueeze op, if its input is constant
+    Removes Unsqueeze or Squeeze op, if its input is constant
     '''
     def __call__(self, graph):  # type: (Graph) -> Graph
         nodes_to_be_removed = []
         for node in graph.nodes:
-            if node.op_type == 'Unsqueeze' and len(node.parents) == 0 and node.inputs[0] in node.input_tensors:
+            if (node.op_type == 'Unsqueeze' or node.op_type == 'Squeeze') and \
+                len(node.parents) == 0 and node.inputs[0] in node.input_tensors:
                 nodes_to_be_removed.append(node)
                 x = node.input_tensors[node.inputs[0]]
-                axes = node.attrs['axes']
-                axes.sort()
-                for axis in axes:
-                    x = np.expand_dims(x, axis=axis) # type: ignore
+                if node.op_type == 'Unsqueeze':
+                    axes = node.attrs['axes']
+                    axes.sort()
+                    for axis in axes:
+                        x = np.expand_dims(x, axis=axis) # type: ignore
+                else:
+                    axes = node.attrs.get('axes', None)
+                    x = np.squeeze(x, axis = tuple(axes)) 
+                graph.shape_dict[node.outputs[0]] = x.shape
+                for child_node in node.children:
+                    child_node.parents.remove(node)
+                    child_node.input_tensors[node.outputs[0]] = x
+
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+
+class ConcatConstantRemover(object):
+    '''
+    Removes Concat op, if its input is constant
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        nodes_to_be_removed = []
+        for node in graph.nodes:
+            are_all_inputs_constant = True
+            for input_ in node.inputs:
+                if input_ not in node.input_tensors:
+                    are_all_inputs_constant = False
+                    break
+            if node.op_type == 'Concat' and len(node.parents) == 0 and are_all_inputs_constant:
+                nodes_to_be_removed.append(node)
+                x_arr = []
+                for input_ in node.inputs:
+                    x_arr.append(node.input_tensors[input_])
+                axis = node.attrs.get('axis', 0)
+                x = np.concatenate(x_arr, axis=axis) # type: ignore
                 graph.shape_dict[node.outputs[0]] = x.shape
                 for child_node in node.children:
                     child_node.parents.remove(node)
@@ -559,3 +632,36 @@ class TransposeConstantRemover(object):
             if node not in nodes_to_be_removed:
                 transformed_nodes.append(node)
         return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+
+
+class SliceConstantRemover(object):
+    '''
+    Removes Slice op, if its input is constant
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        nodes_to_be_removed = []
+        for node in graph.nodes:
+            if node.op_type == 'Slice' and len(node.parents) == 0 and node.inputs[0] in node.input_tensors:
+                nodes_to_be_removed.append(node)
+                x = node.input_tensors[node.inputs[0]]
+                ends = node.attrs['ends']
+                starts = node.attrs['starts']
+                axes = node.attrs.get('axes', range(len(starts)))
+                for i, a in enumerate(axes):
+                    s = starts[i]
+                    e = ends[i]
+                    n = x.shape[a]
+                    if s < 0: s += n
+                    if e < 0: e += n
+                    x = np.take(x, range(s, e), axis=a) # type: ignore
+                graph.shape_dict[node.outputs[0]] = x.shape
+                for child_node in node.children:
+                    child_node.parents.remove(node)
+                    child_node.input_tensors[node.outputs[0]] = x
+
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+
