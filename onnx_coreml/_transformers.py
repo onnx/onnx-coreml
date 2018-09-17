@@ -501,7 +501,7 @@ class ShapeOpRemover(object):
         output_names = [str(output_[0]) for output_ in graph.outputs]
         for node in graph.nodes:
             if node.op_type == 'Shape' and (node.name not in output_names) and node.inputs[0] in graph.shape_dict:
-                x_tuple = graph.shape_dict[node.inputs[0]] # type: Tuple(int)
+                x_tuple = graph.shape_dict[node.inputs[0]] # type: Tuple[int, ...]
                 is_well_defined = True
                 for i in x_tuple:
                     if not (isinstance(i, int) and i > 0):
@@ -568,7 +568,7 @@ class UnsqueezeConstantRemover(object):
                         x = np.expand_dims(x, axis=axis) # type: ignore
                 else:
                     axes = node.attrs.get('axes', None)
-                    x = np.squeeze(x, axis = axes) # type: ignore
+                    x = np.squeeze(x, axis = axes) 
                 graph.shape_dict[node.outputs[0]] = x.shape
                 for child_node in node.children:
                     child_node.parents.remove(node)
@@ -598,7 +598,7 @@ class ConcatConstantRemover(object):
                 for input_ in node.inputs:
                     x_arr.append(node.input_tensors[input_])
                 axis = node.attrs.get('axis', 0)
-                x = np.concatenate(x_arr, axis=axis)
+                x = np.concatenate(x_arr, axis=axis) # type: ignore
                 graph.shape_dict[node.outputs[0]] = x.shape
                 for child_node in node.children:
                     child_node.parents.remove(node)
@@ -653,7 +653,7 @@ class SliceConstantRemover(object):
                     n = x.shape[a]
                     if s < 0: s += n
                     if e < 0: e += n
-                    x = np.take(x, range(s, e), axis=a)
+                    x = np.take(x, range(s, e), axis=a) # type: ignore
                 graph.shape_dict[node.outputs[0]] = x.shape
                 for child_node in node.children:
                     child_node.parents.remove(node)

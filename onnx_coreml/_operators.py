@@ -180,7 +180,7 @@ def _convert_reshape(builder, node, graph, err):  # type: (NeuralNetworkBuilder,
             output_name=node.outputs[0],
             mode=0
         )
-        return # type: ignore
+        return
 
     new_shape = get_coreml_target_shape(shape)
 

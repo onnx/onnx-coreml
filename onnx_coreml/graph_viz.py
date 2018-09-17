@@ -14,15 +14,15 @@ def plot_graph(graph, graph_img_path='graph.png'):
 
     try:
         # pydot-ng is a fork of pydot that is better maintained.
-        import pydot_ng as pydot
+        import pydot_ng as pydot # type: ignore
     except:
         # pydotplus is an improved version of pydot
         try:
-            import pydotplus as pydot
+            import pydotplus as pydot # type: ignore
         except:
             # Fall back on pydot if necessary.
             try:
-                import pydot
+                import pydot # type: ignore
             except:
                 return None
 

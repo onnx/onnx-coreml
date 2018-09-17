@@ -54,11 +54,11 @@ def _extract_node_names(graph): # type : (Graph) -> List[Text]
     return node_names
 
 def _apply_graph_transformations(graph, transformers): # (Graph, Iterable[Transformer]) -> Graph
-    old_node_names = _extract_node_names(graph)
+    old_node_names = _extract_node_names(graph) # type: ignore
     while True:
         for transformer in transformers:
             graph = transformer(graph)
-        new_node_names = _extract_node_names(graph)
+        new_node_names = _extract_node_names(graph) # type: ignore
         if new_node_names == old_node_names:
             break
         old_node_names = new_node_names
@@ -153,7 +153,7 @@ class Graph(object):
 
     def transformed(self, transformers):  # type: (Iterable[Transformer]) -> Graph
         graph = self
-        return _apply_graph_transformations(graph, transformers)
+        return _apply_graph_transformations(graph, transformers) # type: ignore
 
 
     def has_edge_name(self, name):  # type: (Text) -> bool
