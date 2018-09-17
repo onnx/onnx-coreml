@@ -57,10 +57,12 @@ def plot_graph(graph, graph_img_path='graph.png'):
             else:
                 outputlabels += 'NA, '
         output_names = ', '.join([output_ for output_ in node.outputs])
-        label = '%s\n|{|%s}|{{%s}|{%s}}' % (node.op_type,
-                                            output_names,
-                                            inputlabels,
-                                            outputlabels)
+        input_names = ', '.join([input_ for input_ in node.inputs])
+        label = '%s\n|{{%s}|{%s}}|{{%s}|{%s}}' % (node.op_type,
+                                                  input_names,
+                                                  output_names,
+                                                  inputlabels,
+                                                  outputlabels)
         pydot_node = pydot.Node(node.name, label=label)
         dot.add_node(pydot_node)
 

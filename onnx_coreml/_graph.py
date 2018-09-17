@@ -47,6 +47,22 @@ def _convertAttributeProto(onnx_arg):  # type: (AttributeProto) -> AttributeValu
     else:
         raise ValueError("Unsupported ONNX attribute: {}".format(onnx_arg))
 
+def _extract_node_names(graph): # type : (Graph) -> List[Text]
+    node_names = []
+    for node in graph.nodes:
+        node_names.append(node.name)
+    return node_names
+
+def _apply_graph_transformations(graph, transformers): # (Graph, Iterable[Transformer]) -> Graph
+    old_node_names = _extract_node_names(graph)
+    while True:
+        for transformer in transformers:
+            graph = transformer(graph)
+        new_node_names = _extract_node_names(graph)
+        if new_node_names == old_node_names:
+            break
+        old_node_names = new_node_names
+    return graph
 
 class Attributes(Dict[Text, Any]):
     @staticmethod
@@ -137,9 +153,8 @@ class Graph(object):
 
     def transformed(self, transformers):  # type: (Iterable[Transformer]) -> Graph
         graph = self
-        for transformer in transformers:
-            graph = transformer(graph)
-        return graph
+        return _apply_graph_transformations(graph, transformers)
+
 
     def has_edge_name(self, name):  # type: (Text) -> bool
         '''

@@ -37,11 +37,11 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
     coreml_out = coreml_model.predict(input_dict, useCPUOnly=True)[output_name]
 
     # compare
-    _assert_outputs([torch_out], [coreml_out]) # type: ignore
+    _assert_outputs([torch_out], [coreml_out], decimal=4) # type: ignore
 
     # delete onnx model
     if os.path.exists(model_dir):
-      shutil.rmtree(model_dir)
+     shutil.rmtree(model_dir)
 
 class OnnxModelTest(unittest.TestCase):
 
@@ -57,6 +57,26 @@ class OnnxModelTest(unittest.TestCase):
         torch_model = Net() # type: ignore
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1,256), (256)) # type: ignore
+
+    def test_dynamic_reshape(self):  # type: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.conv = nn.Conv2d(in_channels=3,
+                                      out_channels=32,
+                                      kernel_size=(3, 3),
+                                      stride=1, padding=0,
+                                      bias=True)
+
+            def forward(self, x):
+                x = self.conv(x)
+                x = x.view(x.size()[0], -1)
+                return x
+
+        torch_model = Net() # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 3, 100, 100), (3, 100, 100)) # type: ignore
+
 
 if __name__ == '__main__':
     unittest.main()

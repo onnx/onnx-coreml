@@ -141,7 +141,7 @@ def _convert_reshape(builder, node, graph, err):  # type: (NeuralNetworkBuilder,
     if len(shape) == 0:
         shape_name = node.inputs[1]
         if shape_name in node.input_tensors:
-            shape = tuple(node.input_tensors[shape_name]) #type: ignore
+            shape = tuple(node.input_tensors[shape_name].astype(int)) #type: ignore
         else:
             err.missing_initializer(node,
                                 "Shape tensor: {} not found in the graph initializer".format(shape_name, ))
@@ -166,6 +166,21 @@ def _convert_reshape(builder, node, graph, err):  # type: (NeuralNetworkBuilder,
         else:
             coreml_shape = None
         return coreml_shape
+
+    # check if all entries in shape are 1/-1
+    is_flatten = True
+    for s in shape:
+        if abs(s) != 1:
+            is_flatten = False
+            break
+    if is_flatten:
+        builder.add_flatten(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            mode=0
+        )
+        return # type: ignore
 
     new_shape = get_coreml_target_shape(shape)
 
