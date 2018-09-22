@@ -41,7 +41,7 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
 
     # delete onnx model
     if os.path.exists(model_dir):
-     shutil.rmtree(model_dir)
+        shutil.rmtree(model_dir)
 
 class OnnxModelTest(unittest.TestCase):
 
@@ -76,6 +76,35 @@ class OnnxModelTest(unittest.TestCase):
         torch_model = Net() # type: ignore
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 3, 100, 100), (3, 100, 100)) # type: ignore
+
+    def test_const_initializer1(self):  # typr: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.ones = torch.nn.Parameter(torch.ones(1,))
+
+            def forward(self, x):
+                y = x + self.ones
+                return y
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 3), (3,))  # type: ignore
+
+
+    def test_const_initializer2(self):  # typr: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                y = x + torch.nn.Parameter(torch.ones(2, 3))
+                return y
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 2, 3), (1, 2, 3))  # type: ignore
+
 
 
 if __name__ == '__main__':
