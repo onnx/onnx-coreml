@@ -11,8 +11,6 @@ from ._graph import Node, Graph
 from coremltools.proto import NeuralNetwork_pb2 #type: ignore
 from ._error_utils import ErrorHandling
 
-_SEQUENCE_LAYERS_REGISTRY = set(["LSTM"])
-
 def _compare(a, b, encoding="utf8"): #type: (Text, Text, Text) -> bool
     if isinstance(a, bytes):
         a = a.decode(encoding)
@@ -348,9 +346,6 @@ def _convert_add(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
                                  shape_bias=[second_input.shape[0]])
                 return
 
-    if 'broadcast' in node.attrs:
-        if node.attrs['broadcast'] == 1:
-            return err.unsupported_op_configuration(builder, node, graph, "Broadcast Add is not supported now")
     builder.add_elementwise(
         name=node.name,
         input_names=node.inputs,
@@ -359,10 +354,6 @@ def _convert_add(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
     )
 
 def _convert_mul(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-    if 'broadcast' in node.attrs:
-        if node.attrs['broadcast'] == 1:
-            return err.unsupported_op_configuration(builder, node, graph, "Broadcast Multiply is not supported now")
-
     builder.add_elementwise(
         name=node.name,
         input_names=node.inputs,
@@ -371,10 +362,6 @@ def _convert_mul(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
     )
 
 def _convert_div(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-    if 'broadcast' in node.attrs:
-        if node.attrs['broadcast'] == 1:
-            return err.unsupported_op_configuration(builder, node, graph, "Broadcast Div is not supported now")
-
     builder.add_unary(name=node.name + '_inverse', #type: ignore
                       input_name=node.inputs[1],
                       output_name=node.inputs[1] + '_inverse',
@@ -985,6 +972,34 @@ def _convert_custom(builder, node, graph, err): # type: (NeuralNetworkBuilder, N
 
     err.custom_layer_nodes.append(node)
 
+def _convert_identity(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+    builder.add_activation(
+        name=node.name,
+        non_linearity = 'LINEAR',
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        params=[1.0, 0.0]
+   )
+
+def _convert_const(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+
+    for name, value in node.input_tensors.items(): 
+        if name not in graph.constant_layers_added:
+            shape = value.shape
+            coreml_shape = [1,1,1]
+            if len(shape) == 3:
+                coreml_shape = list(shape)
+            elif len(shape) == 1:
+                coreml_shape = [shape[0],1,1]
+            elif len(shape) == 2:
+                coreml_shape = [1, shape[0], shape[1]]
+            else:
+                return err.unsupported_op_configuration(builder, node, graph, "unable to translate constant array shape to CoreML shape")
+            builder.add_load_constant(name=name,
+                                  output_name=name,
+                                  constant_value=value.flatten(),
+                                  shape=coreml_shape)
+            graph.constant_layers_added[name] = True
 
 
 _ONNX_NODE_REGISTRY = {
@@ -1050,8 +1065,13 @@ _ONNX_NODE_REGISTRY = {
     "ArgMin": _convert_reduce,
     "Clip": _convert_clip,
     "MeanVarianceNormalization": _convert_mvn,
+    "Unsqueeze": _convert_identity,
+    "Squeeze": _convert_identity
 }
 
+_SEQUENCE_LAYERS_REGISTRY = set(["LSTM"])
+
+_CONST_INPUT_ALLOWED_LAYERS = set([ "Add", "Sum", "Mul", "Concat", "Max", "Min", "Div", "Reciprocal"])
 
 def _get_node_converter_fn(builder, node, err):  # type: (NeuralNetworkBuilder, Node, ErrorHandling) -> Callable[[NeuralNetworkBuilder, Node, Graph, ErrorHandling], None]
     """
@@ -1062,6 +1082,12 @@ def _get_node_converter_fn(builder, node, err):  # type: (NeuralNetworkBuilder, 
         return _ONNX_NODE_REGISTRY[op_type]
     else:
         return err.unsupported_op(node)
+
+def _add_const_inputs_if_required(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+    if node.op_type in _CONST_INPUT_ALLOWED_LAYERS:
+        if len(node.input_tensors) > 0:
+            _convert_const(builder, node, graph, err)
+
 
 def _convert_node(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     converter_fn = _get_node_converter_fn(builder, node, err)

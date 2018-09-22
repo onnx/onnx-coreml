@@ -16,7 +16,7 @@ from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
 
 from typing import Tuple
 
-from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY, _ONNX_NODE_REGISTRY
+from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY, _ONNX_NODE_REGISTRY, _add_const_inputs_if_required
 from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
@@ -410,6 +410,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
+        _add_const_inputs_if_required(builder, node, graph, err)
         _convert_node(builder, node, graph, err)
 
     if add_deprocess:
@@ -460,7 +461,12 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
                 if outputs.name == output_:
                     builder.spec.description.output[i].shortDescription = 'This output is a sequence'
 
-    mlmodel = MLModel(builder.spec)
+    print("Translation to CoreML spec completed. Now compiling the CoreML model.")
+    try:
+        mlmodel = MLModel(builder.spec)
+    except:
+        raise ValueError('Compilation failed. Translation to CoreML spec was incorrect.')
+
 
     # print information about all ops for which custom layers have been added
     if len(err.custom_layer_nodes) > 0:

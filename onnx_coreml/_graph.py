@@ -139,6 +139,8 @@ class Graph(object):
         # data blob name to the op_type that generates it
         self.blob_from_op_type = {}  # type: Dict[Text, Text]
 
+        self.constant_layers_added = {} # type: Dict[Text, bool]
+
         for node_ in nodes:
             for input_ in node_.inputs:
                 if input_ in self.blob_to_op_type:
