@@ -36,8 +36,8 @@ cd onnx-coreml
 
 * click
 * numpy
-* coremltools (0.8+)
-* onnx (0.2.1+)
+* coremltools (2.0+)
+* onnx (1.3.0+)
 
 ## How to use
 
