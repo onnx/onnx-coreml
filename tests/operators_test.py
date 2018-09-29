@@ -193,7 +193,7 @@ class SingleOperatorTest(unittest.TestCase):
             )
 
     def test_gemm(self):  # type: () -> None
-        input_shape = (1, 2048, 1)
+        input_shape = (1, 2048)
         output_shape = (1, 5)
         W = from_array(
             _random_array((output_shape[1], input_shape[1])), name="weight"

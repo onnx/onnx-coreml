@@ -71,143 +71,54 @@ backend_test.exclude('test_log_example_cpu')
 backend_test.exclude('test_ConvTranspose2d_cpu') #onnx ref out does not match with what the document states: output pad should be zero pad
 backend_test.exclude('test_ConvTranspose2d_no_bias_cpu')  # same as above
 backend_test.exclude('test_operator_convtranspose_cpu') # same as above
+backend_test.exclude('test_operator_add_broadcast_cpu')
+backend_test.exclude('test_operator_add_size1_right_broadcast_cpu')
+backend_test.exclude('test_operator_add_size1_singleton_broadcast_cpu')
+backend_test.exclude('test_operator_addconstant_cpu')
 
-# These are failing due to some error in Caffe2 backend
-backend_test.exclude('test_hardsigmoid_cpu')
-backend_test.exclude('test_hardsigmoid_default_cpu')
-backend_test.exclude('test_hardsigmoid_example_cpu')
-backend_test.exclude('test_mean_example_cpu')
-backend_test.exclude('test_mean_one_input_cpu')
-backend_test.exclude('test_mean_two_inputs_cpu')
-backend_test.exclude('test_pow_bcast_axis0_cpu')
-backend_test.exclude('test_pow_bcast_cpu')
-backend_test.exclude('test_pow_cpu')
-backend_test.exclude('test_pow_example_cpu')
-backend_test.exclude('test_cast_DOUBLE_to_FLOAT16_cpu')
-backend_test.exclude('test_cast_FLOAT16_to_DOUBLE_cpu')
-backend_test.exclude('test_cast_FLOAT16_to_FLOAT_cpu')
-backend_test.exclude('test_cast_FLOAT_to_FLOAT16_cpu')
-backend_test.exclude('test_depthtospace_cpu')
-backend_test.exclude('test_depthtospace_example_cpu')
-backend_test.exclude('test_PixelShuffle_cpu') #error in shape inference
-
-# Failure due to onnx
-backend_test.exclude('test_BatchNorm2d_eval_cpu')
-backend_test.exclude('test_BatchNorm2d_momentum_eval_cpu')
+# Dynamic ONNX ops not supported in CoreML
 backend_test.exclude('test_reshape_extended_dims_cpu')
 backend_test.exclude('test_reshape_negative_dim_cpu')
 backend_test.exclude('test_reshape_one_dim_cpu')
 backend_test.exclude('test_reshape_reduced_dims_cpu')
 backend_test.exclude('test_reshape_reordered_dims_cpu')
+backend_test.exclude('test_gemm_broadcast_cpu')
+backend_test.exclude('test_gemm_nobroadcast_cpu')
 
-# some of these are fixable once input/output shape info is available to the converter.
-# The ones that are not fixed after that should be categorized under "Supported ops, but Unsupported parameters by CoreML"
-backend_test.exclude('test_add_bcast_cpu')
-backend_test.exclude('test_default_axes_cpu')
-backend_test.exclude('test_div_bcast_cpu')
-backend_test.exclude('test_flatten_axis0_cpu')
+# Failure due to axis alignment between ONNX and CoreML
+backend_test.exclude('test_add_bcast_cpu') # (3,4,5) shaped tensor + (5,) shaped tensor
+backend_test.exclude('test_div_bcast_cpu') # (3,4,5) shaped tensor + (5,) shaped tensor
+backend_test.exclude('test_mul_bcast_cpu') # (3,4,5) shaped tensor + (5,) shaped tensor
+backend_test.exclude('test_sub_bcast_cpu') # (3,4,5) shaped tensor + (5,) shaped tensor
+backend_test.exclude('test_operator_index_cpu') # input: [1,1]: cannot slice along batch axis
+backend_test.exclude('test_concat_2d_axis_0_cpu') # cannot slice along batch axis
+backend_test.exclude('test_argmax_default_axis_example_cpu') # batch axis
+backend_test.exclude('test_argmin_default_axis_example_cpu') # batch axis
+backend_test.exclude('test_AvgPool1d_cpu') # 3-D tensor unsqueezed to 4D with axis = 3 and then pool
+backend_test.exclude('test_AvgPool1d_stride_cpu') # same as above
+
+# Possibly Fixable by the converter
+backend_test.exclude('test_slice_start_out_of_bounds_cpu') # starts and ends exceed input size
+
+# "Supported ops, but Unsupported parameters by CoreML"
+backend_test.exclude('test_logsoftmax_axis_1_cpu') # this one converts but fails at runtime: must give error during conversion
+backend_test.exclude('test_logsoftmax_default_axis_cpu') # this one converts but fails at runtime: must give error during conversion
+backend_test.exclude('test_softmax_axis_1_cpu') # this one converts but fails at runtime: must give error during conversion
+backend_test.exclude('test_softmax_default_axis_cpu') # this one converts but fails at runtime: must give error during conversion
 backend_test.exclude('test_logsoftmax_axis_0_cpu')
-backend_test.exclude('test_logsoftmax_axis_1_cpu')
 backend_test.exclude('test_logsoftmax_axis_2_cpu')
-backend_test.exclude('test_logsoftmax_default_axis_cpu')
-backend_test.exclude('test_logsoftmax_example_1_cpu')
-backend_test.exclude('test_logsoftmax_large_number_cpu')
-backend_test.exclude('test_mul_bcast_cpu')
-backend_test.exclude('test_slice_cpu')
-backend_test.exclude('test_slice_start_out_of_bounds_cpu')
 backend_test.exclude('test_softmax_axis_0_cpu')
-backend_test.exclude('test_softmax_axis_1_cpu')
 backend_test.exclude('test_softmax_axis_2_cpu')
-backend_test.exclude('test_softmax_default_axis_cpu')
-backend_test.exclude('test_softmax_example_cpu')
-backend_test.exclude('test_softmax_large_number_cpu')
-backend_test.exclude('test_Softmax_cpu')
-backend_test.exclude('test_Softmin_cpu')
 backend_test.exclude('test_log_softmax_dim3_cpu')
 backend_test.exclude('test_log_softmax_lastdim_cpu')
 backend_test.exclude('test_softmax_functional_dim3_cpu')
-backend_test.exclude('test_softmax_lastdim_cpu')
-backend_test.exclude('test_sub_bcast_cpu')
-backend_test.exclude('test_sub_cpu')
-backend_test.exclude('test_sub_example_cpu')
-backend_test.exclude('test_slice_end_out_of_bounds_cpu')
-backend_test.exclude('test_slice_neg_cpu')
-backend_test.exclude('test_GLU_cpu')
-backend_test.exclude('test_GLU_dim_cpu')
-backend_test.exclude('test_Linear_cpu')
-backend_test.exclude('test_LogSoftmax_cpu')
-backend_test.exclude('test_PReLU_1d_multiparam_cpu')
-backend_test.exclude('test_operator_chunk_cpu')
-backend_test.exclude('test_operator_permute2_cpu')
-backend_test.exclude('test_operator_transpose_cpu')
-backend_test.exclude('test_slice_default_axes_cpu')
-backend_test.exclude('test_gather_1_cpu')
-backend_test.exclude('test_gather_0_cpu')
-backend_test.exclude('test_Embedding_cpu')
-backend_test.exclude('test_Embedding_sparse_cpu')
-backend_test.exclude('test_operator_add_broadcast_cpu')
-backend_test.exclude('test_operator_add_size1_broadcast_cpu')
-backend_test.exclude('test_operator_add_size1_right_broadcast_cpu')
-backend_test.exclude('test_operator_add_size1_singleton_broadcast_cpu')
-backend_test.exclude('test_operator_index_cpu')
-backend_test.exclude('test_operator_pow_cpu')
-backend_test.exclude('test_concat_2d_axis_0_cpu')
-backend_test.exclude('test_argmax_default_axis_example_cpu')
-backend_test.exclude('test_argmin_default_axis_example_cpu')
-backend_test.exclude('test_argmax_no_keepdims_example_cpu')
-backend_test.exclude('test_argmin_no_keepdims_example_cpu')
+backend_test.exclude('test_PReLU_1d_multiparam_cpu') # this one converts but fails at runtime: must give error during conversion
+backend_test.exclude('test_mvn_cpu') # not sure why there is numerical mismatch
+backend_test.exclude('test_flatten_axis2_cpu') # 2,3,4,5 --> 6,20
+backend_test.exclude('test_flatten_axis3_cpu') # 2,3,4,5 --> 24,5
 
-backend_test.exclude('test_mvn_cpu')
-backend_test.exclude('test_maxpool_with_argmax_2d_precomputed_pads_cpu')
-backend_test.exclude('test_maxpool_with_argmax_2d_precomputed_strides_cpu')
-
-# 1-D conv/pool cases. an be supported using shape inference
-backend_test.exclude('test_Conv1d_cpu')
-backend_test.exclude('test_Conv1d_dilated_cpu')
-backend_test.exclude('test_Conv1d_groups_cpu')
-backend_test.exclude('test_Conv1d_pad1_cpu')
-backend_test.exclude('test_Conv1d_pad1size1_cpu')
-backend_test.exclude('test_Conv1d_pad2_cpu')
-backend_test.exclude('test_Conv1d_pad2size1_cpu')
-backend_test.exclude('test_Conv1d_stride_cpu')
-backend_test.exclude('test_MaxPool1d_cpu')
-backend_test.exclude('test_MaxPool1d_stride_cpu')
-backend_test.exclude('test_averagepool_1d_default_cpu')
-backend_test.exclude('test_maxpool_1d_default_cpu')
-backend_test.exclude('test_AvgPool1d_cpu')
-backend_test.exclude('test_AvgPool1d_stride_cpu')
-
-# recurrent tests.
-backend_test.exclude('test_operator_rnn_cpu')
-backend_test.exclude('test_operator_rnn_single_layer_cpu')
-backend_test.exclude('test_operator_lstm_cpu')
-backend_test.exclude('test_gru_defaults_cpu')
-backend_test.exclude('test_gru_with_initial_bias_cpu')
-backend_test.exclude('test_lstm_defaults_cpu')
-backend_test.exclude('test_lstm_with_initial_bias_cpu')
-backend_test.exclude('test_lstm_with_peepholes_cpu')
-backend_test.exclude('test_simple_rnn_defaults_cpu')
-backend_test.exclude('test_simple_rnn_with_initial_bias_cpu')
-
-
-# These layers are supported. Need to fix these tests
-backend_test.exclude('test_Softsign_cpu')
-backend_test.exclude('test_Upsample_nearest_scale_2d_cpu')
-backend_test.exclude('test_operator_maxpool_cpu')
-backend_test.exclude('test_operator_params_cpu')
-
-
-# Unsupported ops by CoreML: error messages should be improved for this category
-backend_test.exclude('test_clip_cpu')
-backend_test.exclude('test_clip_default_max_cpu')
-backend_test.exclude('test_clip_default_min_cpu')
-backend_test.exclude('test_clip_example_cpu')
-backend_test.exclude('test_operator_clip_cpu')
+# Unsupported ops by CoreML
 backend_test.exclude('test_constant_cpu')
-backend_test.exclude('test_ceil_cpu')
-backend_test.exclude('test_ceil_example_cpu')
-backend_test.exclude('test_floor_cpu')
-backend_test.exclude('test_floor_example_cpu')
 backend_test.exclude('test_hardmax_axis_0_cpu')
 backend_test.exclude('test_hardmax_axis_1_cpu')
 backend_test.exclude('test_hardmax_axis_2_cpu')
@@ -247,14 +158,9 @@ backend_test.exclude('test_shape_example_cpu')
 backend_test.exclude('test_size_cpu')
 backend_test.exclude('test_size_example_cpu')
 backend_test.exclude('test_top_k_cpu')
-backend_test.exclude('test_concat_3d_axis_1_cpu')
-backend_test.exclude('test_concat_3d_axis_2_cpu')
-backend_test.exclude('test_Linear_no_bias_cpu')
 backend_test.exclude('test_PoissonNLLLLoss_no_reduce_cpu')
-backend_test.exclude('test_operator_addconstant_cpu')
 backend_test.exclude('test_operator_mm_cpu')
 backend_test.exclude('test_operator_addmm_cpu')
-backend_test.exclude('test_operator_type_as_cpu')
 backend_test.exclude('test_tile_cpu')
 backend_test.exclude('test_tile_precomputed_cpu')
 backend_test.exclude('test_acos_cpu')
@@ -286,7 +192,6 @@ backend_test.exclude('test_reduce_log_sum_exp_keepdims_random_cpu')
 backend_test.exclude('test_rnn_seq_length_cpu')
 backend_test.exclude('test_operator_repeat_cpu')
 backend_test.exclude('test_operator_repeat_dim_overflow_cpu')
-backend_test.exclude('test_reduce_log_sum_default_cpu')
 backend_test.exclude('test_thresholdedrelu_example_cpu') #different convention for CoreML
 backend_test.exclude('test_expand_shape_model1_cpu')
 backend_test.exclude('test_expand_shape_model2_cpu')
@@ -294,67 +199,28 @@ backend_test.exclude('test_expand_shape_model3_cpu')
 backend_test.exclude('test_expand_shape_model4_cpu')
 backend_test.exclude('test_expand_dim_changed_cpu')
 backend_test.exclude('test_expand_dim_unchanged_cpu')
-
-# Supported ops, but ONNX passes in dynamic inputs that CoreML needs to be constant graph initializers
-backend_test.exclude('test_gemm_broadcast_cpu')
-backend_test.exclude('test_gemm_nobroadcast_cpu')
-
-
-# CoreML doesn't support tensor layout
-backend_test.exclude('test_reduce_log_sum_desc_axes_cpu')
-backend_test.exclude('test_reduce_log_sum_cpu')
-backend_test.exclude('test_reduce_log_sum_asc_axes_cpu')
-
-
-# Unsupported input data type and op
-backend_test.exclude('test_and2d_cpu')
-backend_test.exclude('test_and3d_cpu')
-backend_test.exclude('test_and4d_cpu')
-backend_test.exclude('test_and_axis0_cpu')
-backend_test.exclude('test_and_axis1_cpu')
-backend_test.exclude('test_and_axis2_cpu')
-backend_test.exclude('test_and_axis3_cpu')
-backend_test.exclude('test_equal_bcast_cpu')
-backend_test.exclude('test_equal_cpu')
-backend_test.exclude('test_not_2d_cpu')
-backend_test.exclude('test_not_3d_cpu')
-backend_test.exclude('test_not_4d_cpu')
-backend_test.exclude('test_or2d_cpu')
-backend_test.exclude('test_or3d_cpu')
-backend_test.exclude('test_or4d_cpu')
-backend_test.exclude('test_or_axis0_cpu')
-backend_test.exclude('test_or_axis1_cpu')
-backend_test.exclude('test_or_axis2_cpu')
-backend_test.exclude('test_or_axis3_cpu')
-backend_test.exclude('test_or_bcast3v1d_cpu')
-backend_test.exclude('test_or_bcast3v2d_cpu')
-backend_test.exclude('test_or_bcast4v2d_cpu')
-backend_test.exclude('test_or_bcast4v3d_cpu')
-backend_test.exclude('test_xor2d_cpu')
-backend_test.exclude('test_xor3d_cpu')
-backend_test.exclude('test_xor4d_cpu')
-backend_test.exclude('test_xor_axis0_cpu')
-backend_test.exclude('test_xor_axis1_cpu')
-backend_test.exclude('test_xor_axis2_cpu')
-backend_test.exclude('test_xor_axis3_cpu')
-backend_test.exclude('test_xor_bcast3v1d_cpu')
-backend_test.exclude('test_xor_bcast3v2d_cpu')
-backend_test.exclude('test_xor_bcast4v2d_cpu')
-backend_test.exclude('test_xor_bcast4v3d_cpu')
-backend_test.exclude('test_operator_equal_cpu')
-backend_test.exclude('test_operator_non_float_params_cpu')
-backend_test.exclude('test_greater_bcast_cpu')
-backend_test.exclude('test_greater_cpu')
-backend_test.exclude('test_less_bcast_cpu')
-backend_test.exclude('test_less_cpu')
-backend_test.exclude('test_and_bcast3v1d_cpu')
-backend_test.exclude('test_and_bcast3v2d_cpu')
-backend_test.exclude('test_and_bcast4v2d_cpu')
-backend_test.exclude('test_and_bcast4v3d_cpu')
-backend_test.exclude('test_and_bcast4v4d_cpu')
-backend_test.exclude('test_or_bcast4v4d_cpu')
-backend_test.exclude('test_xor_bcast4v4d_cpu')
-
+backend_test.exclude('test_pow_cpu')
+backend_test.exclude('test_pow_example_cpu')
+backend_test.exclude('test_operator_pow_cpu')
+backend_test.exclude('test_operator_chunk_cpu') # unequal splits
+backend_test.exclude('test_operator_permute2_cpu') # rank 6 input
+backend_test.exclude('test_maxpool_with_argmax_2d_precomputed_pads_cpu')
+backend_test.exclude('test_maxpool_with_argmax_2d_precomputed_strides_cpu')
+backend_test.exclude('test_gather_1_cpu')
+backend_test.exclude('test_gather_0_cpu')
+backend_test.exclude('test_Embedding_cpu') # gather op
+backend_test.exclude('test_Embedding_sparse_cpu') # gather op
+# recurrent tests.
+backend_test.exclude('test_operator_rnn_cpu')
+backend_test.exclude('test_operator_rnn_single_layer_cpu')
+backend_test.exclude('test_operator_lstm_cpu')
+backend_test.exclude('test_gru_defaults_cpu')
+backend_test.exclude('test_gru_with_initial_bias_cpu')
+backend_test.exclude('test_lstm_defaults_cpu')
+backend_test.exclude('test_lstm_with_initial_bias_cpu')
+backend_test.exclude('test_lstm_with_peepholes_cpu')
+backend_test.exclude('test_simple_rnn_defaults_cpu')
+backend_test.exclude('test_simple_rnn_with_initial_bias_cpu')
 
 # exclude all the model zoo tests. They are tested elsewhere.
 backend_test.exclude('test_bvlc_alexnet')
@@ -367,9 +233,6 @@ backend_test.exclude('test_inception_v2')
 backend_test.exclude('test_shufflenet')
 backend_test.exclude('test_squeezenet')
 backend_test.exclude('test_zfnet')
-
-
-
 
 
 globals().update(backend_test

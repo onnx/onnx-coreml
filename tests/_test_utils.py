@@ -124,6 +124,9 @@ def _coreml_forward_model(model,  # type: ModelProto
     for k, arr in input_dict.items():
         if len(arr.shape) == 4:
             input_dict[k] = arr[0]
+    for k,v in input_dict.items():
+        if len(v.shape) == 2 and v.shape[0] == 1:
+            input_dict[k] = v.flatten()
     coreml_out = model.predict(input_dict, useCPUOnly=True)
     return np.array([coreml_out[name] for name in output_names])
 

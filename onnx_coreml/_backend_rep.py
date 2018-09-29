@@ -57,6 +57,16 @@ class CoreMLRep(BackendRep):
             if len(shape) == 4 or len(shape) == 2:
                 inputs_[i] = input_[np.newaxis, :]
                 _reshaped = True
+            elif len(shape) == 3:
+                spec = self.model.get_spec()
+                spec_shape = [int(k) for k in spec.description.input[i].type.multiArrayType.shape]
+                prod = spec_shape[0] * spec_shape[1] * spec_shape[2]
+                onnx_shape = list(shape)
+                if onnx_shape != spec_shape:
+                    if onnx_shape[2] == prod:
+                        inputs_[i] = np.reshape(inputs_[i], [onnx_shape[0], onnx_shape[1]] + spec_shape)
+                    elif onnx_shape[1] * onnx_shape[2] == prod:
+                        inputs_[i] = np.reshape(inputs_[i], [1, onnx_shape[0]] + spec_shape)
         input_dict = dict(
             zip(self.input_names,
                 map(np.array, inputs_)))

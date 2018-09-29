@@ -134,6 +134,33 @@ class Graph(object):
         self.outputs = outputs
         self.shape_dict = shape_dict  # data blob name to its shape
 
+        '''
+        All axes in CoreML Tensor shapes are annotated. That is, 
+        0: Sequence
+        1: Batch
+        2: Channel
+        3: Height
+        4: Width
+        This dictionary "onnx_coreml_shape_mapping" records onnx shape to coreml shape mapping for
+        every tensor (including intermediate tensors) in the onnx graph. 
+        The requirement is to only know the "rank" (i.e. number of dimensions) of the onnx tensor, not its actual shape, during conversion time. 
+        
+        The Dict is "str" -> List of ints
+         
+        e.g. "x" -> [1,3] carries the following information: 
+        - "x" is rank 2
+        - "x" in Coreml will have the shape [Seq=1, B=x.shape[0], C=1, H=x.shape[1], W=1]
+        
+        e.g. "x" -> [1,3,2] carries the following information: 
+        - "x" is rank 3
+        - "x" in Coreml will have the shape [Seq=1, B=x.shape[0], C=x.shape[2], H=x.shape[1], W=1]        
+         
+        The dictionary "onnx_coreml_shape_mapping" is progressively built as the onnx graph is converted to CoreML graph.
+        The op to layer conversion functions use the information in this dict to correctly set the parameters of the CoreML layer
+        to be added and at the end they update the dict with that layer's output(s). 
+        '''
+        self.onnx_coreml_shape_mapping = {} # type: Dict[Text, List[int,...]]
+
         # data blob name to the list of op types it feeds into
         self.blob_to_op_type = {} # type: Dict[Text, List[Text]]
         # data blob name to the op_type that generates it

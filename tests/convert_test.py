@@ -67,7 +67,7 @@ class ConvertTest(unittest.TestCase):
         expected_output[0] = expected_output[0] + bias[0]
         expected_output[1] = expected_output[1] + bias[1]
         expected_output[2] = expected_output[2] + bias[2]
-        npt.assert_equal(output, expected_output)
+        npt.assert_equal(output.flatten(), expected_output.flatten())
 
     def test_convert_image_output_bgr(self):  # type: () -> None
         coreml_model = convert(

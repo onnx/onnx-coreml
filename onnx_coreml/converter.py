@@ -24,12 +24,15 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
     ConstantsToInitializers, ImageScalerRemover, UnsqueezeConstantRemover, TransposeConstantRemover, \
     ShapeOpRemover, SliceConstantRemover, ConcatConstantRemover
 from ._error_utils import ErrorHandling
+from .graph_viz import plot_graph # type: ignore
+
+USE_SHAPE_MAPPING = True
 
 '''
 inputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_input_features(graph): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_input_features(graph, onnx_coreml_input_shape_map): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     '''
     ONNX shapes to CoreML static shapes mapping
     length==1: [C]
@@ -42,25 +45,54 @@ def _make_coreml_input_features(graph): # type: (...) -> Sequence[Tuple[Text, da
     features = []
     for input_ in inputs:
         shape = input_[2]
-        if len(shape) == 0:
-            shape = [1, 1, 1]
-        elif len(shape) == 1:
-            # assume [C]
-            pass
-        elif len(shape) == 2:
-            # assume [Batch,C]
-            shape = [shape[1]]
-        elif len(shape) == 3:
-            # assume [C,H,W] unless its connected to recurrent related ops
-            if input_[0] in op_types and \
-                len(op_types[input_[0]]) == 1 and \
-                str(op_types[input_[0]][0]) in _SEQUENCE_LAYERS_REGISTRY:
-                # onnx shape: (Seq,B,C)
-                shape = [shape[2]]
-        elif len(shape) == 4:  # (B,C,H,W) --> (C,H,W)
-            shape = shape[1:]
+        if USE_SHAPE_MAPPING and input_[0] in onnx_coreml_input_shape_map:
+            mapp = onnx_coreml_input_shape_map[input_[0]]
+            assert len(mapp) == len(shape), "incorrect value in onnx_coreml_input_shape_map argument"
+            graph.onnx_coreml_shape_mapping[input_[0]] = mapp
+            coreml_shape = [1,1,1]
+            for i in range(3):
+                if (i+2) in mapp:
+                    coreml_shape[i] = shape[mapp.index(i+2)]
+            shape = coreml_shape
         else:
-            raise ValueError("Unrecognized input shape %s, for input '%s' " % (str(shape), str(input_[0])))
+            if len(shape) == 0:
+                shape = [1, 1, 1]
+            elif len(shape) == 1:
+                # assume [C]
+                if USE_SHAPE_MAPPING:
+                    graph.onnx_coreml_shape_mapping[input_[0]] = [2]
+            elif len(shape) == 2:
+                # assume [Batch,C]
+                shape = [shape[1]]
+                if USE_SHAPE_MAPPING:
+                    graph.onnx_coreml_shape_mapping[input_[0]] = [1,2]
+            elif len(shape) == 3:
+                # assume [C,H,W] unless its connected an op that bestows another mapping
+                if input_[0] in op_types and len(op_types[input_[0]]) == 1:
+                    if str(op_types[input_[0]][0]) in _SEQUENCE_LAYERS_REGISTRY:
+                        # (Seq,B,C)
+                        shape = [shape[2]]
+                        if USE_SHAPE_MAPPING:
+                            graph.onnx_coreml_shape_mapping[input_[0]] = [0, 1, 2]
+                    elif str(op_types[input_[0]][0]) in ['MaxPool','AveragePool','BatchNormalization',
+                                                         'GlobalAveragePool','GlobalLpPool','GlobalMaxPool',
+                                                         'InstanceNormalization','LRN','LpPool','Conv','ConvTranspose']:
+                        # (B,C,W)
+                        shape = [shape[1],1,shape[2]]
+                        if USE_SHAPE_MAPPING:
+                            graph.onnx_coreml_shape_mapping[input_[0]] = [1, 2, 4]
+                    else:
+                        if USE_SHAPE_MAPPING:
+                            graph.onnx_coreml_shape_mapping[input_[0]] = [2, 3, 4]
+                else:
+                    if USE_SHAPE_MAPPING:
+                        graph.onnx_coreml_shape_mapping[input_[0]] = [2, 3, 4]
+            elif len(shape) == 4:  # (B,C,H,W) --> (C,H,W)
+                shape = shape[1:]
+                if USE_SHAPE_MAPPING:
+                    graph.onnx_coreml_shape_mapping[input_[0]] = [1,2,3,4]
+            else:
+                raise ValueError("CoreML input cannot be more than rank 4. Input shape: %s, input: '%s' " % (str(shape), str(input_[0])))
         features.append((str(input_[0]), datatypes.Array(*shape)))
     return features
 
@@ -68,29 +100,32 @@ def _make_coreml_input_features(graph): # type: (...) -> Sequence[Tuple[Text, da
 outputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_output_features(graph):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_output_features(graph, forceShape=False):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
     outputs = graph.outputs
     op_types = graph.blob_from_op_type
     for output_ in outputs:
-        shape = output_[2]
-        if len(shape) == 0:
-            shape = [1, 1, 1]
-        elif len(shape) == 1:
-            pass
-        elif len(shape) == 3:
-            if output_[0] in op_types and \
-                str(op_types[output_[0]]) in _SEQUENCE_LAYERS_REGISTRY:
-                # onnx shape: (Seq,B,C)
-                shape = [shape[2]]
-        elif len(shape) == 4:  # (B,C,H,W) --> (C,H,W)
-            shape = shape[1:]
+        if not forceShape:
+            features.append((str(output_[0]), None))
         else:
-            shape = None #output shape need not be specified for CoreML.
-        if shape is None:
-            features.append((str(output_[0]), shape))
-        else:
-            features.append((str(output_[0]), datatypes.Array(*shape)))
+            shape = output_[2]
+            if len(shape) == 0:
+                shape = [1, 1, 1]
+            elif len(shape) == 1:
+                pass
+            elif len(shape) == 3:
+                if output_[0] in op_types and \
+                        str(op_types[output_[0]]) in _SEQUENCE_LAYERS_REGISTRY:
+                    # onnx shape: (Seq,B,C)
+                    shape = [shape[2]]
+            elif len(shape) == 4:  # (B,C,H,W) --> (C,H,W)
+                shape = shape[1:]
+            else:
+                shape = None  # output shape need not be specified for CoreML.
+            if shape is None:
+                features.append((str(output_[0]), shape))
+            else:
+                features.append((str(output_[0]), datatypes.Array(*shape)))
     return features
 
 def _check_unsupported_ops(nodes): # type: (...) -> None
@@ -243,10 +278,9 @@ def _set_deprocessing(is_grayscale,  # type: bool
 def _prepare_onnx_graph(graph, transformers):  # type: (Graph, Iterable[Transformer]) -> Graph
     graph = infer_shapes_and_types(graph)
     graph_ = Graph.from_onnx(graph)
-    #from .graph_viz import plot_graph
-    #plot_graph(graph_, '/tmp/graph_raw.png')
+    #plot_graph(graph_, graph_img_path='/tmp/graph_raw.png')
     graph_ = graph_.transformed(transformers)
-    #plot_graph(graph_, '/tmp/graph_opt.png')
+    #plot_graph(graph_, graph_img_path='/tmp/graph_opt.png')
     return graph_
 
 def convert(model,  # type: Union[onnx.ModelProto, Text]
@@ -259,6 +293,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             predicted_feature_name='classLabel',  # type: Text
             add_custom_layers = False,  # type: bool
             custom_conversion_functions = {}, #type: Dict[Text, Any]
+            onnx_coreml_input_shape_map = {} # type: Dict[Text, List[int,...]]
             ):
     # type: (...) -> MLModel
     """
@@ -292,6 +327,11 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     custom_conversion_functions: dict()
         A dictionary with keys corresponding to the names of onnx ops and values as functions taking
         an object of class 'Node' (see onnx-coreml/_graph.Node) and returning CoreML custom layer parameters.
+    onnx_coreml_input_shape_map: dict()
+        (Optional) A dictionary with keys corresponding to the model input names. Values are a list of integers that specify
+        how the shape of the input is mapped to CoreML. Convention used for CoreML shapes is
+        0: Sequence, 1: Batch, 2: channel, 3: height, 4: width.
+        For example, an input of rank 2 could be mapped as [3,4] (i.e. H,W) or [1,2] (i.e. B,C) etc.
     Returns
     -------
     model: A coreml model.
@@ -357,8 +397,11 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     #Make CoreML input and output features by gathering shape info and
     #interpreting it for CoreML
-    input_features = _make_coreml_input_features(graph)
-    output_features = _make_coreml_output_features(graph)
+    input_features = _make_coreml_input_features(graph, onnx_coreml_input_shape_map)
+    if len( image_output_names) > 0:
+        output_features = _make_coreml_output_features(graph, forceShape = True)
+    else:
+        output_features = _make_coreml_output_features(graph)
 
     builder = NeuralNetworkBuilder(input_features, output_features, mode = mode)
     _transform_coreml_dtypes(builder, graph.inputs, graph.outputs)
@@ -408,10 +451,13 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     err = ErrorHandling(add_custom_layers,
                         custom_conversion_functions)
 
+    #plot_graph(graph, graph_img_path='/tmp/before_conversion.pdf')
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
         _add_const_inputs_if_required(builder, node, graph, err)
         _convert_node(builder, node, graph, err)
+    #plot_graph(graph, graph_img_path='/tmp/after_conversion.pdf', show_coreml_mapped_shapes=True)
+
 
     if add_deprocess:
         for f in output_features:
@@ -456,16 +502,40 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             output_ = node_.outputs[0]
             for i, inputs in enumerate(builder.spec.description.input):
                 if inputs.name == input_:
-                    builder.spec.description.input[i].shortDescription = 'This input is a sequence'
+                    builder.spec.description.input[i].shortDescription = 'This input is a sequence. '
             for i, outputs in enumerate(builder.spec.description.output):
                 if outputs.name == output_:
-                    builder.spec.description.output[i].shortDescription = 'This output is a sequence'
+                    builder.spec.description.output[i].shortDescription = 'This output is a sequence. '
+
+    def _add_informative_description(feature):
+        if feature.type.WhichOneof('Type') == 'multiArrayType':
+            if feature.name in graph.onnx_coreml_shape_mapping and feature.name in graph.shape_dict:
+                mapp = graph.onnx_coreml_shape_mapping[feature.name]
+                onnx_shape = graph.shape_dict[feature.name]
+                assert len(mapp) == len(onnx_shape), "Something wrong in shape"
+                shape = []
+                for i in range(5):
+                    if i in mapp:
+                        shape += [int(onnx_shape[mapp.index(i)])]
+                    else:
+                        shape += [1]
+                msg = 'MultiArray of shape {}. The first and second dimensions correspond to sequence and batch size, respectively'.format(str(tuple(shape)))
+                feature.shortDescription += msg
+
+    # add description for inputs and outputs shapes
+    for input_ in builder.spec.description.input:
+        _add_informative_description(input_)
+    for output_ in builder.spec.description.output:
+        _add_informative_description(output_)
 
     print("Translation to CoreML spec completed. Now compiling the CoreML model.")
     try:
+        #import coremltools
+        #coremltools.models.utils.save_spec(builder.spec, '/tmp/node_model.mlmodel')
         mlmodel = MLModel(builder.spec)
     except:
         raise ValueError('Compilation failed. Translation to CoreML spec was incorrect.')
+    print('Model Compilation done.')
 
 
     # print information about all ops for which custom layers have been added
