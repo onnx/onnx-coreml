@@ -3,7 +3,7 @@ from os import path
 import sys
 
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 
 here = path.abspath(path.dirname(__file__))
 
