@@ -231,6 +231,19 @@ class SingleOperatorTest(unittest.TestCase):
             ends=[223]
         )
 
+    def test_slice_axis_0_rank_2(self): # type: () -> None
+        _test_single_node(
+            "Slice",
+            [(10, 2)],
+            [(5, 2)],
+            onnx_coreml_input_shape_map = {'input0': [3,4]},
+            coreml_input_shape = {'input0':[1,10,2]},
+            axes=[0],
+            starts=[5],
+            ends=[10]
+        )
+
+
     # @unittest.skip("Error while preparing Caffe2 backend. Maybe something is incorrect in ONNX model definition")
     # def skip_test_lstm(self):  # type: () -> None
     #     x = 4

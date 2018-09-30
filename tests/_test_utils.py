@@ -133,9 +133,10 @@ def _coreml_forward_model(model,  # type: ModelProto
 
 def _coreml_forward_onnx_model(model,  # type: ModelProto
                                input_dict,  # type: Dict[Text, np._ArrayLike[Any]]
+                               onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
                                ):
     # type: (...) -> np.ndarray[Any]
-    coreml_model = convert(model)
+    coreml_model = convert(model, onnx_coreml_input_shape_map=onnx_coreml_input_shape_map)
     output_names = [o.name for o in model.graph.output]
     return _coreml_forward_model(coreml_model, input_dict, output_names)
 
@@ -217,14 +218,22 @@ def _prepare_inputs_for_onnx(model,  # type: ModelProto
 
 def _test_onnx_model(model,  # type: ModelProto
                      test_name='', # type: Text
-                     decimal=5  # type: int
+                     decimal=5,  # type: int
+                     onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
+                     coreml_input_shape = {}, # type: Dict[Text, List[int,...]]
                      ):
     # type: (...) -> None
     if not test_name:
         test_name = sys._getframe(1).f_code.co_name
     W = _prepare_inputs_for_onnx(model, test_name=test_name)
     c2_outputs = _forward_onnx_model(model, W, test_name=test_name)
-    coreml_outputs = _coreml_forward_onnx_model(model, W)
+    coreml_input_dict = dict()
+    for key, value in W.items():
+        if key in coreml_input_shape:
+            coreml_input_dict[key] = np.reshape(value, coreml_input_shape[key])
+        else:
+            coreml_input_dict[key] = value
+    coreml_outputs = _coreml_forward_onnx_model(model, coreml_input_dict, onnx_coreml_input_shape_map=onnx_coreml_input_shape_map)
     _assert_outputs(c2_outputs, coreml_outputs, decimal=decimal)
 
 
@@ -234,6 +243,8 @@ def _test_single_node(op_type,  # type: Text
                       initializer=[],  # type: Sequence[TensorProto]
                       decimal=5,  # type: int
                       test_name = '', # type: Text
+                      onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
+                      coreml_input_shape = {}, # type: Dict[Text, List[int,...]]
                       **kwargs  # type: Any
                       ):
     # type: (...) -> None
@@ -242,4 +253,6 @@ def _test_single_node(op_type,  # type: Text
     )
     if not test_name:
         test_name = sys._getframe(1).f_code.co_name
-    _test_onnx_model(model, test_name=test_name, decimal=decimal)
+    _test_onnx_model(model, test_name=test_name, decimal=decimal,
+                     onnx_coreml_input_shape_map=onnx_coreml_input_shape_map,
+                     coreml_input_shape = coreml_input_shape)
