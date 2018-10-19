@@ -665,3 +665,27 @@ class SliceConstantRemover(object):
                 transformed_nodes.append(node)
         return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
 
+class DivMulConstantRemover(object):
+    '''
+    Removes Slice op, if its input is constant
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        nodes_to_be_removed = []
+        for node in graph.nodes:
+            if node.op_type == 'Div' or node.op_type == 'Mul':
+                if len(node.parents) == 0 and node.inputs[0] in node.input_tensors and node.inputs[1] in node.input_tensors:
+                    nodes_to_be_removed.append(node)
+                    x = node.input_tensors[node.inputs[0]]
+                    y = node.input_tensors[node.inputs[1]]
+                    graph.shape_dict[node.outputs[0]] = x.shape
+                    for child_node in node.children:
+                        child_node.parents.remove(node)
+                        if node.op_type == 'Div':
+                            child_node.input_tensors[node.outputs[0]] = x / y
+                        else:
+                            child_node.input_tensors[node.outputs[0]] = x * y
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)

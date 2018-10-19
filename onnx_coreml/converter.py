@@ -22,7 +22,7 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
     PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs, \
     ConstantsToInitializers, ImageScalerRemover, UnsqueezeConstantRemover, TransposeConstantRemover, \
-    ShapeOpRemover, SliceConstantRemover, ConcatConstantRemover
+    ShapeOpRemover, SliceConstantRemover, ConcatConstantRemover, DivMulConstantRemover
 from ._error_utils import ErrorHandling
 from .graph_viz import plot_graph # type: ignore
 
@@ -359,6 +359,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         BNBroadcastedAddFuser(),
         PixelShuffleFuser(),
         AddModelInputsOutputs(),
+        DivMulConstantRemover(),
     ]  # type: Iterable[Transformer]
 
     graph = _prepare_onnx_graph(onnx_model.graph, transformers)
@@ -533,8 +534,8 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         #import coremltools
         #coremltools.models.utils.save_spec(builder.spec, '/tmp/node_model.mlmodel')
         mlmodel = MLModel(builder.spec)
-    except:
-        raise ValueError('Compilation failed. Translation to CoreML spec was incorrect.')
+    except RuntimeError as e:
+        raise ValueError('Compilation failed: {}'.format(str(e)))
     print('Model Compilation done.')
 
 
