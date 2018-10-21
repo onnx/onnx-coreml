@@ -645,14 +645,26 @@ def _convert_bn(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node
         return err.unsupported_op_configuration(builder, node, graph, "This converter only supports BatchNormalization with one output")
 
     epsilon = node.attrs.get("epsilon", 1e-5)
-    scale = node.input_tensors[node.inputs[1]]
-    bias = node.input_tensors[node.inputs[2]]
-    mean = node.input_tensors[node.inputs[3]]
-    var = node.input_tensors[node.inputs[4]]
+
+    # decide channels
+    channels = set()
+    for v in node.input_tensors.values():
+        channels.add(v.shape)
+    assert len(channels) == 1
+    channels = channels.pop()
+
+    scale = node.input_tensors[node.inputs[1]] if node.inputs[1] in node.input_tensors else \
+        np.ones(shape=channels, dtype=np.float32)
+    bias = node.input_tensors[node.inputs[2]] if node.inputs[2] in node.input_tensors else \
+        np.zeros(shape=channels, dtype=np.float32)
+    mean = node.input_tensors[node.inputs[3]] if node.inputs[3] in node.input_tensors else \
+        np.zeros(shape=channels, dtype=np.float32)
+    var = node.input_tensors[node.inputs[4]] if node.inputs[4] in node.input_tensors else \
+        np.ones(shape=channels, dtype=np.float32)
 
     builder.add_batchnorm(
         name=node.name,
-        channels=scale.shape[0],
+        channels=channels[0],
         gamma=scale,
         beta=bias,
         mean=mean,
