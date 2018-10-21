@@ -276,7 +276,7 @@ def _set_deprocessing(is_grayscale,  # type: bool
 
 
 def _prepare_onnx_graph(graph, transformers):  # type: (Graph, Iterable[Transformer]) -> Graph
-    graph = infer_shapes_and_types(graph)
+    # graph = infer_shapes_and_types(graph)
     graph_ = Graph.from_onnx(graph)
     #plot_graph(graph_, graph_img_path='/tmp/graph_raw.png')
     graph_ = graph_.transformed(transformers)
@@ -362,6 +362,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         DivMulConstantRemover(),
     ]  # type: Iterable[Transformer]
 
+    onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
     graph = _prepare_onnx_graph(onnx_model.graph, transformers)
 
     # are there ImageScaler nodes in the Graph?
