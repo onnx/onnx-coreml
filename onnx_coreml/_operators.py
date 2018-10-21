@@ -1449,11 +1449,15 @@ def _convert_reorganize_data(builder, node, graph, err):  # type: (NeuralNetwork
     _update_shape_mapping_unchanged(node, graph, err)
 
 def _convert_upsample(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-    scales = node.attrs["scales"]
-    if len(scales) != 4 or scales[0] != 1.0 or scales[1] != 1.0:
-        err.unsupported_op_configuration(builder, node, graph, "Unsupported scales {} for upsample".format(scales))
-    height_scale = int(scales[2])
-    width_scale = int(scales[3])
+    if 'scales' in node.attrs:
+        scales = node.attrs["scales"]
+        if len(scales) != 4 or scales[0] != 1.0 or scales[1] != 1.0:
+            err.unsupported_op_configuration(builder, node, graph, "Unsupported scales {} for upsample".format(scales))
+        height_scale = int(scales[2])
+        width_scale = int(scales[3])
+    else:
+        height_scale = int(node.attrs.get('height_scale', 1))
+        width_scale = int(node.attrs.get('width_scale', 1))
     mode_convert = {
         "nearest": "NN",
         "bilinear": "BILINEAR",
