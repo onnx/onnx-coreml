@@ -645,14 +645,26 @@ def _convert_bn(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node
         return err.unsupported_op_configuration(builder, node, graph, "This converter only supports BatchNormalization with one output")
 
     epsilon = node.attrs.get("epsilon", 1e-5)
-    scale = node.input_tensors[node.inputs[1]]
-    bias = node.input_tensors[node.inputs[2]]
-    mean = node.input_tensors[node.inputs[3]]
-    var = node.input_tensors[node.inputs[4]]
+
+    # decide channels
+    channels = set()
+    for v in node.input_tensors.values():
+        channels.add(v.shape)
+    assert len(channels) == 1
+    channels = channels.pop()
+
+    scale = node.input_tensors[node.inputs[1]] if node.inputs[1] in node.input_tensors else \
+        np.ones(shape=channels, dtype=np.float32)
+    bias = node.input_tensors[node.inputs[2]] if node.inputs[2] in node.input_tensors else \
+        np.zeros(shape=channels, dtype=np.float32)
+    mean = node.input_tensors[node.inputs[3]] if node.inputs[3] in node.input_tensors else \
+        np.zeros(shape=channels, dtype=np.float32)
+    var = node.input_tensors[node.inputs[4]] if node.inputs[4] in node.input_tensors else \
+        np.ones(shape=channels, dtype=np.float32)
 
     builder.add_batchnorm(
         name=node.name,
-        channels=scale.shape[0],
+        channels=channels[0],
         gamma=scale,
         beta=bias,
         mean=mean,
@@ -1437,11 +1449,15 @@ def _convert_reorganize_data(builder, node, graph, err):  # type: (NeuralNetwork
     _update_shape_mapping_unchanged(node, graph, err)
 
 def _convert_upsample(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-    scales = node.attrs["scales"]
-    if len(scales) != 4 or scales[0] != 1.0 or scales[1] != 1.0:
-        err.unsupported_op_configuration(builder, node, graph, "Unsupported scales {} for upsample".format(scales))
-    height_scale = int(scales[2])
-    width_scale = int(scales[3])
+    if 'scales' in node.attrs:
+        scales = node.attrs["scales"]
+        if len(scales) != 4 or scales[0] != 1.0 or scales[1] != 1.0:
+            err.unsupported_op_configuration(builder, node, graph, "Unsupported scales {} for upsample".format(scales))
+        height_scale = int(scales[2])
+        width_scale = int(scales[3])
+    else:
+        height_scale = int(node.attrs.get('height_scale', 1))
+        width_scale = int(node.attrs.get('width_scale', 1))
     mode_convert = {
         "nearest": "NN",
         "bilinear": "BILINEAR",
