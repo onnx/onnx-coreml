@@ -3,11 +3,11 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 from typing import Text, Union, Optional, Dict, Any, Iterable, Sequence, Callable, List
-from ._shapeinference import infer_shapes_and_types
 
 import onnx
 import numpy as np
 
+from onnx import shape_inference
 from onnx import TensorProto
 
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
