@@ -84,7 +84,6 @@ class NodesFuser(object):
         nodes[0].outputs = nodes[-1].outputs
         return [nodes[0]]
 
-
 class ConvAddFuser(NodesFuser):
     '''
     Fuses Add layer into parent convolution layer.
@@ -139,7 +138,6 @@ class ConvAddFuser(NodesFuser):
         child.parents.remove(parent)
         return [parent]
 
-
 class BNBroadcastedMulFuser(NodesFuser):
     '''
     Fuses Mul into BatchNorm
@@ -178,7 +176,6 @@ class BNBroadcastedMulFuser(NodesFuser):
         child.parents.remove(parent)
         return [parent]
 
-
 class BNBroadcastedAddFuser(NodesFuser):
     '''
     Fuses Add into BatchNorm
@@ -215,7 +212,6 @@ class BNBroadcastedAddFuser(NodesFuser):
         child.parents.remove(parent)
         return [parent]
 
-
 class DropoutRemover(NodesFuser):
     '''
     Removes Dropout layer
@@ -233,7 +229,6 @@ class DropoutRemover(NodesFuser):
         child.parents.remove(parent)
         parent.outputs = [child.outputs[0]]
         return [parent]
-
 
 class ReshapeInitTensorFuser(object):
     '''
@@ -290,7 +285,6 @@ class ReshapeInitTensorFuser(object):
         transformed_nodes = [node for node in nodes if node not in removed]
         return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
 
-
 class OutputRenamer(object):
     '''
     Rename outputs according to mapping
@@ -320,7 +314,6 @@ class OutputRenamer(object):
                 if len(mapping) == 0:
                     break
         return graph
-
 
 class PixelShuffleFuser(NodesFuser):
     '''
@@ -442,7 +435,6 @@ class PixelShuffleFuser(NodesFuser):
         transpose_2.add_child(final_reshape)
         return [reshape_1, transpose_1, reshape_2, transpose_2, final_reshape]
 
-
 class AddModelInputsOutputs(object):
     '''
     Expose hidden states of recurrent layers as model inputs and outputs
@@ -468,7 +460,6 @@ class AddModelInputsOutputs(object):
                     graph.blob_from_op_type[output_] = 'LSTM'
         return graph
 
-
 class ConstantsToInitializers(object):
     '''
     Takes onnx Constant nodes and puts the tensor into graph initializers instead.
@@ -491,6 +482,31 @@ class ConstantsToInitializers(object):
                 transformed_nodes.append(node)
         return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
 
+class ConstantFillToInitializers(object):
+    '''
+    Takes onnx ConstantFill nodes and puts the tensor into graph initializers instead, for simple cases only.
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        output_names = [str(output_[0]) for output_ in graph.outputs]
+        nodes_to_be_removed = []
+        for node in graph.nodes:
+            if node.op_type == 'ConstantFill' and (node.name not in output_names) and \
+               node.attrs.get('input_as_shape', 0) and node.inputs[0] in node.input_tensors \
+               and node.attrs.get('extra_shape', None) is None:
+
+                s = node.input_tensors[node.inputs[0]]
+                x = np.ones(tuple(s.astype(int))) * node.attrs.get('value', 0.0)
+                nodes_to_be_removed.append(node)
+                for child in node.children:
+                    child.input_tensors[node.outputs[0]] = x
+                    child.parents.remove(node)
+                graph.shape_dict[node.outputs[0]] = x.shape
+
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
 
 class ShapeOpRemover(object):
     '''
@@ -522,8 +538,6 @@ class ShapeOpRemover(object):
             if node not in nodes_to_be_removed:
                 transformed_nodes.append(node)
         return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
-
-
 
 class ImageScalerRemover(object):
     '''
@@ -633,7 +647,6 @@ class TransposeConstantRemover(object):
                 transformed_nodes.append(node)
         return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
 
-
 class SliceConstantRemover(object):
     '''
     Removes Slice op, if its input is constant
@@ -654,6 +667,32 @@ class SliceConstantRemover(object):
                     if s < 0: s += n
                     if e < 0: e += n
                     x = np.take(x, range(s, e), axis=a) # type: ignore
+                graph.shape_dict[node.outputs[0]] = x.shape
+                for child_node in node.children:
+                    child_node.parents.remove(node)
+                    child_node.input_tensors[node.outputs[0]] = x
+
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+
+class GatherConstantRemover(object):
+    '''
+    Removes Gather op, if its input is constant
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        nodes_to_be_removed = []
+        for node in graph.nodes:
+            if node.op_type == 'Gather' and len(node.parents) == 0 and \
+                node.inputs[0] in node.input_tensors and node.inputs[1] in node.input_tensors:
+
+                nodes_to_be_removed.append(node)
+                data = node.input_tensors[node.inputs[0]]
+                idx = node.input_tensors[node.inputs[1]]
+                axis = node.attrs.get('axis', 0)
+                x = np.take(data, idx, axis=axis)
                 graph.shape_dict[node.outputs[0]] = x.shape
                 for child_node in node.children:
                     child_node.parents.remove(node)
