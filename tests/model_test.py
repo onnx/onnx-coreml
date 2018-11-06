@@ -16,13 +16,21 @@ import shutil
 import tempfile
 import os
 
+np.random.seed(10)
+torch.manual_seed(10)
+
+DEBUG = False
+
 def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_shape):
     # run torch model
     torch_input = torch.rand(*torch_input_shape)
-    torch_out = torch_model(torch_input).detach().numpy()
+    torch_out_raw = torch_model(torch_input)
+    torch_out = torch_out_raw.detach().numpy()
 
     # convert to onnx model
     model_dir = tempfile.mkdtemp()
+    if DEBUG:
+        model_dir = '/tmp'
     onnx_file = os.path.join(model_dir, 'torch_model.onnx')
     torch.onnx.export(torch_model, torch_input, onnx_file)
     onnx_model = onnx.load(onnx_file)
@@ -35,13 +43,20 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
     input_numpy = torch_input.detach().numpy()
     input_dict = {input_name: np.reshape(input_numpy, coreml_input_shape)} # type: ignore
     coreml_out = coreml_model.predict(input_dict, useCPUOnly=True)[output_name]
+    if DEBUG:
+        coreml_model.save(model_dir + '/torch_model.mlmodel')
+        print('coreml_out')
+        print(np.squeeze(coreml_out))
+        print('torch_out')
+        print(np.squeeze(torch_out))
 
     # compare
     _assert_outputs([torch_out], [coreml_out], decimal=4) # type: ignore
 
     # delete onnx model
-    if os.path.exists(model_dir):
-        shutil.rmtree(model_dir)
+    if not DEBUG:
+        if os.path.exists(model_dir):
+            shutil.rmtree(model_dir)
 
 class OnnxModelTest(unittest.TestCase):
 
@@ -90,7 +105,7 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 3, 100, 100), (3, 100, 100)) # type: ignore
 
-    def test_const_initializer1(self):  # typr: () -> None
+    def test_const_initializer1(self):  # type: () -> None
         class Net(nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
@@ -105,7 +120,7 @@ class OnnxModelTest(unittest.TestCase):
         _test_torch_model_single_io(torch_model, (1, 3), (3,))  # type: ignore
 
 
-    def test_const_initializer2(self):  # typr: () -> None
+    def test_const_initializer2(self):  # type: () -> None
         class Net(nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
@@ -118,10 +133,52 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 2, 3), (1, 2, 3))  # type: ignore
 
+    def test_conv2D_transpose(self): # type: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.convT = torch.nn.ConvTranspose2d(1, 1, kernel_size=3, stride=2, output_padding=1, padding=1, groups=1)
+
+            def forward(self, x):
+                y = self.convT(x)
+                return y
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 1, 2, 2), (1, 2, 2))  # type: ignore
+
+    def test_conv2D_transpose_groups(self): # type: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.convT = torch.nn.ConvTranspose2d(4, 4, kernel_size=3, stride=2, output_padding=1, padding=1, groups=2)
+
+            def forward(self, x):
+                y = self.convT(x)
+                return y
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 4, 8, 8), (4, 8, 8))  # type: ignore
+
+    def test_conv2D_transpose_2(self): # type: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.convT = torch.nn.ConvTranspose2d(1, 1, kernel_size=3, stride=3, output_padding=2, padding=1, groups=1)
+
+            def forward(self, x):
+                y = self.convT(x)
+                return y
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 1, 3, 3), (1, 3, 3))  # type: ignore
+
 
 
 if __name__ == '__main__':
     unittest.main()
     #suite = unittest.TestSuite()
-    #suite.addTest(OnnxModelTest("test_linear_bias"))
+    #suite.addTest(OnnxModelTest("test_conv2D_transpose_2"))
     #unittest.TextTestRunner().run(suite)

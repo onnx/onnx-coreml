@@ -4,6 +4,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import numpy as np
+import copy
 
 from typing import Sequence, Callable, List, Tuple, Optional, Text, Any
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
@@ -272,6 +273,14 @@ def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Nod
                 pads = [0, pads[0], 0, pads[1]]
             params_dict['pads'] = pads
 
+        if params_dict['is_deconv']:
+            params_dict['crops'] = copy.copy(params_dict['pads'])
+            params_dict['pads'] = [0, 0, 0, 0]
+            if sum(params_dict['crops']) == 0:
+                params_dict['is_post_crop'] = False
+            else:
+                params_dict['is_post_crop'] = True
+
         params_dict['kernel_shape'] = node.attrs["kernel_shape"]
         params_dict['strides'] = node.attrs["strides"]
 
@@ -285,7 +294,6 @@ def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Nod
             params_dict['strides'].insert(0,1)
 
         params_dict['out_shape'] = None
-        params_dict['is_post_pad'] = False
         params_dict['padding_type'] = 'valid'
         params_dict['same_padding_asymmetry_mode'] = 'BOTTOM_RIGHT_HEAVY'
 
@@ -322,21 +330,28 @@ def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Nod
                                                              "length 1 output padding attribute only supported for 1D conv")
                     elif len(post_pads) == 2:
                         if axis == 'height':
-                            t, b = post_pads
+                            b, r = post_pads
                         elif axis == 'width':
-                            l, r = post_pads
+                            r, b = post_pads
                         else:
                             b, r = post_pads
                     elif len(post_pads) == 4:
-                        t, l, b, r = post_pads
+                        b, r, t, l = post_pads
                     else:
                         return err.unsupported_op_configuration(builder, node, graph,
                                                                 "Supports only length 1 or 2 or 4 output padding attribute")
-                    params_dict['is_post_pad'] = True
-                    params_dict['t'] = t
-                    params_dict['l'] = l
-                    params_dict['b'] = b
-                    params_dict['r'] = r
+                    def _update_crop_pad(idx, v):
+                        if params_dict['crops'][idx] >= v:
+                            params_dict['crops'][idx] -= v
+                        else:
+                            params_dict['pads'][idx] = v - params_dict['crops'][idx]
+
+                    _update_crop_pad(0, t)
+                    _update_crop_pad(1, l)
+                    _update_crop_pad(2, b)
+                    _update_crop_pad(3, r)
+                    params_dict['is_post_crop'] = True if sum(params_dict['crops']) > 0 else False
+                    params_dict['is_pre_pad'] = True if sum(params_dict['pads']) > 0 else False
 
     def _add_conv(input_names, output_names, **kwargs):
         params_dict = kwargs['params_dict']
@@ -345,13 +360,33 @@ def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Nod
         output_name = output_names[0]
         input_name = input_names[0]
 
-        if params_dict.get('is_post_pad', False):
-            output_name += '_conv_tranpose_pre_pad'
+        if params_dict.get('is_post_crop', False):
+            output_name += '_conv_tranpose_post_crop'
+        if params_dict.get('is_pre_pad', False):
+            input_name += '_conv_tranpose_pre_crop'
 
+        if params_dict['is_deconv']:
+            oc = params_dict['W'].shape[3] * params_dict['groups']
+            kc = params_dict['W'].shape[2]
+        else:
+            oc = params_dict['W'].shape[3]
+            kc = params_dict['W'].shape[2]
+
+        if params_dict.get('is_pre_pad', False):
+            builder.add_padding(
+                name=node.name + '_pre_pad',  # type: ignore
+                left=params_dict['pads'][1],
+                right=params_dict['pads'][3],
+                top=params_dict['pads'][0],
+                bottom=params_dict['pads'][2],
+                input_name=input_names[0],
+                output_name=input_name,
+                value=0
+            )
         builder.add_convolution(
             name=node.name,
-            kernel_channels=params_dict['W'].shape[2],
-            output_channels=params_dict['W'].shape[3],
+            kernel_channels=kc,
+            output_channels=oc,
             height=params_dict['kernel_shape'][0],
             width=params_dict['kernel_shape'][1],
             stride_height=params_dict['strides'][0],
@@ -372,16 +407,16 @@ def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Nod
             padding_left=params_dict['pads'][1],
             padding_right=params_dict['pads'][3]
         )
-        if params_dict.get('is_post_pad', False):
-            builder.add_padding(
-                name=node.name + '_post_pad',  # type: ignore
-                left=params_dict['l'],
-                right=params_dict['r'],
-                top=params_dict['t'],
-                bottom=params_dict['b'],
-                value=0,
-                input_name=output_name,
+        if params_dict.get('is_post_crop', False):
+            builder.add_crop(
+                name=node.name + '_post_crop',  # type: ignore
+                left=params_dict['crops'][1],
+                right=params_dict['crops'][3],
+                top=params_dict['crops'][0],
+                bottom=params_dict['crops'][2],
+                input_names=[output_name],
                 output_name=output_names[0],
+                offset = [0,0]
             )
 
     params_dict = dict()
@@ -402,7 +437,6 @@ def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Nod
     if len(node.inputs) > 2:
         bias = node.input_tensors[node.inputs[2]]
     params_dict['bias'] = bias
-    params_dict['groups'] = 1
     params_dict['groups'] = node.attrs.get("group", 1)
 
     _add_conv_like_op(_add_conv, _get_conv_params, params_dict,
@@ -1049,7 +1083,7 @@ def _convert_gemm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
 
     b = None
     if len(node.inputs) > 2:
-        b = node.input_tensors[node.inputs[2]]
+        b = (node.input_tensors[node.inputs[2]]).flatten()
     if len(W.shape) != 2 or (b is not None and len(b.shape) != 1):
         return err.unsupported_op_configuration(builder, node, graph, "This Gemm layer cannot be converted to CoreML inner_product layer")
 

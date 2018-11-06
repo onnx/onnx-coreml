@@ -11,6 +11,7 @@ from onnx_coreml import convert
 import onnx
 from ._graph import _input_from_onnx_input, EdgeInfo
 
+DEBUG = False
 
 def _get_onnx_outputs_info(model): # type: (...) -> Dict[Text, EdgeInfo]
     """
@@ -39,10 +40,13 @@ class CoreMLBackend(Backend):
                 ):
         # type: (...) -> CoreMLRep
         super(CoreMLBackend, cls).prepare(model, device, **kwargs)
-        # with open('/tmp/node_model.onnx', 'wb') as f:
-        #     s = model.SerializeToString()
-        #     f.write(s)
+        if DEBUG:
+            with open('/tmp/node_model.onnx', 'wb') as f:
+                s = model.SerializeToString()
+                f.write(s)
         coreml_model = convert(model)
+        if DEBUG:
+            coreml_model.save('/tmp/node_model.mlmodel')
         onnx_outputs_info = _get_onnx_outputs_info(model)
         return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU')
 
