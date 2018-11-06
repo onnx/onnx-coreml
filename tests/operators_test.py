@@ -210,6 +210,24 @@ class SingleOperatorTest(unittest.TestCase):
             transB=1
         )
 
+    def test_gemm_transB_off(self):  # type: () -> None
+        input_shape = (1, 2048)
+        output_shape = (1, 5)
+        W = from_array(
+            _random_array((input_shape[1], output_shape[1])), name="weight"
+        )
+        b = from_array(
+            _random_array((output_shape[1],)), name="bias"
+        )
+        _test_single_node(
+            "Gemm",
+            [input_shape],
+            [output_shape],
+            initializer=[W, b],
+            decimal=3,
+            transB=0
+        )
+
     def test_lrn(self):  # type: () -> None
         _test_single_node(
             "LRN",
@@ -289,3 +307,6 @@ class SingleOperatorTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+    #suite = unittest.TestSuite()
+    #suite.addTest(SingleOperatorTest("test_gemm_transB_off"))
+    #unittest.TextTestRunner().run(suite)

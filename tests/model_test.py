@@ -58,6 +58,19 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1,256), (256)) # type: ignore
 
+    def test_linear_bias(self):  # type: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.simple_nn = nn.Sequential(nn.Linear(256, 128, bias=True), nn.ReLU())
+
+            def forward(self, x):
+                return self.simple_nn(x)
+
+        torch_model = Net() # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1,256), (256)) # type: ignore
+
     def test_dynamic_reshape(self):  # type: () -> None
         class Net(nn.Module):
             def __init__(self):
@@ -109,4 +122,6 @@ class OnnxModelTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
+    #suite = unittest.TestSuite()
+    #suite.addTest(OnnxModelTest("test_linear_bias"))
+    #unittest.TextTestRunner().run(suite)

@@ -1030,11 +1030,8 @@ def _convert_gemm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
     - B is a constant matrix
     - C is a constant vector
     - alpha == beta == 1.0
-    - transB is on but transA is off
+    - transA is off
     '''
-
-    if node.attrs.get("transB",0) != 1:
-        return err.unsupported_op_configuration(builder, node, graph, "This Gemm layer cannot be converted to CoreML inner_product layer")
 
     if node.attrs.get("transA",0) != 0:
         return err.unsupported_op_configuration(builder, node, graph, "This Gemm layer cannot be converted to CoreML inner_product layer")
@@ -1045,6 +1042,8 @@ def _convert_gemm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
     weight_name = node.inputs[1]
     if weight_name in node.input_tensors:
         W = node.input_tensors[weight_name]
+        if not node.attrs.get("transB",0):
+            W = np.transpose(W)
     else:
         err.missing_initializer(node, "Second input to Gemm layer must be a constant")
 
