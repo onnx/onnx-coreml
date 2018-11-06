@@ -68,9 +68,6 @@ backend_test = onnx.backend.test.BackendTest(CoreMLTestingBackend, __name__)
 
 # Failing due to tolerance (in particular due to the way outputs are compared)
 backend_test.exclude('test_log_example_cpu')
-backend_test.exclude('test_ConvTranspose2d_cpu') #onnx ref out does not match with what the document states: output pad should be zero pad
-backend_test.exclude('test_ConvTranspose2d_no_bias_cpu')  # same as above
-backend_test.exclude('test_operator_convtranspose_cpu') # same as above
 backend_test.exclude('test_operator_add_broadcast_cpu')
 backend_test.exclude('test_operator_add_size1_right_broadcast_cpu')
 backend_test.exclude('test_operator_add_size1_singleton_broadcast_cpu')
@@ -210,6 +207,7 @@ backend_test.exclude('test_gather_1_cpu')
 backend_test.exclude('test_gather_0_cpu')
 backend_test.exclude('test_Embedding_cpu') # gather op
 backend_test.exclude('test_Embedding_sparse_cpu') # gather op
+
 # recurrent tests.
 backend_test.exclude('test_operator_rnn_cpu')
 backend_test.exclude('test_operator_rnn_single_layer_cpu')
