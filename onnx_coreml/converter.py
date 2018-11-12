@@ -18,11 +18,14 @@ from typing import Tuple
 
 from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY, _ONNX_NODE_REGISTRY, _add_const_inputs_if_required
 from ._graph import Graph, EdgeInfo, Transformer
+
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
     PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs, \
     ConstantsToInitializers, ImageScalerRemover, UnsqueezeConstantRemover, TransposeConstantRemover, \
-    ShapeOpRemover, SliceConstantRemover, ConcatConstantRemover, DivMulConstantRemover
+    ShapeOpRemover, SliceConstantRemover, ConcatConstantRemover, DivMulConstantRemover, GatherConstantRemover, \
+    ConstantFillToInitializers
+
 from ._error_utils import ErrorHandling
 from .graph_viz import plot_graph # type: ignore
 
@@ -276,7 +279,6 @@ def _set_deprocessing(is_grayscale,  # type: bool
 
 
 def _prepare_onnx_graph(graph, transformers):  # type: (Graph, Iterable[Transformer]) -> Graph
-    # graph = infer_shapes_and_types(graph)
     graph_ = Graph.from_onnx(graph)
     #plot_graph(graph_, graph_img_path='/tmp/graph_raw.png')
     graph_ = graph_.transformed(transformers)
@@ -360,6 +362,8 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         PixelShuffleFuser(),
         AddModelInputsOutputs(),
         DivMulConstantRemover(),
+        GatherConstantRemover(),
+        ConstantFillToInitializers(),
     ]  # type: Iterable[Transformer]
 
     onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
