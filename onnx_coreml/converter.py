@@ -280,9 +280,9 @@ def _set_deprocessing(is_grayscale,  # type: bool
 
 def _prepare_onnx_graph(graph, transformers):  # type: (Graph, Iterable[Transformer]) -> Graph
     graph_ = Graph.from_onnx(graph)
-    plot_graph(graph_, graph_img_path='/tmp/graph_raw.png')
+    #plot_graph(graph_, graph_img_path='/tmp/graph_raw.png')
     graph_ = graph_.transformed(transformers)
-    plot_graph(graph_, graph_img_path='/tmp/graph_opt.png')
+    #plot_graph(graph_, graph_img_path='/tmp/graph_opt.png')
     return graph_
 
 def convert(model,  # type: Union[onnx.ModelProto, Text]

@@ -25,10 +25,7 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
     # run torch model
     torch_input = torch.rand(*torch_input_shape)
     torch_out_raw = torch_model(torch_input)
-    if isinstance(torch_out_raw, tuple):
-        torch_out = torch_out_raw[0].detach().numpy()
-    else:
-        torch_out = torch_out_raw.detach().numpy()
+    torch_out = torch_out_raw.detach().numpy()
 
     # convert to onnx model
     model_dir = tempfile.mkdtemp()
@@ -178,25 +175,10 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 1, 3, 3), (1, 3, 3))  # type: ignore
 
-    def test_lstm(self):  # typr: () -> None
-        class Net(nn.Module):
-            def __init__(self):
-                super(Net, self).__init__()
-                self.lstm = nn.LSTM(input_size=256,
-                                hidden_size=64,
-                                num_layers=1)
-
-            def forward(self, x):
-                y = self.lstm(x)
-                return y
-
-        torch_model = Net()  # type: ignore
-        torch_model.train(False)
-        _test_torch_model_single_io(torch_model, (1, 1, 256), (1, 1, 256))  # type: ignore
 
 
 if __name__ == '__main__':
-    #unittest.main()
-    suite = unittest.TestSuite()
-    suite.addTest(OnnxModelTest("test_lstm"))
-    unittest.TextTestRunner().run(suite)
+    unittest.main()
+    #suite = unittest.TestSuite()
+    #suite.addTest(OnnxModelTest("test_conv2D_transpose_2"))
+    #unittest.TextTestRunner().run(suite)

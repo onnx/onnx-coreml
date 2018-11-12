@@ -57,10 +57,7 @@ def _apply_graph_transformations(graph, transformers): # (Graph, Iterable[Transf
     old_node_names = _extract_node_names(graph) # type: ignore
     while True:
         for transformer in transformers:
-            print(transformer)
-            print(len(graph.inputs))
             graph = transformer(graph)
-            print(len(graph.inputs))
         new_node_names = _extract_node_names(graph) # type: ignore
         if new_node_names == old_node_names:
             break
