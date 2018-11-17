@@ -177,8 +177,6 @@ backend_test.exclude('test_dropout_default_cpu')
 backend_test.exclude('test_dropout_random_cpu')
 backend_test.exclude('test_gru_seq_length_cpu')
 backend_test.exclude('test_identity_cpu')
-backend_test.exclude('test_pow_bcast_scalar_cpu')
-backend_test.exclude('test_pow_bcast_array_cpu')
 backend_test.exclude('test_asin_example_cpu')
 backend_test.exclude('test_reduce_log_sum_exp_default_axes_keepdims_example_cpu')
 backend_test.exclude('test_reduce_log_sum_exp_default_axes_keepdims_random_cpu')
@@ -196,9 +194,6 @@ backend_test.exclude('test_expand_shape_model3_cpu')
 backend_test.exclude('test_expand_shape_model4_cpu')
 backend_test.exclude('test_expand_dim_changed_cpu')
 backend_test.exclude('test_expand_dim_unchanged_cpu')
-backend_test.exclude('test_pow_cpu')
-backend_test.exclude('test_pow_example_cpu')
-backend_test.exclude('test_operator_pow_cpu')
 backend_test.exclude('test_operator_chunk_cpu') # unequal splits
 backend_test.exclude('test_operator_permute2_cpu') # rank 6 input
 backend_test.exclude('test_maxpool_with_argmax_2d_precomputed_pads_cpu')
@@ -207,6 +202,11 @@ backend_test.exclude('test_gather_1_cpu')
 backend_test.exclude('test_gather_0_cpu')
 backend_test.exclude('test_Embedding_cpu') # gather op
 backend_test.exclude('test_Embedding_sparse_cpu') # gather op
+backend_test.exclude('test_pow_bcast_scalar_cpu')
+backend_test.exclude('test_pow_bcast_array_cpu')
+backend_test.exclude('test_pow_cpu')
+backend_test.exclude('test_pow_example_cpu')
+backend_test.exclude('test_operator_pow_cpu')
 
 # recurrent tests.
 backend_test.exclude('test_operator_rnn_cpu')

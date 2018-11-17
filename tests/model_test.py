@@ -175,10 +175,22 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 1, 3, 3), (1, 3, 3))  # type: ignore
 
+    def test_pow(self): # type: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                y = x.pow(3)
+                return y
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (3, 2, 3), (3, 2, 3))  # type: ignore
 
 
 if __name__ == '__main__':
     unittest.main()
     #suite = unittest.TestSuite()
-    #suite.addTest(OnnxModelTest("test_conv2D_transpose_2"))
+    #suite.addTest(OnnxModelTest("test_pow"))
     #unittest.TextTestRunner().run(suite)

@@ -1364,6 +1364,27 @@ def _convert_exp(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
     )
     _update_shape_mapping_unchanged(node, graph, err)
 
+def _convert_pow(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+
+    input2 = node.inputs[1]
+    is_supported = False
+    if input2 in node.input_tensors:
+        alpha = node.input_tensors[input2]
+        if len(alpha.shape) == 0:
+            is_supported = True
+
+    if not is_supported:
+        err.missing_initializer(node, "Only mode supported is when the second input is a scalar constant")
+
+    builder.add_unary(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode='power',
+        alpha = alpha
+    )
+    _update_shape_mapping_unchanged(node, graph, err)
+
 def _convert_flatten(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
 
     def _add_flatten(input_names, output_names, **kwargs):
@@ -1746,6 +1767,7 @@ _ONNX_NODE_REGISTRY = {
     "Mul": _convert_mul,
     "Neg": _convert_neg,
     "Pad": _convert_pad,
+    "Pow": _convert_pow,
     "PRelu": _convert_prelu,
     "Reciprocal": _convert_reciprocal,
     "ReduceL1": _convert_reduce,
