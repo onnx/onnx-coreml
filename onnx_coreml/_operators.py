@@ -1514,7 +1514,7 @@ def _convert_upsample(builder, node, graph, err):  # type: (NeuralNetworkBuilder
         width_scale = int(node.attrs.get('width_scale', 1))
     mode_convert = {
         "nearest": "NN",
-        "bilinear": "BILINEAR",
+        "linear": "BILINEAR",
     }
     mode = mode_convert[node.attrs["mode"].decode("UTF-8")]
     builder.add_upsample(
