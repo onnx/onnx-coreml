@@ -11,7 +11,8 @@ try:
     import pypandoc
     long_description = pypandoc.convert('README.md', 'rst')
 except(IOError, ImportError):
-    long_description = open('README.md').read()
+    with open('README.md', "rb") as f:
+        long_description = f.read().decode("UTF-8")
 
 
 if sys.version_info[0] == 2:
