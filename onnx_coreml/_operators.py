@@ -171,7 +171,7 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
         if not (r == 3 or r == 4):
             return err.unsupported_op_configuration(builder, node, graph, "more than 4 axes not supported")
         if r == 4:
-            if not (mapp == [1, 2, 3, 4] or map == [0, 2, 3, 4]):
+            if not (mapp == [1, 2, 3, 4] or mapp == [0, 2, 3, 4]):
                 return err.unsupported_op_configuration(builder, node, graph,
                                                         "error in axes alignment between onnx and coreml")
             get_params_func(node, params_dict)
