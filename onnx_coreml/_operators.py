@@ -1574,20 +1574,26 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
                                 "Weight tensor: {} not found in the graph initializer".format(R_name, ))
 
     h = node.attrs["hidden_size"]
-    W_i, W_o, W_f, W_c = np.split(W, 4)  #type: ignore
-    R_i, R_o, R_f, R_c = np.split(R, 4)  #type: ignore
+    W_i, W_o, W_f, W_c = np.split(np.squeeze(W), 4)  #type: ignore
+    R_i, R_o, R_f, R_c = np.split(np.squeeze(R), 4)  #type: ignore
     x = W_i.shape[1]
+    h = W_i.shape[0]
     W_x = [W_i, W_f, W_o, W_c]
     W_h = [R_i, R_f, R_o, R_c]
     b = None
     if B is not None:
-        b_Wi, b_Wo, b_Wf, b_Wc, b_Ri, b_Ro, b_Rf, b_Rc = np.split(B, 8)  #type: ignore
+        b_Wi, b_Wo, b_Wf, b_Wc, b_Ri, b_Ro, b_Rf, b_Rc = np.split(np.squeeze(B), 8)  #type: ignore
         b = [b_Wi + b_Ri, b_Wf + b_Rf, b_Wo + b_Ro, b_Wc + b_Rc]
 
     input_h = node.inputs[5] if len(node.inputs) > 5 else node.inputs[0] + '_h_input'
     input_c = node.inputs[6] if len(node.inputs) > 6 else node.inputs[0] + '_c_input'
     output_h = node.outputs[1] if len(node.outputs) > 1 else node.outputs[0] + '_h_output'
     output_c = node.outputs[2] if len(node.outputs) > 2 else node.outputs[0] + '_c_output'
+
+    graph.optional_inputs.append((input_h, (h)))
+    graph.optional_inputs.append((input_c, (h)))
+    graph.optional_outputs.append((output_h, (h)))
+    graph.optional_outputs.append((output_c, (h)))
 
     builder.add_unilstm(name = node.name,
                     W_h = W_h,
@@ -1604,6 +1610,13 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
                     output_all=True,
                     forget_bias=False, coupled_input_forget_gate=False,
                     cell_clip_threshold=50000.0, reverse_input=False)
+
+    if _is_input_shape_mapping_defined(node, graph):
+        graph.onnx_coreml_shape_mapping[node.outputs[0]] = graph.onnx_coreml_shape_mapping[node.inputs[0]]
+        graph.onnx_coreml_shape_mapping[node.outputs[1]] = graph.onnx_coreml_shape_mapping[node.inputs[0]]
+        graph.onnx_coreml_shape_mapping[node.outputs[2]] = graph.onnx_coreml_shape_mapping[node.inputs[0]]
+
+
 
 def _convert_custom(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
 

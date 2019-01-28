@@ -501,38 +501,63 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             predicted_feature_name=predicted_feature_name
         )
 
-    # add description to inputs/outputs that feed in/out of recurrent layers
-    for node_ in graph.nodes:
-        if str(node_.op_type) in _SEQUENCE_LAYERS_REGISTRY:
-            input_ = node_.inputs[0]
-            output_ = node_.outputs[0]
-            for i, inputs in enumerate(builder.spec.description.input):
-                if inputs.name == input_:
-                    builder.spec.description.input[i].shortDescription = 'This input is a sequence. '
-            for i, outputs in enumerate(builder.spec.description.output):
-                if outputs.name == output_:
-                    builder.spec.description.output[i].shortDescription = 'This output is a sequence. '
+    # # add description to inputs/outputs that feed in/out of recurrent layers
+    # for node_ in graph.nodes:
+    #     if str(node_.op_type) in _SEQUENCE_LAYERS_REGISTRY:
+    #         input_ = node_.inputs[0]
+    #         output_ = node_.outputs[0]
+    #         for i, inputs in enumerate(builder.spec.description.input):
+    #             if inputs.name == input_:
+    #                 builder.spec.description.input[i].shortDescription = 'This input is a sequence. '
+    #         for i, outputs in enumerate(builder.spec.description.output):
+    #             if outputs.name == output_:
+    #                 builder.spec.description.output[i].shortDescription = 'This output is a sequence. '
 
-    def _add_informative_description(feature):
+    def _add_informative_description(feature, raise_error=True):
         if feature.type.WhichOneof('Type') == 'multiArrayType':
             if feature.name in graph.onnx_coreml_shape_mapping and feature.name in graph.shape_dict:
                 mapp = graph.onnx_coreml_shape_mapping[feature.name]
                 onnx_shape = graph.shape_dict[feature.name]
-                assert len(mapp) == len(onnx_shape), "Something wrong in shape"
-                shape = []
-                for i in range(5):
-                    if i in mapp:
-                        shape += [int(onnx_shape[mapp.index(i)])]
-                    else:
-                        shape += [1]
-                msg = 'MultiArray of shape {}. The first and second dimensions correspond to sequence and batch size, respectively'.format(str(tuple(shape)))
-                feature.shortDescription += msg
+                if raise_error: assert len(mapp) == len(onnx_shape), "Something wrong in shape"
+                if len(mapp) == len(onnx_shape):
+                    shape = []
+                    for i in range(5):
+                        if i in mapp:
+                            shape += [int(onnx_shape[mapp.index(i)])]
+                        else:
+                            shape += [1]
+                    msg = 'MultiArray of shape {}. The first and second dimensions correspond to sequence and batch size, respectively'.format(str(tuple(shape)))
+                    feature.shortDescription += msg
+
+    optional_input_names = []
+    for tup in graph.optional_inputs:
+        optional_input_names.append(tup[0])
+    optional_output_names = []
+    for tup in graph.optional_outputs:
+        optional_output_names.append(tup[0])
 
     # add description for inputs and outputs shapes
-    for input_ in builder.spec.description.input:
-        _add_informative_description(input_)
-    for output_ in builder.spec.description.output:
-        _add_informative_description(output_)
+    remove_input_id = []
+    for i, input_ in enumerate(builder.spec.description.input):
+        if input_.name not in optional_input_names:
+            _add_informative_description(input_)
+        else:
+            remove_input_id.append(i)
+    remove_output_id = []
+    for i, output_ in enumerate(builder.spec.description.output):
+        if output_.name not in optional_output_names:
+            _add_informative_description(output_, raise_error=False)
+        else:
+            remove_output_id.append(i)
+
+    for index in sorted(remove_input_id, reverse=True):
+        del builder.spec.description.input[index]
+    for index in sorted(remove_output_id, reverse=True):
+        del builder.spec.description.output[index]
+
+
+    if len(graph.optional_inputs) > 0 or len(graph.optional_outputs):
+        builder.add_optionals(graph.optional_inputs, graph.optional_outputs)
 
     print("Translation to CoreML spec completed. Now compiling the CoreML model.")
     try:

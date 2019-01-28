@@ -134,6 +134,9 @@ class Graph(object):
         self.outputs = outputs
         self.shape_dict = shape_dict  # data blob name to its shape
 
+        self.optional_inputs = [] # list of tuple(str, tuple(int)), use with recurrent layers
+        self.optional_outputs = [] # list of tuple(str,tuple(int)), use with recurrent layers
+
         '''
         All axes in CoreML Tensor shapes are annotated. That is, 
         0: Sequence
