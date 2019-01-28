@@ -25,7 +25,10 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
     # run torch model
     torch_input = torch.rand(*torch_input_shape)
     torch_out_raw = torch_model(torch_input)
-    torch_out = torch_out_raw.detach().numpy()
+    if isinstance(torch_out_raw, tuple):
+        torch_out = torch_out_raw[0].detach().numpy()
+    else:
+        torch_out = torch_out_raw.detach().numpy()
 
     # convert to onnx model
     model_dir = tempfile.mkdtemp()
@@ -49,6 +52,8 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
         print(np.squeeze(coreml_out))
         print('torch_out')
         print(np.squeeze(torch_out))
+        print('coreml out shape ', coreml_out.shape)
+        print('torch out shape: ', torch_out.shape)
 
     # compare
     _assert_outputs([torch_out], [coreml_out], decimal=4) # type: ignore
@@ -187,6 +192,22 @@ class OnnxModelTest(unittest.TestCase):
         torch_model = Net()  # type: ignore
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (3, 2, 3), (3, 2, 3))  # type: ignore
+
+    def test_lstm(self):  # type: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.lstm = nn.LSTM(input_size=256,
+                                hidden_size=64,
+                                num_layers=1)
+
+            def forward(self, x):
+                y = self.lstm(x)
+                return y
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (3, 1, 256), (3, 1, 256))  # type: ignore
 
 
 if __name__ == '__main__':
