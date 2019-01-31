@@ -209,6 +209,44 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (3, 1, 256), (3, 1, 256))  # type: ignore
 
+    def test_1d_conv(self):
+        class Net(nn.Module):
+            def __init__(self, in_channels,
+                               out_channels,
+                               kernel_size,
+                               stride=1,
+                               dilation=1,
+                               groups=1,
+                               bias=True):
+
+                super(Net, self).__init__()
+
+                self.conv = torch.nn.Conv1d(in_channels,
+                                            out_channels,
+                                            kernel_size=kernel_size,
+                                            stride=stride,
+                                            padding=0,
+                                            dilation=dilation,
+                                            groups=groups,
+                                            bias=bias)
+
+                self.__padding = (kernel_size - 1) * dilation
+
+            def forward(self, x):
+                result = self.conv(x)
+                if self.__padding != 0:
+                    return result[:, :, :-self.__padding]
+                return result
+
+        B = 1
+        Cin = 5
+        Cout = 11
+        k = 3
+        Win = 15
+        torch_model = Net(Cin, Cout, k)  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, Cin, Win), (Cin, 1, Win))  # type: ignore
+
 
 if __name__ == '__main__':
     unittest.main()
