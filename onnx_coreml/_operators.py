@@ -129,7 +129,7 @@ def _add_transpose_before_after(layer_func, # function for layer conversion
                                 input_names, # List[str]
                                 output_names, # List[str]
                                 transpose_dims, # List[int]
-                                **kwargs): # type: ignore
+                                **kwargs):  # type: ignore
 
     for i, input_ in enumerate(input_names):
         kwargs['builder'].add_permute(name=kwargs['node'].name + '_input_transpose' + str(i),
@@ -167,6 +167,7 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
 
     if node.inputs[0] in graph.onnx_coreml_shape_mapping:
         mapp = graph.onnx_coreml_shape_mapping[node.inputs[0]]
+
         r = len(mapp)
         if not (r == 3 or r == 4):
             return err.unsupported_op_configuration(builder, node, graph, "more than 4 axes not supported")
@@ -185,6 +186,17 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
                 # spatial dimension: width
                 get_params_func(node, params_dict, axis='width')
                 add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder)
+            elif mapp == [2, 3, 4]:  # [B,D,S]
+                # spatial dimension: sequence
+                get_params_func(node, params_dict, axis='width')
+                node.inputs = [node.inputs[0]]
+
+                _add_transpose_before_after(add_func,
+                                            node.inputs,
+                                            node.outputs,
+                                            [1, 2, 3, 4],
+                                            builder=builder, node=node, params_dict=params_dict)
+
             elif mapp == [1, 2, 0]:  # [B,C,S]
                 # spatial dimension: sequence
                 get_params_func(node, params_dict, axis='width')
