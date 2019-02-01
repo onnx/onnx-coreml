@@ -247,7 +247,7 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, Cin, Win), (Cin, 1, Win))  # type: ignore
 
-    def test_conv_after_reshape(self):  # type: () -> None
+    def test_conv1d_after_reshape(self):  # type: () -> None
         class Net(nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
@@ -271,5 +271,5 @@ class OnnxModelTest(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
     #suite = unittest.TestSuite()
-    #suite.addTest(OnnxModelTest("test_pow"))
+    #suite.addTest(OnnxModelTest("test_conv1d_after_reshape"))
     #unittest.TextTestRunner().run(suite)
