@@ -186,20 +186,20 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
                 # spatial dimension: width
                 get_params_func(node, params_dict, axis='width')
                 add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder)
-            elif mapp == [2, 3, 4]:  # [B,D,S]
+            elif mapp == [2, 3, 4]:  # [C,H,W] in CoreML, but it represents [B,C,D] in ONNX.
                 # spatial dimension: sequence
                 get_params_func(node, params_dict, axis='width')
                 node.inputs = [node.inputs[0]]
-
                 _add_transpose_before_after(add_func,
                                             node.inputs,
                                             node.outputs,
-                                            [1, 2, 3, 4],
+                                            [0, 2, 1, 3], # swap C & H
                                             builder=builder, node=node, params_dict=params_dict)
 
             elif mapp == [1, 2, 0]:  # [B,C,S]
                 # spatial dimension: sequence
                 get_params_func(node, params_dict, axis='width')
+                node.inputs = [node.inputs[0]]
                 _add_transpose_before_after(add_func,
                                             node.inputs,
                                             node.outputs,
