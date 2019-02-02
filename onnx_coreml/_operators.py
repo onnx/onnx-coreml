@@ -135,9 +135,9 @@ def _add_transpose_before_after(layer_func, # function for layer conversion
         kwargs['builder'].add_permute(name=kwargs['node'].name + '_input_transpose' + str(i),
                                       dim=transpose_dims,
                                       input_name=input_,
-                                      output_name=input_ + '_transpose')
+                                      output_name=kwargs['node'].name + input_ + '_transpose')
 
-    new_input_names = [input_ + '_transpose' for input_ in input_names]
+    new_input_names = [kwargs['node'].name + input_ + '_transpose' for input_ in input_names]
     new_output_names = [output_ + '_transpose' for output_ in output_names]
     layer_func(new_input_names, new_output_names, **kwargs)
 
@@ -178,7 +178,7 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
             get_params_func(node, params_dict)
             add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder)
         if r == 3:
-            if mapp == [1, 2, 3]:  # [B,C,H]
+            if mapp == [1, 2, 3]:  # [B,C,H] 01234 sbchw
                 # spatial dimension: height
                 get_params_func(node, params_dict, axis='height')
                 add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder)
@@ -193,7 +193,7 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
                 _add_transpose_before_after(add_func,
                                             node.inputs,
                                             node.outputs,
-                                            [0, 2, 1, 3], # swap C & H
+                                            [0, 2, 1, 3], # swap C & H / hcw->cbd
                                             builder=builder, node=node, params_dict=params_dict)
 
             elif mapp == [1, 2, 0]:  # [B,C,S]
@@ -203,7 +203,7 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
                 _add_transpose_before_after(add_func,
                                             node.inputs,
                                             node.outputs,
-                                            [3, 1, 2, 0],
+                                            [3, 1, 2, 0], # ignore height B C S/chs
                                             builder=builder, node=node, params_dict=params_dict)
             else:
                 return err.unsupported_op_configuration(builder, node, graph,
