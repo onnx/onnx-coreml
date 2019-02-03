@@ -135,9 +135,9 @@ def _add_transpose_before_after(layer_func, # function for layer conversion
         kwargs['builder'].add_permute(name=kwargs['node'].name + '_input_transpose' + str(i),
                                       dim=transpose_dims,
                                       input_name=input_,
-                                      output_name=kwargs['node'].name + input_ + '_transpose')
+                                      output_name=kwargs['node'].name + '_' + input_ + '_transpose')
 
-    new_input_names = [kwargs['node'].name + input_ + '_transpose' for input_ in input_names]
+    new_input_names = [kwargs['node'].name + '_' + input_ + '_transpose' for input_ in input_names]
     new_output_names = [output_ + '_transpose' for output_ in output_names]
     layer_func(new_input_names, new_output_names, **kwargs)
 
