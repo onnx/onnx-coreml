@@ -267,6 +267,33 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 3, 100, 100), (3, 100, 100))  # type: ignore
 
+    def test_res_connect_downsampling_after_reshape(self):  # type: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.conv = torch.nn.Conv1d(in_channels=300,
+                                            out_channels=32,
+                                            kernel_size=3,
+                                            stride=1,
+                                            padding=1,
+                                            bias=True)
+                self.downsample = torch.nn.Conv1d(in_channels=300,
+                                                  out_channels=32,
+                                                  kernel_size=1,
+                                                  stride=1,
+                                                  padding=0,
+                                                  bias=True)
+
+            def forward(self, x):
+                x = x.view(1, 300, 100)
+                y = self.conv(x)
+                res = self.downsample(x)
+                return y + res
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 3, 100, 100), (3, 100, 100))  # type: ignore
+
 
 if __name__ == '__main__':
     unittest.main()
