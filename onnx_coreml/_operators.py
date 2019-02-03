@@ -178,7 +178,7 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
             get_params_func(node, params_dict)
             add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder)
         if r == 3:
-            if mapp == [1, 2, 3]:  # [B,C,H] 01234 sbchw
+            if mapp == [1, 2, 3]:  # [B,C,H]
                 # spatial dimension: height
                 get_params_func(node, params_dict, axis='height')
                 add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder)
@@ -193,7 +193,7 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
                 _add_transpose_before_after(add_func,
                                             node.inputs,
                                             node.outputs,
-                                            [0, 2, 1, 3], # swap C & H / hcw->cbd
+                                            [0, 2, 1, 3], # swap C & H
                                             builder=builder, node=node, params_dict=params_dict)
 
             elif mapp == [1, 2, 0]:  # [B,C,S]
@@ -203,7 +203,7 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
                 _add_transpose_before_after(add_func,
                                             node.inputs,
                                             node.outputs,
-                                            [3, 1, 2, 0], # ignore height B C S/chs
+                                            [3, 1, 2, 0],
                                             builder=builder, node=node, params_dict=params_dict)
             else:
                 return err.unsupported_op_configuration(builder, node, graph,
