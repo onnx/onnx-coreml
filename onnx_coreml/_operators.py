@@ -1522,8 +1522,10 @@ def _convert_upsample(builder, node, graph, err):  # type: (NeuralNetworkBuilder
         height_scale = int(scales[2])
         width_scale = int(scales[3])
     else:
-        height_scale = int(node.attrs.get('height_scale', 1))
-        width_scale = int(node.attrs.get('width_scale', 1))
+        key = next(iter(node.input_tensors.keys()))
+        scales = node.input_tensors[key]
+        height_scale = int(scales[2])
+        width_scale = int(scales[3])
     mode_convert = {
         "nearest": "NN",
         "linear": "BILINEAR",
