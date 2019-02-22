@@ -705,38 +705,55 @@ def _convert_pool(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
     _update_shape_mapping_unchanged(node, graph, err)
 
 def _convert_bn(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+
+    def add_bn(input_names, output_names, **kwargs):
+            kwargs['builder'].add_batchnorm(
+            name=node.name,
+            input_name=input_names[0],
+            output_name=output_names[0],
+            channels=kwargs['channels'][0],
+            gamma=kwargs['scale'],
+            beta=kwargs['bias'],
+            mean=kwargs['mean'],
+            variance=kwargs['var'],
+            epsilon=kwargs['epsilon'],)
+
     if len(node.outputs) > 1:
         return err.unsupported_op_configuration(builder, node, graph, "This converter only supports BatchNormalization with one output")
 
     epsilon = node.attrs.get("epsilon", 1e-5)
-
-    # decide channels
     channels = set()
     for v in node.input_tensors.values():
         channels.add(v.shape)
     assert len(channels) == 1
     channels = channels.pop()
-
     scale = node.input_tensors[node.inputs[1]] if node.inputs[1] in node.input_tensors else \
-        np.ones(shape=channels, dtype=np.float32)
+            np.ones(shape=channels, dtype=np.float32)
     bias = node.input_tensors[node.inputs[2]] if node.inputs[2] in node.input_tensors else \
-        np.zeros(shape=channels, dtype=np.float32)
+            np.zeros(shape=channels, dtype=np.float32)
     mean = node.input_tensors[node.inputs[3]] if node.inputs[3] in node.input_tensors else \
-        np.zeros(shape=channels, dtype=np.float32)
+            np.zeros(shape=channels, dtype=np.float32)
     var = node.input_tensors[node.inputs[4]] if node.inputs[4] in node.input_tensors else \
-        np.ones(shape=channels, dtype=np.float32)
-
-    builder.add_batchnorm(
-        name=node.name,
-        channels=channels[0],
-        gamma=scale,
-        beta=bias,
-        mean=mean,
-        variance=var,
-        input_name=node.inputs[0],
-        output_name=node.outputs[0],
-        epsilon=epsilon
-    )
+            np.ones(shape=channels, dtype=np.float32)
+    mapp = graph.onnx_coreml_shape_mapping[node.inputs[0]]
+    if mapp == [2,3,4]:
+        _add_transpose_before_after(add_bn,
+                                [node.inputs[0]],
+                                node.outputs,
+                                [0, 2, 1, 3],
+                                builder=builder, node=node,scale=scale,bias=bias,mean=mean,var=var,epsilon=epsilon,channels=channels)
+    else:
+        builder.add_batchnorm(
+            name=node.name,
+            channels=channels[0],
+            gamma=scale,
+            beta=bias,
+            mean=mean,
+            variance=var,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            epsilon=epsilon
+        )
     _update_shape_mapping_unchanged(node, graph, err)
 
 def _convert_instancenorm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
