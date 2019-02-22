@@ -12,6 +12,8 @@ from ._graph import Node, Graph
 from coremltools.proto import NeuralNetwork_pb2 #type: ignore
 from ._error_utils import ErrorHandling
 
+INT_MAX = 2**30
+
 '''
 General common functions
 '''
@@ -213,6 +215,22 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
         get_params_func(node, params_dict)
         add_func(node.inputs, node.outputs, params_dict=params_dict, builder=builder, node=node)
 
+
+def _is_no_op(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> Bool
+
+    if node.inputs[0] in graph.shape_dict and node.outputs[0] in graph.shape_dict:
+        if graph.shape_dict[node.inputs[0]] == graph.shape_dict[node.outputs[0]]:
+            builder.add_activation(
+                name=node.name,
+                non_linearity='LINEAR',
+                input_name=node.inputs[0],
+                output_name=node.outputs[0],
+                params=[1.0, 0.0]
+            )
+            _update_shape_mapping_unchanged(node, graph, err)
+            return True
+
+    return False
 
 '''
 Layer conversion functions
@@ -1177,6 +1195,25 @@ def _convert_sigmoid(builder, node, graph, err):  # type: (NeuralNetworkBuilder,
     )
     _update_shape_mapping_unchanged(node, graph, err)
 
+def _convert_sign(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+    builder.add_activation(
+        name=node.name,
+        non_linearity='SIGMOID_HARD',
+        input_name=node.inputs[0],
+        output_name=node.outputs[0] + '_step',
+        params=[10000, 0],
+    )
+    builder.add_elementwise(name=node.name + '_subtract_half',
+                            input_names = node.outputs[0] + '_step',
+                            output_name = node.outputs[0] + '_step_half',
+                            mode='ADD', alpha=-0.5)
+    builder.add_elementwise(name=node.name + '_multiply_2',
+                            input_names = node.outputs[0] + '_step_half',
+                            output_name = node.outputs[0],
+                            mode='MULTIPLY', alpha=2)
+    _update_shape_mapping_unchanged(node, graph, err)
+
+
 def _convert_elu(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     alpha = node.attrs.get('alpha', 1.0)
     builder.add_activation(
@@ -1295,6 +1332,11 @@ def _convert_pad(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
 
 def _convert_slice(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
 
+
+    if _is_no_op(builder, node, graph, err):
+        return
+
+
     def _add_slice(input_names, output_names, **kwargs):
         node = kwargs['node']
         builder = kwargs['builder']
@@ -1313,6 +1355,12 @@ def _convert_slice(builder, node, graph, err):  # type: (NeuralNetworkBuilder, N
     starts = node.attrs['starts']
     ends = node.attrs['ends']
     axes = node.attrs.get('axes', range(len(starts)))
+
+    if node.inputs[0] in graph.shape_dict:
+        for ii, _ in enumerate(axes):
+            if ends[ii] > INT_MAX:
+                ends[ii] = graph.shape_dict[node.inputs[0]][ii]
+
 
     if _is_input_shape_mapping_defined(node, graph):
         mapp = graph.onnx_coreml_shape_mapping[node.inputs[0]]
@@ -1527,6 +1575,9 @@ def _convert_upsample(builder, node, graph, err):  # type: (NeuralNetworkBuilder
         height_scale = int(scales[2])
         width_scale = int(scales[3])
     else:
+        if len(node.inputs) > 1:
+            return err.unsupported_op_configuration(builder, node, graph,
+                                                    "This ONNX upsample layer has 'scales' provided as an input. CoreML upsample requires 'scales' as an attribute of the layer.")
         height_scale = int(node.attrs.get('height_scale', 1))
         width_scale = int(node.attrs.get('width_scale', 1))
     mode_convert = {
@@ -1813,6 +1864,7 @@ _ONNX_NODE_REGISTRY = {
     "Reshape": _convert_reshape,
     "Selu": _convert_selu,
     "Sigmoid": _convert_sigmoid,
+    "Sign": _convert_sign,
     "Slice": _convert_slice,
     "Softmax": _convert_softmax, #Todo: handle more cases
     "Softplus": _convert_softplus,

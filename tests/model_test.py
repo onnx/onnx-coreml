@@ -297,6 +297,6 @@ class OnnxModelTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-    #suite = unittest.TestSuite()
-    #suite.addTest(OnnxModelTest("test_conv1d_after_reshape"))
-    #unittest.TextTestRunner().run(suite)
+    # suite = unittest.TestSuite()
+    # suite.addTest(OnnxModelTest("test_1d_conv"))
+    # unittest.TextTestRunner().run(suite)
