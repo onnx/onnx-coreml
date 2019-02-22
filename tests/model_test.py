@@ -294,9 +294,52 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 3, 100, 100), (3, 100, 100))  # type: ignore
 
+    def test_fc_plus_convenet(self):  # type: () -> None
+        class Net(nn.Module):
+            def __init__(self, channel_size = 1, output_h = 16, output_w = 16, filter_num = 32, latent_size = 16):
+                super(Net, self).__init__()
+                self.channel_size = channel_size
+                self.output_h = output_h
+                self.output_w = output_w
+                self.filter_num = filter_num
+                self.latent_size = latent_size
+
+                self.fc3 = nn.Linear(latent_size, 128)
+                self.fc4 = nn.Linear(128, 256)
+
+                self.relu = nn.ReLU()
+
+                self.convt = nn.Sequential(
+                    nn.ConvTranspose2d(256, self.filter_num * 4, 4, 1),
+                    nn.BatchNorm2d(self.filter_num * 4),
+                    nn.ReLU(inplace=True),
+                    nn.ConvTranspose2d(self.filter_num * 4, self.filter_num * 2, 4, 1),
+                    nn.BatchNorm2d(self.filter_num * 2),
+                    nn.ReLU(inplace=True),
+                    nn.ConvTranspose2d(self.filter_num * 2, self.filter_num, 4, 1),
+                    nn.BatchNorm2d(self.filter_num),
+                    nn.ReLU(inplace=True),
+                    nn.ConvTranspose2d(self.filter_num, self.filter_num, 4, 1),
+                    nn.BatchNorm2d(self.filter_num),
+                    nn.ReLU(inplace=True),
+                    nn.ConvTranspose2d(self.filter_num, 1, 4, 1),
+                    nn.Sigmoid()
+                )
+
+            def forward(self, z):
+                x = self.relu(self.fc3(z))
+                deconv_input = self.fc4(x)
+                deconv_input = deconv_input.view(-1, 256, 1, 1)
+                x = self.convt(deconv_input)
+                return x
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 16), (1, 1, 16, 1, 1))  # type: ignore
+
 
 if __name__ == '__main__':
     unittest.main()
-    # suite = unittest.TestSuite()
-    # suite.addTest(OnnxModelTest("test_1d_conv"))
-    # unittest.TextTestRunner().run(suite)
+    #suite = unittest.TestSuite()
+    #suite.addTest(OnnxModelTest("test_fc_plus_convenet"))
+    #unittest.TextTestRunner().run(suite)
