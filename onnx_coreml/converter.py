@@ -31,6 +31,8 @@ from .graph_viz import plot_graph # type: ignore
 
 USE_SHAPE_MAPPING = True
 
+DEBUG = False
+
 '''
 inputs: list of tuples.
       [Tuple]: [(name, type, shape)]
@@ -280,9 +282,11 @@ def _set_deprocessing(is_grayscale,  # type: bool
 
 def _prepare_onnx_graph(graph, transformers):  # type: (Graph, Iterable[Transformer]) -> Graph
     graph_ = Graph.from_onnx(graph)
-    #plot_graph(graph_, graph_img_path='/tmp/graph_raw.png')
+    if DEBUG:
+        plot_graph(graph_, graph_img_path='/tmp/graph_raw.pdf')
     graph_ = graph_.transformed(transformers)
-    #plot_graph(graph_, graph_img_path='/tmp/graph_opt.png')
+    if DEBUG:
+        plot_graph(graph_, graph_img_path='/tmp/graph_opt.pdf')
     return graph_
 
 def convert(model,  # type: Union[onnx.ModelProto, Text]
@@ -457,12 +461,14 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     err = ErrorHandling(add_custom_layers,
                         custom_conversion_functions)
 
-    #plot_graph(graph, graph_img_path='/tmp/before_conversion.pdf')
+
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
         _add_const_inputs_if_required(builder, node, graph, err)
         _convert_node(builder, node, graph, err)
-    #plot_graph(graph, graph_img_path='/tmp/after_conversion.pdf', show_coreml_mapped_shapes=True)
+
+    if DEBUG:
+        plot_graph(graph, graph_img_path='/tmp/after_conversion.pdf', show_coreml_mapped_shapes=True)
 
 
     if add_deprocess:
@@ -561,8 +567,9 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     print("Translation to CoreML spec completed. Now compiling the CoreML model.")
     try:
-        #import coremltools
-        #coremltools.models.utils.save_spec(builder.spec, '/tmp/node_model.mlmodel')
+        if DEBUG:
+            import coremltools
+            coremltools.models.utils.save_spec(builder.spec, '/tmp/node_model_raw_spec.mlmodel')
         mlmodel = MLModel(builder.spec)
     except RuntimeError as e:
         raise ValueError('Compilation failed: {}'.format(str(e)))
