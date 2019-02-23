@@ -35,7 +35,8 @@ elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
   brew unlink python
   if [ "${PYTHON_VERSION}" == "python3" ]; then
     brew install ccache protobuf
-    brew install https://raw.githubusercontent.com/Homebrew/homebrew-core/f2a764ef944b1080be64bd88dca9a1d80130c558/Formula/python.rb
+    brew unlink python 
+    brew install --ignore-dependencies https://raw.githubusercontent.com/Homebrew/homebrew-core/f2a764ef944b1080be64bd88dca9a1d80130c558/Formula/python.rb
   elif [ "${PYTHON_VERSION}" == "python2" ]; then
     brew install ccache protobuf ${PYTHON_VERSION}
   else
