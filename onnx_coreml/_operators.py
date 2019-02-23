@@ -1458,7 +1458,7 @@ def _convert_pow(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
         input_name=node.inputs[0],
         output_name=node.outputs[0],
         mode='power',
-        alpha = alpha
+        alpha = float(alpha)
     )
     _update_shape_mapping_unchanged(node, graph, err)
 

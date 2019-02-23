@@ -357,7 +357,7 @@ class OnnxModelTest(unittest.TestCase):
 
         torch_model = Net()  # type: ignore
         torch_model.train(False)
-        _test_torch_model_single_io(torch_model, (1, 16), (1, 1, 16, 1, 1))  # type: ignore
+        _test_torch_model_single_io(torch_model, (1, 16), (1, 1, 16))  # type: ignore
 
 
 

@@ -50,7 +50,11 @@ _pip_install() {
 }
 
 # Install onnx
-_pip_install -e "$REPOS_DIR/onnx"
+# _pip_install -e "$REPOS_DIR/onnx"
+
+cd "$REPOS_DIR/onnx"
+python setup.py install
+cd -
 
 # Install onnx-coreml
 _pip_install -e .[mypy]
