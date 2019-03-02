@@ -24,7 +24,7 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
     PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs, \
     ConstantsToInitializers, ImageScalerRemover, UnsqueezeConstantRemover, TransposeConstantRemover, \
     ShapeOpRemover, SliceConstantRemover, ConcatConstantRemover, DivMulConstantRemover, GatherConstantRemover, \
-    ConstantFillToInitializers
+    ConstantFillToInitializers, ReshapeTransposeReshape_pattern1
 
 from ._error_utils import ErrorHandling
 from .graph_viz import plot_graph # type: ignore
@@ -363,6 +363,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         ConvAddFuser(),
         BNBroadcastedMulFuser(),
         BNBroadcastedAddFuser(),
+        ReshapeTransposeReshape_pattern1(),
         PixelShuffleFuser(),
         AddModelInputsOutputs(),
         DivMulConstantRemover(),
