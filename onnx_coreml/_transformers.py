@@ -11,6 +11,15 @@ from onnx import TensorProto
 from ._graph import Graph, Node
 
 
+def _get_fully_defined_shape(shape, blob_name, graph):
+    if not np.any(shape == -1):
+        return shape
+    if blob_name not in graph.shape_dict:
+        return shape
+    else:
+        return graph.shape_dict[blob_name]
+
+
 class NodesFuser(object):
     '''
     An abstract helper for merging nodes
@@ -315,55 +324,123 @@ class OutputRenamer(object):
                     break
         return graph
 
-class PixelShuffleFuser(NodesFuser):
+class ReshapeTransposeReshape_pattern1(NodesFuser):
     '''
-    Fuses 3 operators reshape->transpose->reshape which is equivalent to
-    pytorch's pixel_shuffle layer
+    Detects certain types of patterns of "reshape-> (rank 6) -> transpose (rank 6) -> reshape (rank 4)" that can be converted
     '''
     def __init__(self):  # type: () -> None
-        super(PixelShuffleFuser, self).__init__(3)
+        super(ReshapeTransposeReshape_pattern1, self).__init__(3)
         self.num_added = 0
 
     def is_eligible(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> bool
-        if nodes[0].op_type != 'Reshape':
+        if not (nodes[0].op_type == 'Reshape' and nodes[1].op_type == 'Transpose' and nodes[2].op_type == 'Reshape'):
             return False
-        if nodes[1].op_type != 'Transpose':
-            return False
-        if nodes[2].op_type != 'Reshape':
-            return False
-        if len(nodes[0].inputs) == 1:
+        if len(nodes[0].inputs) == 1 or len(nodes[2].inputs) == 1:
             return False # it's an old version of onnx Reshape op that had shape as an attribute
         if nodes[0].inputs[1] not in nodes[0].input_tensors:
             return False
         if nodes[2].inputs[1] not in nodes[2].input_tensors:
             return False
 
-        shape = nodes[0].input_tensors[nodes[0].inputs[1]]
-        if len(shape) != 6:
-            return False
-        if shape[0] != 1 or shape[2] != shape[3]:
+        shape_1 = nodes[0].input_tensors[nodes[0].inputs[1]]
+        shape_final = nodes[2].input_tensors[nodes[2].inputs[1]]
+
+        shape_1 = _get_fully_defined_shape(shape_1, nodes[0].outputs[0], graph)
+        shape_final = _get_fully_defined_shape(shape_final, nodes[2].outputs[0], graph)
+
+        if len(shape_1) != 6 or shape_1[0] != 1 or len(shape_final) != 4:
             return False
 
-        input_channels = shape[1]
-        scale_factor = shape[2]
-        input_height = shape[4]
-        input_width = shape[5]
+        # check if coreml can convert this sequence using 1 transpose layer
+        perm = nodes[1].attrs.get('perm', [])
+        if len(perm) != 6:
+            return False
+        if perm[0] != 0:
+            return False
+
+        consecutive_indices = False
+        perm = perm[1:]
+        for i in range(1, 5):
+            if perm[i] - perm[i-1] == 1:
+                consecutive_indices = True
+                break
+
+        if not consecutive_indices:
+            return False
+
+        return True
+
+    def get_unique_edge_name(self, graph, name):  # type: (Graph, Text) -> Text
+        self.num_added += 1
+        return graph.get_unique_edge_name(name + '_' + str(self.num_added))
+
+    def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
+        '''
+        In general, CoreML Reshape and Transpose layers don't support tensors with more
+        than 4 dimensions. However, certain patterns in onnx like
+            "reshape-> (rank 6) -> transpose (rank 6) -> reshape (rank 4)"
+        can be translated to CoreML as (i.e. without going to rank 6)
+            "reshape-> (rank 4) -> transpose (rank 4) -> reshape (rank 4)"
+        '''
+        reshape_1 = nodes[0]
+        transpose_1 = nodes[1]
+        final_reshape = nodes[2]
+
+
+        shape_1 = reshape_1.input_tensors[reshape_1.inputs[1]]
+        shape_1 = _get_fully_defined_shape(shape_1, nodes[0].outputs[0], graph)
+        shape_1 = shape_1[1:]
+        perm = nodes[1].attrs.get('perm', [])
+        perm = perm[1:]
+        perm = [x - 1 for x in perm]
+        # now perm is length 5 list
+
+        new_perm = []
+        new_shape = [1,1,1,1]
+        i = 0
+        found_consecutive_pair = False
+        while i < 5:
+            if not found_consecutive_pair and i < 4 and perm[i+1] - perm[i] == 1:
+                new_perm.append(perm[i])
+                new_shape[perm[i]] = shape_1[perm[i]] * shape_1[perm[i+1]]
+                i = i + 2
+                found_consecutive_pair = True
+                continue
+            else:
+                new_perm.append(perm[i] - 1)
+                new_shape[perm[i] - 1] = shape_1[perm[i]]
+            i += 1
+
+        reshape_1.input_tensors[reshape_1.inputs[1]] = np.asarray(new_shape)
+        transpose_1.attrs['perm'] = new_perm
+
+        return [reshape_1, transpose_1, final_reshape]
+
+class PixelShuffleFuser(NodesFuser):
+    def __init__(self):  # type: () -> None
+        super(PixelShuffleFuser, self).__init__(3)
+        self.num_added = 0
+
+    def is_eligible(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> bool
+        if not (nodes[0].op_type == 'Reshape' and nodes[1].op_type == 'Transpose' and nodes[2].op_type == 'Reshape'):
+            return False
+        if len(nodes[0].inputs) == 1 or len(nodes[2].inputs) == 1:
+            return False # it's an old version of onnx Reshape op that had shape as an attribute
+        if nodes[0].inputs[1] not in nodes[0].input_tensors:
+            return False
+        if nodes[2].inputs[1] not in nodes[2].input_tensors:
+            return False
+
+        shape_1 = nodes[0].input_tensors[nodes[0].inputs[1]]
+        shape_final = nodes[2].input_tensors[nodes[2].inputs[1]]
+
+        shape_1 = _get_fully_defined_shape(shape_1, nodes[0].outputs[0], graph)
+        shape_final = _get_fully_defined_shape(shape_final, nodes[2].outputs[0], graph)
+
+        if len(shape_1) != 6 or shape_1[0] != 1 or len(shape_final) != 4:
+            return False
 
         if nodes[1].attrs.get('perm', []) != [0, 1, 4, 2, 5, 3]:
-            return False
-
-        shape = nodes[2].input_tensors[nodes[2].inputs[1]]
-        if len(shape) != 4:
-            return False
-
-        output_channels = shape[1]
-        output_height = shape[2]
-        output_width = shape[3]
-        if input_channels != output_channels:
-            return False
-        if (input_height * scale_factor) != output_height:
-            return False
-        if (input_width * scale_factor) != output_width:
             return False
 
         return True
@@ -375,31 +452,35 @@ class PixelShuffleFuser(NodesFuser):
     def merge(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> Sequence[Node]
         '''
         Pixel shuffle is implemented using 3 operators:
-            - Reshape(1, channels, scale, scale, height, width)
-            - Transpose(0, 1, 4, 2, 5, 3)
-            - Reshape(1, channels, height * scale, width * scale)
+            - Reshape --> rank 6 (1, x1, x2, x3, x4, x5)
+            - Transpose(0, 1, 4, 2, 5, 3) --> (1, x1, x4, x2, x5, x3)
+            - Reshape ---> rank 4
         CoreML Reshape and Transpose layers don't support tensors with more
         than 4 dimensions. Thus we change above sequence of operators to the
         following equivalent sequence:
-            - Reshape(channels, scale * scale, height, width)
-            - Transpose(0, 2, 1, 3)
-            - Reshape(channels * height, scale, scale, width)
-            - Transpose(0, 1, 3, 2)
-            - Reshape(1, channels, height * scale, width * scale)
+            - Reshape --> (x1, x2, x3, x4 * x5)
+            - Transpose(0, 3, 1, 2) --> (x1, x4 * x5, x2, x3)
+            - Reshape --> (x1 * x4, x5, x2, x3)
+            - Transpose(0, 2, 1, 3) --> (x1 * x4, x2, x5, x3)
+            - Reshape --> rank 4
         '''
         reshape_1 = nodes[0]
         transpose_1 = nodes[1]
+        final_reshape = nodes[2]
+
+        # first reshape
+        shape_1 = reshape_1.input_tensors[reshape_1.inputs[1]]
+        shape_1 = _get_fully_defined_shape(shape_1, nodes[0].outputs[0], graph)
+        x1 = shape_1[1]
+        x2 = shape_1[2]
+        x3 = shape_1[3]
+        x4 = shape_1[4]
+        x5 = shape_1[5]
+        reshape_1.input_tensors[reshape_1.inputs[1]] = np.asarray([x1, x2, x3, x4 * x5])
+
+        # first transpose
         transpose_1.children = []
-
-        shape = reshape_1.input_tensors[reshape_1.inputs[1]]
-
-        channels = shape[1]
-        scale = shape[2]
-        height = shape[4]
-        width = shape[5]
-
-        reshape_1.input_tensors[reshape_1.inputs[1]] = np.asarray([channels, scale * scale, height, width])
-        transpose_1.attrs['perm'] = [0, 2, 1, 3]
+        transpose_1.attrs['perm'] = [0, 3, 1, 2]
 
         reshape_output_name = 'pixel_shuffle_reshape'
         transpose_output_name = 'pixel_shuffle_transpose'
@@ -410,6 +491,8 @@ class PixelShuffleFuser(NodesFuser):
 
         shape_name_second_reshape = self.get_unique_edge_name(graph, reshape_output_name)
         output_name_second_reshape = self.get_unique_edge_name(graph, reshape_output_name)
+
+        # second reshape
         reshape_2 = Node(
             reshape_output_name,
             'Reshape',
@@ -417,22 +500,24 @@ class PixelShuffleFuser(NodesFuser):
             [transpose_1.outputs[0], shape_name_second_reshape],
             [output_name_second_reshape]
         )
-        reshape_2.input_tensors[shape_name_second_reshape] = np.asarray([channels * height, scale, scale, width])
+        reshape_2.input_tensors[shape_name_second_reshape] = np.asarray([x1 * x4, x5, x2, x3])
         transpose_1.add_child(reshape_2)
 
+        # second transpose
         transpose_2 = Node(
             transpose_output_name,
             'Transpose',
-            {'perm': [0, 1, 3, 2]},
+            {'perm': [0, 2, 1, 3]},
             reshape_2.outputs,
             [self.get_unique_edge_name(graph, transpose_output_name)]
         )
         reshape_2.add_child(transpose_2)
 
-        final_reshape = nodes[2]
+        # third reshape
         final_reshape.inputs = [transpose_2.outputs[0], nodes[2].inputs[1]]
         final_reshape.parents = []
         transpose_2.add_child(final_reshape)
+
         return [reshape_1, transpose_1, reshape_2, transpose_2, final_reshape]
 
 class AddModelInputsOutputs(object):

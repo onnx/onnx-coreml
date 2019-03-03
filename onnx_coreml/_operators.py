@@ -94,7 +94,7 @@ def _get_coreml_target_shape(target_shape, builder, node, graph, err):
         coreml_shape = target_shape
         if _is_input_shape_mapping_defined(node, graph):
             mapp = graph.onnx_coreml_shape_mapping[node.inputs[0]]
-            if mapp[0] == 1:
+            if mapp[0] == 1 and coreml_shape[0] == 1:
                 graph.onnx_coreml_shape_mapping[node.outputs[0]] = [1,2,3,4]
             else:
                 graph.onnx_coreml_shape_mapping[node.outputs[0]] = [0,2,3,4]
@@ -103,6 +103,8 @@ def _get_coreml_target_shape(target_shape, builder, node, graph, err):
         diff = len(target_shape) - 4
         if all([d == 1 for d in target_shape[:diff]]):
             coreml_shape = target_shape[diff:]
+        else:
+            err.unsupported_op_configuration(builder, node, graph, "Tensors more than rank 4 are not supported")  # type: ignore
         if _is_input_shape_mapping_defined(node, graph):
             if target_shape[0] == 1 and len(target_shape) == 5:
                 graph.onnx_coreml_shape_mapping[node.outputs[0]] = [1,0,2,3,4]

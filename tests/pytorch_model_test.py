@@ -15,6 +15,7 @@ import torch.nn as nn # type: ignore
 import shutil
 import tempfile
 import os
+import pytest
 
 np.random.seed(10)
 torch.manual_seed(10)
@@ -359,11 +360,111 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 16), (1, 1, 16))  # type: ignore
 
+class ReshapeTransposeTests(unittest.TestCase):
+    '''
+    tests for models that have patterns like:
+    rank(4) ---> reshape (rank 6) ----> transpose (rank 6) ----> reshape(4)
+    '''
 
+    @pytest.mark.xfail
+    # is pytorch to onnx conversion correct?
+    def test_pixel_shuffle_not_working(self):
+        '''
+        (1, c, h, w) --> reshape ---> (1, sh, sw, c/(sh*sw), h, w)
+        --> transpose [0,1,4,2,5,3] ---> (1, sh, h, sw, w, c/(sh*sw))
+        --> reshape ---> (1, c/(s1*s2), sh*h, sw*w)
+        '''
+        class Net(nn.Module):
+            def __init__(self, upscale_factor=3):
+                super(Net, self).__init__()
+                self.upscale_factor = upscale_factor
+                self.ps = nn.PixelShuffle(self.upscale_factor)
+
+            def forward(self, x):
+                return self.ps(x)
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 18, 4, 5), (18, 4, 5))  # type: ignore
+
+    def test_pixel_shuffle_working(self):
+        '''
+        (1, c, h, w) --> reshape ---> (1, c/(sh*sw), sh, sw, h, w)
+        --> transpose [0,1,4,2,5,3] ---> (1, sh, h, sw, w, c/(sh*sw))
+        --> reshape ---> (1, c/(sh*sw), sh*h, sw*w)
+        '''
+        class Net(nn.Module):
+            def __init__(self, C=12, H=4, W=6, sh=3, sw=2):
+                super(Net, self).__init__()
+                self.C = C
+                self.H = H
+                self.W = W
+                self.sh = sh
+                self.sw = sw
+
+            def forward(self, x):
+                y1 = x.view(1, self.C // (self.sh * self.sw), self.sh, self.sw, self.H, self.W).contiguous()
+                y2 = y1.permute(0,1,4,2,5,3).contiguous()
+                y3 = y2.view(1, self.C // (self.sh * self.sw), self.sh * self.H, self.sw * self.W).contiguous()
+                return y3
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 12, 4, 6), (12, 4, 6))  # type: ignore
+
+    def test_reorganize_1(self):
+        '''
+        (1, c, h, w) --> reshape ---> (1, c/(sh*sw), h, sh, w, sw)
+        --> transpose [0,3,5,1,2,4] ---> (1, sh, sw, c/(sh*sw), h, w)
+        --> reshape ---> (1, c*sh*sw, h/sh, w/sw)
+        '''
+        class Net(nn.Module):
+            def __init__(self, C=12, H=4, W=6, sh=2, sw=3):
+                super(Net, self).__init__()
+                self.C = C
+                self.H = H
+                self.W = W
+                self.sh = sh
+                self.sw = sw
+
+            def forward(self, x):
+                y1 = x.view(1, self.C // (self.sh * self.sw), self.H, self.sh, self.W, self.sw).contiguous()
+                y2 = y1.permute(0,3,5,1,2,4).contiguous()
+                y3 = y2.view(1, self.C * (self.sh * self.sw), self.H // self.sh, self.W // self.sw).contiguous()
+                return y3
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 12, 4, 6), (12, 4, 6))  # type: ignore
+
+    def test_reorganize_2(self):
+        '''
+        (1, c, h, w) --> reshape ---> (1, c, h/sh, sh, w/sw, sw)
+        --> transpose [0,1,2,4,3,5] ---> (1, c, h/sh, w/sw, sh, sw)
+        --> reshape ---> (1, c*sh*sw, h/sh, w/sw)
+        '''
+        class Net(nn.Module):
+            def __init__(self, C=12, H=4, W=6, sh=2, sw=3):
+                super(Net, self).__init__()
+                self.C = C
+                self.H = H
+                self.W = W
+                self.sh = sh
+                self.sw = sw
+
+            def forward(self, x):
+                y1 = x.view(1, self.C, self.H // self.sh, self.sh, self.W // self.sw, self.sw).contiguous()
+                y2 = y1.transpose(4,3).contiguous()
+                y3 = y2.view(1, self.C * (self.sh * self.sw), self.H // self.sh, self.W // self.sw).contiguous()
+                return y3
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 12, 4, 6), (12, 4, 6))  # type: ignore
 
 
 if __name__ == '__main__':
     unittest.main()
     #suite = unittest.TestSuite()
-    #suite.addTest(OnnxModelTest("test_fc_plus_convenet"))
+    #suite.addTest(ReshapeTransposeTests("test_reorganize_2"))
     #unittest.TextTestRunner().run(suite)
