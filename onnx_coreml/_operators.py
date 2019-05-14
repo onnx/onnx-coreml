@@ -1615,8 +1615,10 @@ def _convert_upsample(builder, node, graph, err):  # type: (NeuralNetworkBuilder
     _update_shape_mapping_unchanged(node, graph, err)
 
 def _convert_clip(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-    min_limit = node.attrs.get('min', float(-2**16-1))
+    # clip(x, a, b) = max(min(x, a), b) = -min(-min(x, a), -b)
+
     if node.attrs.get('max') is None:
+        min_limit = node.attrs.get('min', float(-2**16-1))
         builder.add_unary(name=node.name,
                           input_name=node.inputs[0],
                           output_name=node.outputs[0],
@@ -1624,24 +1626,47 @@ def _convert_clip(builder, node, graph, err): # type: (NeuralNetworkBuilder, Nod
                           alpha=min_limit,
                           shift=0,
                           scale=1.0)
+    elif node.attrs.get('min') is None:
+        max_limit = node.attrs.get('max', float(2**16-1))
+        builder.add_unary(name=node.name + '_min_minus_x_minus_b',
+                          input_name=node.inputs[0],
+                          output_name=node.inputs[0] + '_min_minus_x_minus_b',
+                          mode='threshold',
+                          alpha=-max_limit,
+                          shift=0,
+                          scale=-1.0)
+
+        builder.add_activation(name=node.name,
+                               non_linearity='LINEAR',
+                               input_name=node.inputs[0] + '_min_minus_x_minus_b',
+                               output_name=node.outputs[0],
+                               params=[-1.0, 0])
+
     else:
+        min_limit = node.attrs.get('min')
         max_limit = node.attrs.get('max')
-        delta = max_limit - min_limit
-        builder.add_activation(name = node.name + '_scale_0_1', # type: ignore
-                               non_linearity = 'LINEAR',
-                               input_name = node.inputs[0],
-                               output_name = node.inputs[0] + '_scale_0_1',
-                               params = [1.0/delta, -min_limit/delta])
-        builder.add_activation(name = node.name + '_clip_0_1', # type: ignore
-                               non_linearity = 'SIGMOID_HARD',
-                               input_name = node.inputs[0] + '_scale_0_1',
-                               output_name = node.inputs[0] + '_clip_0_1',
-                               params = [1.0, 0.0])
-        builder.add_activation(name = node.name,
-                               non_linearity = 'LINEAR',
-                               input_name = node.inputs[0] + '_clip_0_1',
-                               output_name = node.outputs[0],
-                               params = [delta, min_limit])
+        builder.add_unary(name=node.name + '_min_x_a',
+                          input_name=node.inputs[0],
+                          output_name=node.inputs[0] + '_min_x_a',
+                          mode='threshold',
+                          alpha=min_limit,
+                          shift=0,
+                          scale=1.0)
+
+        builder.add_unary(name=node.name + '_min_minus_x_minus_b',
+                          input_name=node.inputs[0] + '_min_x_a',
+                          output_name=node.inputs[0] + '_min_minus_x_minus_b',
+                          mode='threshold',
+                          alpha=-max_limit,
+                          shift=0,
+                          scale=-1.0)
+
+        builder.add_activation(name=node.name,
+                               non_linearity='LINEAR',
+                               input_name=node.inputs[0] + '_min_minus_x_minus_b',
+                               output_name=node.outputs[0],
+                               params=[-1.0, 0])
+
     _update_shape_mapping_unchanged(node, graph, err)
 
 def _convert_mvn(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
