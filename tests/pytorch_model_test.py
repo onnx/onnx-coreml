@@ -132,7 +132,7 @@ class OnnxModelTest(unittest.TestCase):
                 super(Net, self).__init__()
 
             def forward(self, x):
-                y = x + torch.nn.Parameter(torch.ones(2, 3))
+                y = x + torch.nn.Parameter(torch.ones(2, 3), requires_grad=False)
                 return y
 
         torch_model = Net()  # type: ignore
@@ -194,6 +194,7 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (3, 2, 3), (3, 2, 3))  # type: ignore
 
+    @unittest.skip("Disable test until support for ConstantOfShape is added")
     def test_lstm(self):  # type: () -> None
         class Net(nn.Module):
             def __init__(self):
