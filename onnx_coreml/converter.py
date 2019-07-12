@@ -17,6 +17,8 @@ from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
 from typing import Tuple
 
 from ._operators import _convert_node, _SEQUENCE_LAYERS_REGISTRY, _ONNX_NODE_REGISTRY, _add_const_inputs_if_required
+from ._operators_nd import _ONNX_NODE_REGISTRY_ND, _convert_node_nd
+
 from ._graph import Graph, EdgeInfo, Transformer
 
 from ._transformers import ConvAddFuser, DropoutRemover, \
@@ -37,22 +39,35 @@ DEBUG = False
 inputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_input_features(graph, onnx_coreml_input_shape_map): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_input_features(graph, onnx_coreml_input_shape_map, disable_coreml_rank5_mapping=False): # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     '''
+    If "disable_coreml_rank5_mapping" is False, then:
+
     ONNX shapes to CoreML static shapes mapping
     length==1: [C]
     length==2: [B,C]
     length==3: [C,H,W] or [Seq,B,C]
     length==4: [B,C,H,W]
+
+    If "disable_coreml_rank5_mapping" is True, then
+    onnx shapes are mapped "as is" to CoreML.
     '''
     inputs = graph.inputs
     op_types = graph.blob_to_op_type
     features = []
     for input_ in inputs:
         shape = input_[2]
+        if disable_coreml_rank5_mapping:
+            if len(shape) > 5:
+                raise ValueError('ONNX input %s has a rank greater than 5, which is not supported in CoreML framework' % str(input_[0]))
+            else:
+                features.append((str(input_[0]), datatypes.Array(*shape)))
+            continue
+
         if USE_SHAPE_MAPPING and input_[0] in onnx_coreml_input_shape_map:
             mapp = onnx_coreml_input_shape_map[input_[0]]
-            assert len(mapp) == len(shape), "incorrect value in onnx_coreml_input_shape_map argument"
+            if len(mapp) != len(shape):
+                raise ValueError('Incorrect value in onnx_coreml_input_shape_map argument')
             graph.onnx_coreml_shape_mapping[input_[0]] = mapp
             coreml_shape = [1,1,1]
             for i in range(3):
@@ -105,11 +120,19 @@ def _make_coreml_input_features(graph, onnx_coreml_input_shape_map): # type: (..
 outputs: list of tuples.
       [Tuple]: [(name, type, shape)]
 '''
-def _make_coreml_output_features(graph, forceShape=False):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
+def _make_coreml_output_features(graph, forceShape=False, disable_coreml_rank5_mapping=False):  # type: (...) -> Sequence[Tuple[Text, datatypes.Array]]
     features = []
     outputs = graph.outputs
     op_types = graph.blob_from_op_type
     for output_ in outputs:
+        if disable_coreml_rank5_mapping:
+            shape = output_[2]
+            if len(shape) > 5:
+                raise ValueError('ONNX output %s has a rank greater than 5, which is not supported in CoreML framework' % str(output_[0]))
+            else:
+                features.append((str(output_[0]), datatypes.Array(*shape)))
+            continue
+
         if not forceShape:
             features.append((str(output_[0]), None))
         else:
@@ -133,9 +156,16 @@ def _make_coreml_output_features(graph, forceShape=False):  # type: (...) -> Seq
                 features.append((str(output_[0]), datatypes.Array(*shape)))
     return features
 
-def _check_unsupported_ops(nodes): # type: (...) -> None
+def _check_unsupported_ops(nodes, disable_coreml_rank5_mapping=False): # type: (...) -> None
     unsupported_op_types = [] # type: List[Text]
     for node in nodes:
+
+        if disable_coreml_rank5_mapping:
+            if node.op_type not in _ONNX_NODE_REGISTRY_ND and \
+                    node.op_type not in unsupported_op_types:
+                unsupported_op_types.append(node.op_type)
+            continue
+
         if node.op_type not in _ONNX_NODE_REGISTRY and \
           node.op_type not in unsupported_op_types:
             unsupported_op_types.append(node.op_type)
@@ -299,8 +329,8 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             predicted_feature_name='classLabel',  # type: Text
             add_custom_layers = False,  # type: bool
             custom_conversion_functions = {}, #type: Dict[Text, Any]
-            onnx_coreml_input_shape_map = {} # type: Dict[Text, List[int,...]]
-            ):
+            onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
+            disable_coreml_rank5_mapping = False):
     # type: (...) -> MLModel
     """
     Convert ONNX model to CoreML.
@@ -338,6 +368,14 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         how the shape of the input is mapped to CoreML. Convention used for CoreML shapes is
         0: Sequence, 1: Batch, 2: channel, 3: height, 4: width.
         For example, an input of rank 2 could be mapped as [3,4] (i.e. H,W) or [1,2] (i.e. B,C) etc.
+        This is ignored if "disable_coreml_rank5_mapping" is set to True.
+    disable_coreml_rank5_mapping: bool
+        If True, then it disables the "RANK5_ARRAY_MAPPING" or enables the "EXACT_ARRAY_MAPPING"
+        option in CoreML (https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L67)
+        Thus, no longer, onnx tensors are forced to map to rank 5 CoreML tensors.
+        With this flag on, a rank r ONNX tensor, (1<=r<=5), will map to a rank r tensor in CoreML as well.
+        This flag must be on to utilize any of the new layers added in CoreML 3 (i.e. specification version 4, iOS13)
+
     Returns
     -------
     model: A coreml model.
@@ -351,6 +389,14 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             "Model must be file path to .onnx file or onnx loaded model"
         )
 
+    if disable_coreml_rank5_mapping:
+        USE_SHAPE_MAPPING = False
+
+
+    '''
+    First, apply a few optimizations to the ONNX graph,
+    in preparation for conversion to CoreML. 
+    '''
     transformers = [
         ConstantsToInitializers(),
         ShapeOpRemover(),
@@ -374,8 +420,12 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
     graph = _prepare_onnx_graph(onnx_model.graph, transformers)
 
+    '''
+    Check for ImageScalar nodes in ONNX, this will indicate whether input image preprocessing needs
+    to be added to the CoreML graph or not. 
+    '''
     # are there ImageScaler nodes in the Graph?
-    # If yes then add the info from it to the preprocessing dictionary, if the dictionary is not
+    # If yes then add the info from it to the "preprocessing_args" dictionary, if the dictionary is not
     # already provided by the user
     if not bool(preprocessing_args):
         for node in graph.nodes:
@@ -406,16 +456,30 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     # remove all ImageScaler ops
     graph = graph.transformed([ImageScalerRemover()])
 
+    '''
+    Gather information (name, shape) for model inputs and outputs
+    This information is then used to initialize the neural network builder object of coremltools. 
+    The builder object is later used to add layers to the CoreML model. 
+    '''
+
     #Make CoreML input and output features by gathering shape info and
     #interpreting it for CoreML
-    input_features = _make_coreml_input_features(graph, onnx_coreml_input_shape_map)
+    input_features = _make_coreml_input_features(graph, onnx_coreml_input_shape_map, disable_coreml_rank5_mapping)
     if len( image_output_names) > 0:
-        output_features = _make_coreml_output_features(graph, forceShape = True)
+        output_features = _make_coreml_output_features(graph, forceShape = True, disable_coreml_rank5_mapping=disable_coreml_rank5_mapping)
     else:
-        output_features = _make_coreml_output_features(graph)
+        output_features = _make_coreml_output_features(graph, disable_coreml_rank5_mapping)
 
-    builder = NeuralNetworkBuilder(input_features, output_features, mode = mode)
+    builder = NeuralNetworkBuilder(input_features, output_features, mode = mode, disable_rank5_shape_mapping=disable_coreml_rank5_mapping)
+
+    '''
+    Set CoreML input,output types (float, double, int) same as onnx types, if supported
+    '''
     _transform_coreml_dtypes(builder, graph.inputs, graph.outputs)
+
+
+    '''what follows is some book-keeping to support outputs of type image. 
+    '''
 
     is_deprocess_bgr_only = (len(deprocessing_args) == 1) and \
                             ("is_bgr" in deprocessing_args)
@@ -454,19 +518,35 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
                     builder.spec, f_name, is_bgr=is_bgr
                 )
 
-    '''Iterate through all the ops and translate them to CoreML layers.
+    '''
+    Iterate through all the ONNX ops and translate them to CoreML layers, one by one. 
+    '''
+
+    '''
+    before proceeding to start the layer translation process,
+    check whether there is an op in the ONNX graph, whose translation function is not yet
+    implemented in the converter or which is not supported in the CoreML framework. If so, 
+    raise an error before starting the process.
+    (if the user desires to add a custom layer then this check is not required)
     '''
     if not add_custom_layers:
-        _check_unsupported_ops(graph.nodes)
+        _check_unsupported_ops(graph.nodes, disable_coreml_rank5_mapping)
 
+    '''
+    ErrorHandling is a generic class, useful to store a variety of parameters during the conversion process  
+    '''
     err = ErrorHandling(add_custom_layers,
-                        custom_conversion_functions)
+                        custom_conversion_functions,
+                        disable_coreml_rank5_mapping=disable_coreml_rank5_mapping)
 
 
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
-        _add_const_inputs_if_required(builder, node, graph, err)
-        _convert_node(builder, node, graph, err)
+        if disable_coreml_rank5_mapping:
+            _convert_node_nd(builder, node, graph, err)
+        else:
+            _add_const_inputs_if_required(builder, node, graph, err)
+            _convert_node(builder, node, graph, err)
 
     if DEBUG:
         plot_graph(graph, graph_img_path='/tmp/after_conversion.pdf', show_coreml_mapped_shapes=True)
@@ -508,18 +588,6 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             predicted_feature_name=predicted_feature_name
         )
 
-    # # add description to inputs/outputs that feed in/out of recurrent layers
-    # for node_ in graph.nodes:
-    #     if str(node_.op_type) in _SEQUENCE_LAYERS_REGISTRY:
-    #         input_ = node_.inputs[0]
-    #         output_ = node_.outputs[0]
-    #         for i, inputs in enumerate(builder.spec.description.input):
-    #             if inputs.name == input_:
-    #                 builder.spec.description.input[i].shortDescription = 'This input is a sequence. '
-    #         for i, outputs in enumerate(builder.spec.description.output):
-    #             if outputs.name == output_:
-    #                 builder.spec.description.output[i].shortDescription = 'This output is a sequence. '
-
     def _add_informative_description(feature, raise_error=True):
         if feature.type.WhichOneof('Type') == 'multiArrayType':
             if feature.name in graph.onnx_coreml_shape_mapping and feature.name in graph.shape_dict:
@@ -547,13 +615,15 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     remove_input_id = []
     for i, input_ in enumerate(builder.spec.description.input):
         if input_.name not in optional_input_names:
-            _add_informative_description(input_)
+            if not disable_coreml_rank5_mapping:
+                _add_informative_description(input_)
         else:
             remove_input_id.append(i)
     remove_output_id = []
     for i, output_ in enumerate(builder.spec.description.output):
         if output_.name not in optional_output_names:
-            _add_informative_description(output_, raise_error=False)
+            if not disable_coreml_rank5_mapping:
+                _add_informative_description(output_, raise_error=False)
         else:
             remove_output_id.append(i)
 

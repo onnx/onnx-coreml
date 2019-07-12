@@ -971,7 +971,7 @@ def _convert_reduce(builder, node, graph, err):  # type: (NeuralNetworkBuilder, 
             if kwargs['node'].op_type == 'ReduceLogSum':
                 output_name = output_names[0] + '_before_log'
 
-        kwargs['builder'].add_reduce(name=kwargs['node'].name,
+        kwargs['builder'].add_reduce(name=kwargs['node'].name + '_' + output_name,
                                      input_name=input_name, output_name=output_name,
                                      axis=kwargs['coreml_axis'],
                                      mode=kwargs['mode'])
@@ -1361,7 +1361,7 @@ def _convert_slice(builder, node, graph, err):  # type: (NeuralNetworkBuilder, N
         builder = kwargs['builder']
         params_dict = kwargs['params_dict']
         builder.add_slice(
-            name=node.name,
+            name=node.name + '_' + output_names[0],
             input_name=input_names[0],
             output_name=output_names[0],
             axis=params_dict['axis'],

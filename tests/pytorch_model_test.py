@@ -17,12 +17,16 @@ import tempfile
 import os
 import pytest
 
+from coremltools.models.utils import macos_version
+
 np.random.seed(10)
 torch.manual_seed(10)
 
+MIN_MACOS_VERSION_10_15 = (10, 15)
+
 DEBUG = False
 
-def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_shape):
+def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_shape, disable_rank5_mapping=False):
     # run torch model
     torch_input = torch.rand(*torch_input_shape)
     torch_out_raw = torch_model(torch_input)
@@ -40,12 +44,16 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
     onnx_model = onnx.load(onnx_file)
 
     # convert to coreml and run
-    coreml_model = convert(onnx_model)
+    coreml_model = convert(onnx_model, disable_coreml_rank5_mapping=disable_rank5_mapping)
+
     output_name = [o.name for o in onnx_model.graph.output][0]
     initializer_names = {t.name for t in onnx_model.graph.initializer}
     input_name = [i.name for i in onnx_model.graph.input if i.name not in initializer_names][0]
     input_numpy = torch_input.detach().numpy()
-    input_dict = {input_name: np.reshape(input_numpy, coreml_input_shape)} # type: ignore
+    if disable_rank5_mapping:
+        input_dict = {input_name: input_numpy} # type: ignore
+    else:
+        input_dict = {input_name: np.reshape(input_numpy, coreml_input_shape)}  # type: ignore
     coreml_out = coreml_model.predict(input_dict, useCPUOnly=True)[output_name]
     if DEBUG:
         coreml_model.save(model_dir + '/torch_model.mlmodel')
@@ -66,7 +74,7 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
 
 class OnnxModelTest(unittest.TestCase):
 
-    def test_linear_no_bias(self):  # type: () -> None
+    def test_linear_no_bias(self, disable_rank5_mapping=False):  # type: () -> None
         class Net(nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
@@ -77,7 +85,12 @@ class OnnxModelTest(unittest.TestCase):
 
         torch_model = Net() # type: ignore
         torch_model.train(False)
-        _test_torch_model_single_io(torch_model, (1,256), (256)) # type: ignore
+        _test_torch_model_single_io(torch_model, (1,256), (256), disable_rank5_mapping=disable_rank5_mapping) # type: ignore
+
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_linear_no_bias_disable_rank5_mapping(self):
+        self.test_linear_no_bias(True)
 
     def test_linear_bias(self):  # type: () -> None
         class Net(nn.Module):
@@ -467,5 +480,5 @@ class ReshapeTransposeTests(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
     #suite = unittest.TestSuite()
-    #suite.addTest(ReshapeTransposeTests("test_reorganize_2"))
+    #suite.addTest(OnnxModelTest("test_linear_no_bias_disable_rank5_mapping"))
     #unittest.TextTestRunner().run(suite)
