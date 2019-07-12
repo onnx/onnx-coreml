@@ -4,13 +4,7 @@ matrix:
   include:
     - os: linux
       sudo: required
-      env: PYTHON_VERSION=python2
-    - os: linux
-      sudo: required
       env: PYTHON_VERSION=python3
-    - os: osx
-      osx_image: xcode11
-      env: PYTHON_VERSION=python2
     - os: osx
       osx_image: xcode11
       env: PYTHON_VERSION=python3
