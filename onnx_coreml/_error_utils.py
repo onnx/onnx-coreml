@@ -15,11 +15,13 @@ class ErrorHandling(object):
                add_custom_layers = False, # type: bool
                custom_conversion_functions = dict(), # type: Dict[Text, Any]
                custom_layer_nodes = [], # type : List[Node]
+               disable_coreml_rank5_mapping = False
                ):
       # type: (...) -> None
       self.add_custom_layers = add_custom_layers
       self.custom_conversion_functions = custom_conversion_functions
       self.custom_layer_nodes = custom_layer_nodes
+      self.disable_coreml_rank5_mapping = disable_coreml_rank5_mapping
 
 
   def unsupported_op(self,

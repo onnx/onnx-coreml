@@ -51,7 +51,7 @@ setup(
         'onnx>=1.3.0',
         'typing>=3.6.4',
         'typing-extensions>=3.6.2.1',
-        'coremltools>=2.0',
+        'coremltools==3.0b3',
     ],
     setup_requires=['pytest-runner'],
     tests_require=[
