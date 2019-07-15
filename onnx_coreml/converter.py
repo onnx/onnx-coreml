@@ -411,7 +411,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         BNBroadcastedAddFuser(),
         ReshapeTransposeReshape_pattern1(),
         PixelShuffleFuser(),
-        AddModelInputsOutputs(),
+        # AddModelInputsOutputs(),
         DivMulConstantRemover(),
         GatherConstantRemover(),
         ConstantFillToInitializers(),
@@ -549,7 +549,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             _convert_node(builder, node, graph, err)
 
     if DEBUG:
-        plot_graph(graph, graph_img_path='/tmp/after_conversion.pdf', show_coreml_mapped_shapes=True)
+        plot_graph(graph, graph_img_path='/tmp/after_conversion.pdf', show_coreml_mapped_shapes=not disable_coreml_rank5_mapping)
 
 
     if add_deprocess:
@@ -639,7 +639,6 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     print("Translation to CoreML spec completed. Now compiling the CoreML model.")
     try:
         if DEBUG:
-            import coremltools
             coremltools.models.utils.save_spec(builder.spec, '/tmp/node_model_raw_spec.mlmodel')
         mlmodel = MLModel(builder.spec)
     except RuntimeError as e:

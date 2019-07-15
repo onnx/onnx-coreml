@@ -556,6 +556,9 @@ class ConstantsToInitializers(object):
             if node.op_type == 'Constant' and (node.name not in output_names):
                 nodes_to_be_removed.append(node)
                 x = node.attrs["value"]
+                # HACK: Convert, 0-rank tensor into 1-rank tensor
+                if x.shape == ():
+                    x = x.reshape([1])
                 for child in node.children:
                     child.input_tensors[node.outputs[0]] = x
                     child.parents.remove(node)
@@ -813,3 +816,4 @@ class DivMulConstantRemover(object):
             if node not in nodes_to_be_removed:
                 transformed_nodes.append(node)
         return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+

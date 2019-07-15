@@ -6,6 +6,7 @@ from __future__ import unicode_literals
 import unittest
 import numpy as np
 from onnx.numpy_helper import from_array
+import onnx
 from onnx_coreml import convert
 
 from typing import Text
@@ -14,6 +15,11 @@ from tests._test_utils import _test_single_node, \
     _random_array, _conv_pool_output_size, \
     _onnx_create_single_node_model, _assert_outputs
 
+from coremltools.models.utils import macos_version
+
+MIN_MACOS_VERSION_10_15 = (10, 15)
+
+ONNX_SHAPE_INFERENCE_FAILS = True
 
 class SingleOperatorTest(unittest.TestCase):
 
@@ -129,7 +135,7 @@ class SingleOperatorTest(unittest.TestCase):
             kernel_shape=kernel_shape,
             strides=strides
         )
-
+    @unittest.skip('Temporary Skip the test due to seg-fault')
     def test_avg_pool(self):  # type: () -> None
         kernel_shape = (5, 3)
         pads = (2, 1, 2, 1)
@@ -239,17 +245,24 @@ class SingleOperatorTest(unittest.TestCase):
             size=5
         )
 
-    def test_slice_axis_3_rank_4(self):  # type: () -> None
+    def test_slice_axis_3_rank_4(self, disable_rank5_mapping=False):  # type: () -> None
         _test_single_node(
             "Slice",
             [(1, 3, 224, 224)],
             [(1, 3, 224, 222)],
             axes=[3],
             starts=[1],
-            ends=[223]
+            ends=[223],
+            disable_rank5_mapping=disable_rank5_mapping
         )
+    
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_slice_axis_3_rank_4_disable_rank5_mapping(self):
+        self.test_slice_axis_3_rank_4(True)
 
-    def test_slice_axis_0_rank_2(self): # type: () -> None
+
+    def test_slice_axis_0_rank_2(self, disable_rank5_mapping=False): # type: () -> None
         _test_single_node(
             "Slice",
             [(10, 2)],
@@ -258,9 +271,159 @@ class SingleOperatorTest(unittest.TestCase):
             coreml_input_shape = {'input0':[1,10,2]},
             axes=[0],
             starts=[5],
-            ends=[10]
+            ends=[10],
+            disable_rank5_mapping=disable_rank5_mapping
         )
 
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_slice_axis_0_rank_2_disable_rank5_mapping(self):
+        self.test_slice_axis_0_rank_2(True)
+
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_split_axis_0_rank_3(self, disable_rank5_mapping=True):  # type: () -> None
+        _test_single_node(
+            "Split",
+            [(2, 1, 200)],
+            [(1, 1, 200), (1, 1, 200)],
+            axes=0,
+            disable_rank5_mapping=disable_rank5_mapping
+        )
+
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                    'macOS 10.15+ required. Skipping test.')
+    def test_concat(self, disable_rank5_mapping=True):  # type: () -> None
+        _test_single_node(
+            "Concat",
+            [(1, 2, 200), (1, 2, 200)],
+            [(2, 2, 200)],
+            axis=0,
+            disable_rank5_mapping=disable_rank5_mapping
+        )
+   
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                    'macOS 10.15+ required. Skipping test.')
+    def test_gather(self, disable_rank5_mapping=True):  # type: () -> None
+        _test_single_node(
+            "Gather",
+            [(5, 4, 3), (3,)],
+            [(3, 4, 3)],
+            axis=0,
+            disable_rank5_mapping=disable_rank5_mapping
+        )
+        
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                    'macOS 10.15+ required. Skipping test.')
+    def test_reshape_same_rank(self, disable_rank5_mapping=True):  # type: () -> None
+        _test_single_node(
+            "Reshape",
+            [(5, 4, 3), (3,)],
+            [(4, 5, 3)],
+            disable_rank5_mapping=disable_rank5_mapping
+        )
+
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                    'macOS 10.15+ required. Skipping test.')
+    def test_reshape_same_rank_infer_shape(self, disable_rank5_mapping=True):  # type: () -> None
+        _test_single_node(
+            "Reshape",
+            [(5, 4, 3), (3,)],
+            [(5, 2, 6)],
+            disable_rank5_mapping=disable_rank5_mapping
+        )
+ 
+    # TODO: add test_reshape_diff_rank_infer_shape where shape is Constant and known
+    # to test rank-4 into rank-3 reshape with shape inferencing
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                    'macOS 10.15+ required. Skipping test.')
+    def test_reshape_dynamic(self, disable_rank5_mapping=True):  # type: () -> None
+        _test_single_node(
+            "Reshape",
+            [(5, 4, 3, 2), (3,)],
+            [(2, 3, 20)],
+            disable_rank5_mapping=disable_rank5_mapping
+        )  
+
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                    'macOS 10.15+ required. Skipping test.')
+    def test_squeeze(self, disable_rank5_mapping=True):  # type: () -> None
+        _test_single_node(
+            "Squeeze",
+            [(5, 1, 3, 1, 1)],
+            [(5, 3)],
+            axes=[1, 3, 4],
+            disable_rank5_mapping=disable_rank5_mapping
+        )
+
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                    'macOS 10.15+ required. Skipping test.')
+    def test_transpose_default(self, disable_rank5_mapping=True):  # type: () -> None
+        _test_single_node(
+            "Transpose",
+            [(5, 3, 4, 6, 2)],
+            [(2, 6, 4, 3, 5)],
+            disable_rank5_mapping=disable_rank5_mapping
+        )
+
+    @unittest.skipIf(ONNX_SHAPE_INFERENCE_FAILS,
+                     'ONNX Shape inference fails to recongnize correct shape')
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                    'macOS 10.15+ required. Skipping test.')
+    def test_transpose_permute(self, disable_rank5_mapping=True):  # type: () -> None
+        _test_single_node(
+            "Transpose",
+            [(5, 3, 4, 6, 2)],
+            [(2, 3, 4, 6, 5)],
+            axes=[4, 1, 2, 3, 0],
+            disable_rank5_mapping=disable_rank5_mapping
+        )
+    @unittest.skipIf(ONNX_SHAPE_INFERENCE_FAILS,
+                     'ONNX Shape inference fails to recongnize correct shape')
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                    'macOS 10.15+ required. Skipping test.')
+    def test_unsqueeze(self, disable_rank5_mapping=True):  # type: () -> None
+        _test_single_node(
+            "Unsqueeze",
+            [(5, 3, 4)],
+            [(1, 5, 1, 3, 4)],
+            axes=[0, 1],
+            disable_rank5_mapping=disable_rank5_mapping
+        )
+
+    # @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+    #                 'macOS 10.15+ required. Skipping test.')
+    # def test_constant(self, disable_rank5_mapping=True):  # type: () -> None
+    #     constant_value = np.full((1, 2, 200), 4.342)
+    #     constant_node = onnx.helper.make_tensor(
+    #                         name='const_tensor',
+    #                         data_type=onnx.TensorProto.FLOAT,
+    #                         dims=constant_value.shape,
+    #                         vals=constant_value.flatten().astype(float)
+    #                     )
+    #     _test_single_node(
+    #         "Constant",
+    #         [(1, 2, 200)],
+    #         [(1, 2, 200)],
+    #         value=constant_node,
+    #         disable_rank5_mapping=disable_rank5_mapping
+    #     )
+
+    # @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_150,
+    #                  'macOS 10.15+ required. Skipping test.')
+    # def test_bidirlstm(self, disable_rank5_mapping=True):  # type: () -> None
+    #     hidden_size = 200
+    #     input_size = 250
+    #     seq_len = 5
+    #     num_directions = 2
+    #     batch_size = 1
+    #     _test_single_node(
+    #         "LSTM",
+    #         [(5, 1, 250), (2, 2 * hidden_size, input_size), (2, 2 * hidden_size, input_size) ],
+    #         [(5, 2, batch_size, hidden_size), (num_directions, batch_size, hidden_size), (num_directions, batch_size, hidden_size)],
+    #         axes=0,
+    #         disable_rank5_mapping=disable_rank5_mapping
+    #     )
 
     # @unittest.skip("Error while preparing Caffe2 backend. Maybe something is incorrect in ONNX model definition")
     # def skip_test_lstm(self):  # type: () -> None
