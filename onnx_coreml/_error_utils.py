@@ -73,5 +73,19 @@ class ErrorHandling(object):
         format(node.op_type, node.inputs[0], node.outputs[0], err_message)
       )
 
+  def unsupported_feature_warning(self,
+                                  node, # type: Node
+                                  err_message, # type: Text
+                                  ):
+      # type: (...) -> None
+      '''
+      Unsupported feature warning
+      '''
+      print(
+        "Warning: Unsupported Feature in op of type {}, with input name = {}, "
+        "output name = {}. Warning message: {}\n".
+        format(node.op_type, node.inputs[0], node.outputs[0], err_message)
+      )
+
 
 

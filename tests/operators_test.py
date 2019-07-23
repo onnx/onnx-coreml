@@ -391,39 +391,6 @@ class SingleOperatorTest(unittest.TestCase):
             disable_rank5_mapping=disable_rank5_mapping
         )
 
-    # @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
-    #                 'macOS 10.15+ required. Skipping test.')
-    # def test_constant(self, disable_rank5_mapping=True):  # type: () -> None
-    #     constant_value = np.full((1, 2, 200), 4.342)
-    #     constant_node = onnx.helper.make_tensor(
-    #                         name='const_tensor',
-    #                         data_type=onnx.TensorProto.FLOAT,
-    #                         dims=constant_value.shape,
-    #                         vals=constant_value.flatten().astype(float)
-    #                     )
-    #     _test_single_node(
-    #         "Constant",
-    #         [(1, 2, 200)],
-    #         [(1, 2, 200)],
-    #         value=constant_node,
-    #         disable_rank5_mapping=disable_rank5_mapping
-    #     )
-
-    # @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_150,
-    #                  'macOS 10.15+ required. Skipping test.')
-    # def test_bidirlstm(self, disable_rank5_mapping=True):  # type: () -> None
-    #     hidden_size = 200
-    #     input_size = 250
-    #     seq_len = 5
-    #     num_directions = 2
-    #     batch_size = 1
-    #     _test_single_node(
-    #         "LSTM",
-    #         [(5, 1, 250), (2, 2 * hidden_size, input_size), (2, 2 * hidden_size, input_size) ],
-    #         [(5, 2, batch_size, hidden_size), (num_directions, batch_size, hidden_size), (num_directions, batch_size, hidden_size)],
-    #         axes=0,
-    #         disable_rank5_mapping=disable_rank5_mapping
-    #     )
 
     # @unittest.skip("Error while preparing Caffe2 backend. Maybe something is incorrect in ONNX model definition")
     # def skip_test_lstm(self):  # type: () -> None
