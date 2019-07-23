@@ -275,11 +275,13 @@ def _convert_split(builder, node, graph, err):
     convert to CoreML Squeeze Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#5003
     '''
+
+    axis = node.attrs.get('axis', 0)
     builder.add_split_nd(
         name=node.name,
         input_name=node.inputs[0],
         output_names=node.outputs,
-        axis=0
+        axis=axis
     )
 
 def _convert_squeeze(builder, node, graph, err):
