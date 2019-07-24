@@ -397,6 +397,12 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     First, apply a few optimizations to the ONNX graph,
     in preparation for conversion to CoreML. 
     '''
+
+    # Using Dummy transformation to conditionally disable certain transformation
+    class  DummyTransformation(object):
+        def __call__(self, graph):
+            return graph
+
     transformers = [
         ConstantsToInitializers(),
         ShapeOpRemover(),
@@ -411,11 +417,12 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         BNBroadcastedAddFuser(),
         ReshapeTransposeReshape_pattern1(),
         PixelShuffleFuser(),
-        # AddModelInputsOutputs(),
+        AddModelInputsOutputs() if not disable_coreml_rank5_mapping else DummyTransformation(),
         DivMulConstantRemover(),
         GatherConstantRemover(),
         ConstantFillToInitializers(),
     ]  # type: Iterable[Transformer]
+
 
     onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
     graph = _prepare_onnx_graph(onnx_model.graph, transformers)

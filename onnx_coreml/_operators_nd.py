@@ -23,16 +23,15 @@ def _convert_concat(builder, node, graph, err):
     '''
 
     axis = node.attrs.get('axis')
-
     for i in range(len(node.inputs)):
-        if node.inputs[i] in node.input_tensors:
+        if node.inputs[i] in node.input_tensors and node.inputs[i] not in graph.constants_loaded:
             builder.add_load_constant_nd(
                 name=node.name + '_load_constant_' + str(i),
-                output_name=node.inputs[i] + '_load',
+                output_name=node.inputs[i],
                 constant_value=node.input_tensors[node.inputs[i]],
                 shape=node.input_tensors[node.inputs[i]].shape
             )
-            node.inputs[i] += '_load'
+            graph.constants_loaded.add(node.inputs[i])
 
     builder.add_concat_nd(
         name=node.name,
@@ -55,7 +54,7 @@ def _convert_constant(builder, node, graph, err):
         constant_value=value,
         shape=[1] if value.shape == () else value.shape
     )
-
+    graph.constants_loaded(node.outputs[0])
 
 def _convert_constant_of_shape(builder, node, graph, err):
     '''
@@ -93,23 +92,23 @@ def _convert_gather(builder, node, graph, err):
     
     data = node.inputs[0]
     indices = node.inputs[1]
-    if node.inputs[0] in node.input_tensors:
+    if node.inputs[0] in node.input_tensors and node.inputs[0] not in graph.constants_loaded:
         builder.add_load_constant_nd(
             name=node.name + '_load_data',
-            output_name=data + '_data',
+            output_name=node.inputs[0],
             constant_value=node.input_tensors[node.inputs[0]],
             shape=node.input_tensors[node.inputs[0]].shape
         )
-        data = data + '_data'
+        graph.constants_loaded.add(node.inputs[0])
     
-    if node.inputs[1] in node.input_tensors:
+    if node.inputs[1] in node.input_tensors and node.inputs[1] not in graph.constants_loaded:
         builder.add_load_constant_nd(
-            name=node.name + '_load_indices',
-            output_name=indices + '_indices',
+            name=node.name+ '_load_indices',
+            output_name=node.inputs[1],
             constant_value=node.input_tensors[node.inputs[1]],
             shape=node.input_tensors[node.inputs[1]].shape
         )
-        indices = indices + '_indices'
+        graph.constants_loaded.add(node.inputs[1])
     
     builder.add_gather(
         name=node.name,
@@ -160,7 +159,11 @@ def _convert_reshape(builder, node, graph, err):
         output_shape = node.input_tensors[shape_node]
     
         # if rank is same, then call rank preserving reshape
-        if len(output_shape) == len(graph.shape_dict[node.inputs[0]]):
+        if node.inputs[0] not in graph.shape_dict:
+            err.unsupported_op_configuration(builder, node, graph, "Input shape not represented in graph")
+    
+        len_of_input_shape = len(graph.shape_dict[node.inputs[0]])
+        if len(output_shape) == len_of_input_shape:
             builder.add_rank_preserving_reshape(
                 name=node.name,
                 input_name=node.inputs[0],
@@ -168,9 +171,8 @@ def _convert_reshape(builder, node, graph, err):
                 output_shape=output_shape
             )
         else:
-            input_shape = len(graph.shape_dict[node.inputs[0]])
             add_static_reshape = True
-            if input_shape > len(output_shape):
+            if len_of_input_shape > len(output_shape):
                 num_zeros = 0
                 num_neg_ones = 0
                 for i in output_shape:
@@ -192,7 +194,7 @@ def _convert_reshape(builder, node, graph, err):
                         new_shape.append(output_shape[i])
                         if output_shape[i] == -1:
                             break
-                    while i < input_shape-1:
+                    while i < len_of_input_shape-1:
                         new_shape.append(1)
                         i += 1
 
@@ -203,7 +205,7 @@ def _convert_reshape(builder, node, graph, err):
                         output_shape=new_shape
                     )
 
-                    squeeze_axes = list(range(len(output_shape) - input_shape, 0))
+                    squeeze_axes = list(range(len(output_shape) - len_of_input_shape, 0))
                     squeeze_axes.reverse()
 
                     builder.add_squeeze(

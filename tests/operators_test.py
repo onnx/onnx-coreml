@@ -135,7 +135,7 @@ class SingleOperatorTest(unittest.TestCase):
             kernel_shape=kernel_shape,
             strides=strides
         )
-    @unittest.skip('Temporary Skip the test due to seg-fault')
+
     def test_avg_pool(self):  # type: () -> None
         kernel_shape = (5, 3)
         pads = (2, 1, 2, 1)

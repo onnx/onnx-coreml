@@ -194,7 +194,6 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 1, 3, 3), (1, 3, 3))  # type: ignore
 
-    @unittest.skip("Disable test temporary. Test failing.")
     def test_pow(self): # type: () -> None
         class Net(nn.Module):
             def __init__(self):
