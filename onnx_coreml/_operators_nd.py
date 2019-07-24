@@ -90,8 +90,6 @@ def _convert_gather(builder, node, graph, err):
     if len(node.inputs) != 2:
         err.unsupported_op_configuration(builder, node, graph, "Error in ONNX model: Gather expects two inputs")
     
-    data = node.inputs[0]
-    indices = node.inputs[1]
     if node.inputs[0] in node.input_tensors and node.inputs[0] not in graph.constants_loaded:
         builder.add_load_constant_nd(
             name=node.name + '_load_data',
