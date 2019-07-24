@@ -133,6 +133,7 @@ class Graph(object):
         self.inputs = inputs
         self.outputs = outputs
         self.shape_dict = shape_dict  # data blob name to its shape
+        self.constants_loaded = set() # set of constants present in graph as node
 
         self.optional_inputs = [] # list of tuple(str, tuple(int)), use with recurrent layers
         self.optional_outputs = [] # list of tuple(str,tuple(int)), use with recurrent layers

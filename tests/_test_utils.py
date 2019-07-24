@@ -119,14 +119,16 @@ def _shape_from_onnx_value_info(v):  # type: (ValueInfoProto) -> Sequence[Tuple[
 def _coreml_forward_model(model,  # type: ModelProto
                           input_dict,  # type: Dict[Text, np._ArrayLike[Any]]
                           output_names,  # type: Sequence[Text]
+                          disable_rank5_mapping=False
                           ):
     # type: (...) -> np.ndarray[Any]
-    for k, arr in input_dict.items():
-        if len(arr.shape) == 4:
-            input_dict[k] = arr[0]
-    for k,v in input_dict.items():
-        if len(v.shape) == 2 and v.shape[0] == 1:
-            input_dict[k] = v.flatten()
+    if not disable_rank5_mapping:
+        for k, arr in input_dict.items():
+            if len(arr.shape) == 4:
+                input_dict[k] = arr[0]
+        for k,v in input_dict.items():
+            if len(v.shape) == 2 and v.shape[0] == 1:
+                input_dict[k] = v.flatten()
     coreml_out = model.predict(input_dict, useCPUOnly=True)
     return np.array([coreml_out[name] for name in output_names])
 
@@ -134,11 +136,12 @@ def _coreml_forward_model(model,  # type: ModelProto
 def _coreml_forward_onnx_model(model,  # type: ModelProto
                                input_dict,  # type: Dict[Text, np._ArrayLike[Any]]
                                onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
+                               disable_rank5_mapping=False
                                ):
     # type: (...) -> np.ndarray[Any]
-    coreml_model = convert(model, onnx_coreml_input_shape_map=onnx_coreml_input_shape_map)
+    coreml_model = convert(model, onnx_coreml_input_shape_map=onnx_coreml_input_shape_map, disable_coreml_rank5_mapping=disable_rank5_mapping)
     output_names = [o.name for o in model.graph.output]
-    return _coreml_forward_model(coreml_model, input_dict, output_names)
+    return _coreml_forward_model(coreml_model, input_dict, output_names, disable_rank5_mapping=disable_rank5_mapping)
 
 
 def _random_array(shape, random_seed=10):  # type: (Tuple[int, ...], Any) -> np._ArrayLike[float]
@@ -221,6 +224,7 @@ def _test_onnx_model(model,  # type: ModelProto
                      decimal=5,  # type: int
                      onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
                      coreml_input_shape = {}, # type: Dict[Text, List[int,...]]
+                     disable_rank5_mapping=False
                      ):
     # type: (...) -> None
     if not test_name:
@@ -229,11 +233,12 @@ def _test_onnx_model(model,  # type: ModelProto
     c2_outputs = _forward_onnx_model(model, W, test_name=test_name)
     coreml_input_dict = dict()
     for key, value in W.items():
-        if key in coreml_input_shape:
+        if not disable_rank5_mapping and key in coreml_input_shape:
             coreml_input_dict[key] = np.reshape(value, coreml_input_shape[key])
         else:
             coreml_input_dict[key] = value
-    coreml_outputs = _coreml_forward_onnx_model(model, coreml_input_dict, onnx_coreml_input_shape_map=onnx_coreml_input_shape_map)
+    coreml_outputs = _coreml_forward_onnx_model(model, coreml_input_dict, onnx_coreml_input_shape_map=onnx_coreml_input_shape_map,
+                                                disable_rank5_mapping=disable_rank5_mapping)
     _assert_outputs(c2_outputs, coreml_outputs, decimal=decimal)
 
 
@@ -245,6 +250,7 @@ def _test_single_node(op_type,  # type: Text
                       test_name = '', # type: Text
                       onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
                       coreml_input_shape = {}, # type: Dict[Text, List[int,...]]
+                      disable_rank5_mapping=False,
                       **kwargs  # type: Any
                       ):
     # type: (...) -> None
@@ -255,4 +261,5 @@ def _test_single_node(op_type,  # type: Text
         test_name = sys._getframe(1).f_code.co_name
     _test_onnx_model(model, test_name=test_name, decimal=decimal,
                      onnx_coreml_input_shape_map=onnx_coreml_input_shape_map,
-                     coreml_input_shape = coreml_input_shape)
+                     coreml_input_shape = coreml_input_shape,
+                     disable_rank5_mapping=disable_rank5_mapping)
