@@ -389,6 +389,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             "Model must be file path to .onnx file or onnx loaded model"
         )
 
+    global USE_SHAPE_MAPPING
     if disable_coreml_rank5_mapping:
         USE_SHAPE_MAPPING = False
 
@@ -473,11 +474,11 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     #interpreting it for CoreML
     input_features = _make_coreml_input_features(graph, onnx_coreml_input_shape_map, disable_coreml_rank5_mapping)
     if len( image_output_names) > 0:
-        output_features = _make_coreml_output_features(graph, forceShape = True, disable_coreml_rank5_mapping=disable_coreml_rank5_mapping)
+        output_features = _make_coreml_output_features(graph, forceShape=True, disable_coreml_rank5_mapping=disable_coreml_rank5_mapping)
     else:
-        output_features = _make_coreml_output_features(graph, disable_coreml_rank5_mapping)
+        output_features = _make_coreml_output_features(graph, disable_coreml_rank5_mapping=disable_coreml_rank5_mapping)
 
-    builder = NeuralNetworkBuilder(input_features, output_features, mode = mode, disable_rank5_shape_mapping=disable_coreml_rank5_mapping)
+    builder = NeuralNetworkBuilder(input_features, output_features, mode=mode, disable_rank5_shape_mapping=disable_coreml_rank5_mapping)
 
     '''
     Set CoreML input,output types (float, double, int) same as onnx types, if supported
