@@ -25,11 +25,12 @@ def _convert_concat(builder, node, graph, err):
     axis = node.attrs.get('axis')
     for i in range(len(node.inputs)):
         if node.inputs[i] in node.input_tensors and node.inputs[i] not in graph.constants_loaded:
+            value = node.input_tensors[node.inputs[i]]
             builder.add_load_constant_nd(
                 name=node.name + '_load_constant_' + str(i),
                 output_name=node.inputs[i],
-                constant_value=node.input_tensors[node.inputs[i]],
-                shape=node.input_tensors[node.inputs[i]].shape
+                constant_value=value,
+                shape=[1] if value.shape == () else value.shape
             )
             graph.constants_loaded.add(node.inputs[i])
 
@@ -91,20 +92,22 @@ def _convert_gather(builder, node, graph, err):
         err.unsupported_op_configuration(builder, node, graph, "Error in ONNX model: Gather expects two inputs")
     
     if node.inputs[0] in node.input_tensors and node.inputs[0] not in graph.constants_loaded:
-        builder.add_load_constant_nd(
+        value = node.input_tensors[node.inputs[0]]
+        builder.add_d_d_constant_nd(
             name=node.name + '_load_data',
             output_name=node.inputs[0],
-            constant_value=node.input_tensors[node.inputs[0]],
-            shape=node.input_tensors[node.inputs[0]].shape
+            constant_value=value,
+            shape=[1] if value.shape == () else value.shape
         )
         graph.constants_loaded.add(node.inputs[0])
     
     if node.inputs[1] in node.input_tensors and node.inputs[1] not in graph.constants_loaded:
+        value = node.input_tensors[node.inputs[1]]
         builder.add_load_constant_nd(
             name=node.name+ '_load_indices',
             output_name=node.inputs[1],
-            constant_value=node.input_tensors[node.inputs[1]],
-            shape=node.input_tensors[node.inputs[1]].shape
+            constant_value=value,
+            shape=[1] if value.shape == () else value.shape
         )
         graph.constants_loaded.add(node.inputs[1])
     
