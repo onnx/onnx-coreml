@@ -93,7 +93,7 @@ def _convert_gather(builder, node, graph, err):
     
     if node.inputs[0] in node.input_tensors and node.inputs[0] not in graph.constants_loaded:
         value = node.input_tensors[node.inputs[0]]
-        builder.add_d_d_constant_nd(
+        builder.add_load_constant_nd(
             name=node.name + '_load_data',
             output_name=node.inputs[0],
             constant_value=value,
