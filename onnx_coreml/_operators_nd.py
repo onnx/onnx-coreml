@@ -12,17 +12,11 @@ from ._graph import Node, Graph
 from coremltools.proto import NeuralNetwork_pb2 #type: ignore
 from ._error_utils import ErrorHandling
 
-from ._operators import _convert_relu
+from ._operators import _convert_relu, _convert_sqrt, _convert_exp
 
 INT_MAX = 2**30
 
-def _convert_concat(builder, node, graph, err):
-    '''
-    convert to CoreML ConcatND Layer:
-    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3521
-    '''
-
-    axis = node.attrs.get('axis')
+def load_input_constants(builder, node, graph, err):
     for i in range(len(node.inputs)):
         if node.inputs[i] in node.input_tensors and node.inputs[i] not in graph.constants_loaded:
             value = node.input_tensors[node.inputs[i]]
@@ -33,6 +27,26 @@ def _convert_concat(builder, node, graph, err):
                 shape=[1] if value.shape == () else value.shape
             )
             graph.constants_loaded.add(node.inputs[i])
+
+def _convert_add(builder, node, graph, err):
+    '''
+    convert to CoreML Add Broadcastable Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4117
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_add_broadcastable(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=node.outputs[0]
+    )
+
+def _convert_concat(builder, node, graph, err):
+    '''
+    convert to CoreML ConcatND Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3521
+    '''
+    axis = node.attrs.get('axis')
+    load_input_constants(builder, node, graph, err)
 
     builder.add_concat_nd(
         name=node.name,
@@ -46,7 +60,6 @@ def _convert_constant(builder, node, graph, err):
     convert to CoreML Load Constant ND Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3596
     '''
-
     value = node.attrs['value']
     # HACK: If Value is 0-Rank then make it 1-Rank
     builder.add_load_constant_nd(
@@ -62,7 +75,6 @@ def _convert_constant_of_shape(builder, node, graph, err):
     convert to CoreML Fill Static Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3641
     '''
-
     value = node.attrs.get('value', [0.0])
     # if shape is known, create tensor of given shape
     # otherwise create tensor at runtime
@@ -84,6 +96,18 @@ def _convert_constant_of_shape(builder, node, graph, err):
             output_name=node.outputs[0],
             value=value[0]
         )
+
+def _convert_div(builder, node, graph, err):
+    '''
+    convert to CoreML Divide Broadcastable Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4180
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_divide_broadcastable(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=node.outputs[0]
+    )
 
 def _convert_gather(builder, node, graph, err):
     '''
@@ -121,6 +145,83 @@ def _convert_gather(builder, node, graph, err):
         output_name=node.outputs[0],
         axis=axis
     )
+
+def _convert_gemm(builder, node, graph, err):
+    '''
+    convert to CoreML Tranpose (Optional) and Inner Product Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4180
+    '''
+    # Read attributes
+    alpha = node.attrs.get('alpha', 1.0)
+    beta = node.attrs.get('beta', 1.0)
+    transA = node.attrs.get('transA', False)
+    transB = node.attrs.get('transB', False)
+
+    A = node.inputs[0]
+    if alpha != 1.0:
+        builder.add_load_constant_nd(
+            name=node.name + '_load_alpha',
+            output_name='alpha_for_'+A,
+            constant_value=alpha,
+            shape=[1]
+        )
+        builder.add_multiply_broadcastable(
+            name=node.name + '_alphaA',
+            input_names=[A, 'alpha_for_'+A],
+            output_name=A+'_alphaA'
+        )
+        A = A + '_alphaA'
+
+    B = node.inputs[1]
+    C = node.inputs[2]
+    if B in node.input_tensors and C in node.input_tensors:
+        B = node.input_tensors[B]
+        C = node.input_tensors[C]
+
+        if transB:
+            B = B.transpose()
+        
+        C = C.flatten()
+        builder.add_batched_mat_mul(
+            name=node.name,
+            input_names=[A],
+            output_name=node.outputs[0],
+            transpose_a=transA,
+            weight_matrix_rows=B.shape[0],
+            weight_matrix_columns=B.shape[1],
+            W=B,
+            bias=C
+        )
+    else:
+        ## TODO: Test coverage when B and C are non-constant
+        ## Should C be of Rank-1? or it's okay to keep it that way?
+        if beta != 1.0:
+            builder.add_load_constant_nd(
+                name=node.name + '_load_beta',
+                output_name='beta_for_'+B,
+                constant_value=beta,
+                shape=[1]
+            )
+            builder.add_multiply_broadcastable(
+                name=node.name + '_betaC',
+                input_names=[C, 'beta_for_'+B],
+                output_name=C+'_betaC'
+            )
+            C = C + '_betaC'
+
+        builder.add_batched_mat_mul(
+            name=node.name,
+            input_names=[A, B],
+            output_name=node.outputs[0] + '_b_mat_mul',
+            transpose_a=transA,
+            transpose_b=transB,
+        )
+
+        builder.add_add_broadcastable(
+            name=node.name+'_add_bias',
+            input_names=[node.outputs[0]+'_b_mat_mul', C],
+            output_name=node.outputs[0]
+        )
 
 def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     '''
@@ -453,7 +554,139 @@ def _convert_matmul(builder, node, graph, err):
                                     input_names=[node.inputs[0], weight_name],
                                     output_name=node.outputs[0])
 
+def _convert_mul(builder, node, graph, err):
+    '''
+    convert to CoreML Multiply Broadcastable Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4171
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_multiply_broadcastable(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=node.outputs[0]
+    )
 
+def _convert_pow(builder, node, graph, err):
+    '''
+    convert to CoreML Pow Broadcastable Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3969
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_subtract_broadcastable(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=node.outputs[0]
+    )
+
+def _convert_reduce(builder, node, graph, err):
+    '''
+    convert to CoreML ReduceSum Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4707
+    '''
+    load_input_constants(builder, node, graph, err)
+
+    # read attributes
+    axes = node.attrs.get('axes', None)
+    reduce_all = False
+    if axes is None:
+        reduce_all = True
+    keepdims = node.attrs.get('keepdims', True)
+
+    # add respective operator
+    op_type = node.op_type
+    if op_type == 'ReduceSum':
+        builder.add_reduce_sum(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            axes=axes,
+            keepdims=keepdims,
+            reduce_all=reduce_all
+        )
+    elif op_type == 'ReduceProd':
+        builder.add_reduce_prod(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            axes=axes,
+            keepdims=keepdims,
+            reduce_all=reduce_all
+        )
+    elif op_type == 'ReduceMean':
+        builder.add_reduce_mean(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            axes=axes,
+            keepdims=keepdims,
+            reduce_all=reduce_all
+        )
+    elif op_type == 'ReduceMax':
+        builder.add_reduce_max(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            axes=axes,
+            keepdims=keepdims,
+            reduce_all=reduce_all
+        )
+    elif op_type == 'ReduceMin':
+        builder.add_reduce_min(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            axes=axes,
+            keepdims=keepdims,
+            reduce_all=reduce_all
+        )
+    elif op_type == 'ReduceL2':
+        builder.add_reduce_l2(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            axes=axes,
+            keepdims=keepdims,
+            reduce_all=reduce_all
+        )
+    elif op_type == 'ReduceL1':
+        builder.add_reduce_l1(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            axes=axes,
+            keepdims=keepdims,
+            reduce_all=reduce_all
+        )
+    elif op_type == 'ReduceSumSquare':
+        builder.add_reduce_sumsquare(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            axes=axes,
+            keepdims=keepdims,
+            reduce_all=reduce_all
+        )
+    elif op_type == 'ReduceLogSum':
+        builder.add_reduce_logsum(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            axes=axes,
+            keepdims=keepdims,
+            reduce_all=reduce_all
+        )
+    elif op_type == 'ReduceLogSumExp':
+        builder.add_reduce_logsumexp(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            axes=axes,
+            keepdims=keepdims,
+            reduce_all=reduce_all
+        )
+    else:
+        err.unsupported_op_configuration(builder, node, graph, "Unsupported reduce operation: {}".format(op_type))
+    
 def _convert_reshape(builder, node, graph, err):
     '''
     convert to CoreML Reshape Static Layer:
@@ -520,7 +753,7 @@ def _convert_reshape(builder, node, graph, err):
                         axes=squeeze_axes
                     )
 
-            if add_static_reshape:    
+            if add_static_reshape:
                 builder.add_reshape_static(
                     name=node.name,
                     input_name=node.inputs[0],
@@ -591,6 +824,17 @@ def _convert_split(builder, node, graph, err):
         axis=axis
     )
 
+def _convert_shape(builder, node, graph, err):
+    '''
+    convert to CoreML GetShape Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5131
+    '''
+    builder.add_get_shape(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
 def _convert_squeeze(builder, node, graph, err):
     '''
     convert to CoreML Squeeze Layer:
@@ -604,12 +848,25 @@ def _convert_squeeze(builder, node, graph, err):
         axes=axes
     )
 
-def _convert_shape(builder, node, graph, err):
+def _convert_sub(builder, node, graph, err):
     '''
-    convert to CoreML GetShape Layer:
-    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5131
+    convert to CoreML Subtract Broadcastable Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4117
     '''
-    builder.add_get_shape(
+    load_input_constants(builder, node, graph, err)
+    builder.add_subtract_broadcastable(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=node.outputs[0]
+    )
+
+def _convert_tanh(builder, node, graph, err):
+    '''
+    convert to CoreML Tanh Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3881
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_tanh(
         name=node.name,
         input_name=node.inputs[0],
         output_name=node.outputs[0]
@@ -649,18 +906,37 @@ def _convert_unsqueeze(builder, node, graph, err):
 
 
 _ONNX_NODE_REGISTRY_ND = {
+    "Add": _convert_add,
     "Concat": _convert_concat,
     "Constant": _convert_constant,
     "ConstantOfShape": _convert_constant_of_shape,
+    "Div": _convert_div,
+    "Exp": _convert_exp,
     "Gather": _convert_gather,
+    "Gemm": _convert_gemm,
     "LSTM": _convert_lstm,
     "MatMul": _convert_matmul,
+    "Mul": _convert_mul,
+    "Pow": _convert_pow,
+    "ReduceL1": _convert_reduce,
+    "ReduceL2": _convert_reduce,
+    "ReduceLogSum": _convert_reduce,
+    "ReduceLogSumExp": _convert_reduce,
+    "ReduceMax": _convert_reduce,
+    "ReduceMean": _convert_reduce,
+    "ReduceMin": _convert_reduce,
+    "ReduceProd": _convert_reduce,
+    "ReduceSum": _convert_reduce,
+    "ReduceSumSquare": _convert_reduce,
     "Relu": _convert_relu,
     "Reshape": _convert_reshape,
     "Slice": _convert_slice,
     "Split": _convert_split,
     "Shape": _convert_shape,
+    "Sqrt": _convert_sqrt,
     "Squeeze": _convert_squeeze,
+    "Sub": _convert_sub,
+    "Tanh": _convert_tanh,
     "Transpose": _convert_transpose,
     "Unsqueeze": _convert_unsqueeze
 }

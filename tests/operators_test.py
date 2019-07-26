@@ -198,7 +198,7 @@ class SingleOperatorTest(unittest.TestCase):
                 momentum=momentum
             )
 
-    def test_gemm(self):  # type: () -> None
+    def test_gemm(self, disable_rank5_mapping=False):  # type: () -> None
         input_shape = (1, 2048)
         output_shape = (1, 5)
         W = from_array(
@@ -213,10 +213,16 @@ class SingleOperatorTest(unittest.TestCase):
             [output_shape],
             initializer=[W, b],
             decimal=3,
-            transB=1
+            transB=1,
+            disable_rank5_mapping=disable_rank5_mapping
         )
 
-    def test_gemm_transB_off(self):  # type: () -> None
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_gemm_disable_rank5_mapping(self):
+        self.test_gemm(True)
+
+    def test_gemm_transB_off(self, disable_rank5_mapping=False):  # type: () -> None
         input_shape = (1, 2048)
         output_shape = (1, 5)
         W = from_array(
@@ -231,8 +237,14 @@ class SingleOperatorTest(unittest.TestCase):
             [output_shape],
             initializer=[W, b],
             decimal=3,
-            transB=0
+            transB=0,
+            disable_rank5_mapping=disable_rank5_mapping
         )
+    
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_gemm_transB_off_disable_rank5_mapping(self):
+        self.test_gemm_transB_off(True)
 
     def test_lrn(self):  # type: () -> None
         _test_single_node(
