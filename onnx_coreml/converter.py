@@ -557,8 +557,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             _convert_node(builder, node, graph, err)
 
     if DEBUG:
-        plot_graph(graph, graph_img_path='/tmp/after_conversion.pdf', show_coreml_mapped_shapes=not disable_coreml_rank5_mapping)
-
+        plot_graph(graph, graph_img_path='/tmp/after_conversion.pdf', show_coreml_mapped_shapes=not disable_coreml_rank5_mapping) 
 
     if add_deprocess:
         for f in output_features:
@@ -649,6 +648,8 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         if DEBUG:
             import coremltools
             coremltools.models.utils.save_spec(builder.spec, '/tmp/node_model_raw_spec.mlmodel')
+            from  coremltools.models.neural_network.printer import print_network_spec
+            print_network_spec(builder.spec, style='coding')
         mlmodel = MLModel(builder.spec)
     except RuntimeError as e:
         raise ValueError('Compilation failed: {}'.format(str(e)))

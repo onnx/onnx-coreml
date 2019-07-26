@@ -67,10 +67,14 @@ def _convert_constant_of_shape(builder, node, graph, err):
     # if shape is known, create tensor of given shape
     # otherwise create tensor at runtime
     if node.inputs[0] in node.input_tensors:
+        output_shape = node.input_tensors[node.inputs[0]]
+        # add_fill_static requires shape to be more than rank-1
+        if len(output_shape.shape) == 1:
+            output_shape = output_shape.reshape(output_shape.shape[0], 1)
         builder.add_fill_static(
             name=node.name,
             output_name=node.outputs[0],
-            output_shape=node.input_tensors[node.input[0]],
+            output_shape=output_shape,
             value=value[0]
         )
     else:
@@ -113,9 +117,309 @@ def _convert_gather(builder, node, graph, err):
     
     builder.add_gather(
         name=node.name,
-        input_names=[data, indices],
+        input_names=[node.inputs[0], node.inputs[1]],
         output_name=node.outputs[0],
         axis=axis
+    )
+
+def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+    '''
+    convert to CoreML Uni/Bi-Directional LSTM Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3282
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3348
+    '''
+
+    def get_weights(W, W_name, R, R_name, B):
+        '''
+        Helper routine to return weights in CoreML LSTM required format
+        '''
+        W = np.expand_dims(np.expand_dims(W, 3), 3)
+        R = np.expand_dims(np.expand_dims(R, 3), 3)
+    
+        if W is None:
+            err.missing_initializer(node,
+                                    "Weight tensor: {} not found in the graph initializer".format(W_name))
+        if R is None:
+            err.missing_initializer(node,
+                                    "Weight tensor: {} not found in the graph initializer".format(R_name))
+
+        W_i, W_o, W_f, W_c = np.split(np.squeeze(W), 4)  #type: ignore
+        R_i, R_o, R_f, R_c = np.split(np.squeeze(R), 4)  #type: ignore
+
+        W_x = [W_i, W_f, W_o, W_c]
+        W_h = [R_i, R_f, R_o, R_c]
+        b = None
+        if B is not None:
+            b_Wi, b_Wo, b_Wf, b_Wc, b_Ri, b_Ro, b_Rf, b_Rc = np.split(np.squeeze(B), 8)  #type: ignore
+            b = [b_Wi + b_Ri, b_Wf + b_Rf, b_Wo + b_Ro, b_Wc + b_Rc]
+
+        return W_x, W_h, b
+
+    def expand_dim(node_name, input_name, output_name, axes):
+        builder.add_expand_dims(
+            name=node_name,
+            input_name=input_name,
+            output_name=output_name,
+            axes=axes
+        )
+
+    # Read attributes
+    # activation alpha and beta
+    if 'activation_alpha' in node.attrs or 'activation_beta' in node.attrs:
+        err.unsupported_feature_warning(node, "Activation parameter alpha and beta are currently not used")
+    
+    inner_activation = 'SIGMOID'
+    cell_state_update_activation = 'TANH'
+    output_activation = 'TANH'
+
+    if 'activations' in node.attrs:
+        activations_list = node.attrs['activations']
+    
+        if len(activations_list) < 3:
+            err.unsupported_op_configuration(builder, node, graph, "Error in ONNX model: Less number of activations provided")
+    
+        if len(activations_list) == 6:
+            err.unsupported_feature_warning(node, "Forward and backward pass will use same activations.")
+
+        inner_activation = activations_list[0]
+        cell_state_update_activation = activations_list[1]
+        output_activation = activations_list[2]
+    
+    # Provide max Clip Value if not provided
+    clip_threshold = node.attrs.get('clip', 500000.0)
+
+    # Extract direction from ONNX attribute
+    direction = 1
+    if 'direction' in node.attrs and node.attrs['direction'].decode('utf-8') == 'bidirectional':
+        direction = 2
+
+    hidden_size = node.attrs.get('hidden_size')
+
+    input_forget = node.attrs.get('input_forget', 0) == 1
+
+    # Read inputs
+    W_name = node.inputs[1]
+    R_name = node.inputs[2]
+    B = None
+    if len(node.inputs) > 3:
+        B_name = node.inputs[3]
+        B = node.input_tensors.get(B_name, None)
+ 
+    W = node.input_tensors.get(W_name, None)
+    R = node.input_tensors.get(R_name, None)
+
+    W = np.split(W, direction)
+    R = np.split(R, direction)
+    if B is not None:
+        B = np.split(B, direction)
+    else:
+        B = [None, None]
+
+    # Get weights for forward direction
+    W_x, W_h, b = get_weights(W[0], W_name, R[0], R_name, B[0])
+
+    # shape of input
+    input_size = W_x[0].shape[1]
+
+    # Get input and output for hidden and cell  
+    input_h = node.inputs[5] if len(node.inputs) > 5 else node.inputs[0] + '_h_input'
+    input_c = node.inputs[6] if len(node.inputs) > 6 else node.inputs[0] + '_c_input'
+    output_h = node.outputs[1] if len(node.outputs) > 1 else node.outputs[0] + '_h_output'
+    output_c = node.outputs[2] if len(node.outputs) > 2 else node.outputs[0] + '_c_output'
+    output_h_5d = output_h + '_5d'
+    output_c_5d = output_c + '_5d'
+
+    # if input is not present in the network, load they as constant
+    if node.inputs[0] not in graph.shape_dict:
+        err.unsupported_op_configuration(builder, node, graph, "Input shape not represented within Graph")
+    
+    # Input is represented as [Seq Len, Batch Size, Input Size]
+    batch_size = graph.shape_dict[node.inputs[0]][1]
+    if len(node.inputs) < 6:
+        builder.add_load_constant_nd(
+            name=node.name + '_load_initial_h_and_c',
+            output_name=input_h,
+            constant_value=0.0,
+            shape=[direction, batch_size, hidden_size]
+        )
+        # OPTIMIZATION: let's reuse the intial weights
+        input_c = input_h
+
+    # Get tensors for peepholes
+    peepholes = node.inputs[7] if len(node.inputs) > 7 else None
+
+    # CoreML LSTM expects 5-d tensor
+    # Expand dimensions of input to 5-d for compatibility
+    if len(graph.shape_dict[node.inputs[0]]) < 5:
+        total_dims = len(graph.shape_dict[node.inputs[0]])
+        add_nodes = 5 - total_dims
+        
+        expand_dim(node.name+'_expand_in_0', node.inputs[0], node.inputs[0]+'_expand_out_0', [total_dims])
+        expand_dim(node.name+'_expand_in_h_0', input_h, input_h+'_expand_out_h_0', [total_dims])
+        expand_dim(node.name+'_expand_in_c_0', input_c, input_c+'_expand_out_c_0', [total_dims])
+
+        for i in range(1, add_nodes):
+            i_str = str(i)
+            i_p_str = str(i-1)
+            expand_dim(node.name+'_expand_in_'+i_str, node.inputs[0]+'_expand_out_'+i_p_str, node.inputs[0]+'_expand_out_'+i_str, [total_dims+i])
+            expand_dim(node.name+'_expand_in_h_'+i_str, input_h+'_expand_out_h_'+i_p_str, input_h+'_expand_out_h_'+i_str, [total_dims+i])
+            expand_dim(node.name+'_expand_in_c_'+i_str, input_c+'_expand_out_c_'+i_p_str, input_c+'_expand_out_c_'+i_str, [total_dims+i])
+
+    if direction == 1:
+        # Peephole from ONNX are of shape [Num Dir, 3 * hidden_size]
+        # Reshape into CoreML format of [input hs, forget hs, cell hs]
+        if peepholes is not None:
+            builder.add_reshape_static(
+                name=node.name + '_peephole_reshape',
+                input_name=peepholes,
+                output_name=peepholes+'_reshaped',
+                output_shape=[hidden_size, hidden_size, hidden_size]
+            )
+            peepholes = peepholes + '_reshaped'
+
+        builder.add_unilstm(
+            name=node.name,
+            W_h=W_h,
+            W_x=W_x,
+            b=b,
+            hidden_size=hidden_size,
+            input_size=input_size,
+            input_names=[node.inputs[0] + '_expand_out_' + str(add_nodes-1), input_h + '_expand_out_h_' + str(add_nodes-1), input_c + '_expand_out_c_' + str(add_nodes-1)],
+            output_names=[node.outputs[0]+'_5d_out', output_h_5d, output_c_5d],
+            inner_activation=inner_activation,
+            cell_state_update_activation=cell_state_update_activation,
+            output_activation=output_activation,
+            peep=peepholes,
+            output_all=True,
+            forget_bias=True,
+            coupled_input_forget_gate=input_forget,
+            cell_clip_threshold=clip_threshold,
+            reverse_input=False
+        )
+    elif direction == 2:
+        if len(W) != 2 and len(R) != 2 and len(B) != 2:
+            err.unsupported_op_configuration(builder, node, graph, "Bi-Directional LSTM does not have weights for both the directions")
+
+        W_x_back, W_h_back, b_back = get_weights(W[1], W_name, R[1], R_name, B[1])
+
+        peephole_f = None
+        peephole_b = None
+        if peepholes is not None:
+            builder.add_reshape_static(
+                name=node.name + '_peephole_reshape',
+                input_name=peepholes,
+                output_name=peepholes+'_reshaped',
+                output_shape=[direction, hidden_size, hidden_size, hidden_size]
+            )
+
+            peepholes_f = peepholes + '_f'
+            peepholes_b = peepholes + '_b'
+
+            builder.add_split_nd(
+                name=node.name+'_peephole_split',
+                input_name=peepholes+'_reshaped',
+                output_names=[peepholes_f, peepholes_b],
+                axis=0
+            )
+
+        # split input_h and input_c into two parts
+        builder.add_split_nd(
+            name=node.name+'_split_h',
+            input_name=input_h+'_expand_out_h_' + str(add_nodes-1),
+            output_names=[input_h+'_f', input_h+'_b'],
+            axis=0
+        )
+
+        # OPTIMIZATION: If input_h and input_c are same
+        # Avoid creating new split and instead reuse
+        if input_h != input_c:
+            builder.add_split_nd(
+                name=node.name+'_split_c',
+                input_name=input_c+'_expand_out_c_' + str(add_nodes-1),
+                output_names=[input_c+'_f', input_c+'_b'],
+                axis=0
+            )
+
+        builder.add_bidirlstm(
+            name=node.name,
+            W_h=W_h,
+            W_x=W_x,
+            b=b,
+            W_h_back=W_h_back,
+            W_x_back=W_x_back,
+            b_back=b_back,
+            hidden_size=hidden_size,
+            input_size=input_size,
+            input_names=[node.inputs[0] + '_expand_out_' + str(add_nodes-1), input_h+'_f', input_c+'_f', input_h+'_b', input_c+'_b'],
+            output_names=[node.outputs[0]+'_5d_out', output_h+'_f', output_c+'_f', output_h+'_b', output_c+'_b'],
+            inner_activation=inner_activation,
+            cell_state_update_activation=cell_state_update_activation,
+            output_activation=output_activation,
+            output_all=True,
+            peep=peephole_f,
+            peep_back=peephole_b,
+            forget_bias=True,
+            coupled_input_forget_gate=input_forget,
+            cell_clip_threshold=clip_threshold
+        )
+                
+        # Combine output_h and output_c
+        builder.add_concat_nd(
+            name=node.name+'concat_output_h',
+            input_names=[output_h+'_f', output_h+'_b'],
+            output_name=output_h_5d,
+            axis=0
+        )
+
+        builder.add_concat_nd(
+            name=node.name+'concat_output_c',
+            input_names=[output_c+'_f', output_c+'_b'],
+            output_name=output_c_5d,
+            axis=0
+        )
+    else:
+        err.unsupported_op_configuration(builder, node, graph, "Unsupported direction {} for LSTM".format(direction))
+
+
+    # CoreML output is [Seq Len, Batch Size, Num Dir * Hidden Size, 1, 1]
+    # Return output as [Seq Len, Num Dir, Batch Size, Hidden Size]
+    # Following steps:
+    #       a. Reshape and split hidden size for direction [Seq Len, Batch Size, Num Dir, Hidden Size, 1]
+    #       b. Squeeze last dimension [Seq Len, Batch Size, Num Dir, Hidden Size]
+    #       c. Permute to fix the order [Seq Len, Num Dir, Batch Size, Hidden Size, 1]
+    builder.add_rank_preserving_reshape(
+        name=node.name + '_reshape_',
+        input_name=node.outputs[0]+'_5d_out',
+        output_name=node.outputs[0]+'_5d_reshaped',
+        output_shape=[0, 0, direction, -1, 0]
+    )
+
+    builder.add_squeeze(
+        name=node.name+'_squeeze_out',
+        input_name=node.outputs[0]+'_5d_reshaped',
+        output_name=node.outputs[0]+'_4d',
+        axes=[-1]
+    )
+
+    builder.add_transpose(
+        name=node.name + '_transpose',
+        axes=[0, 2, 1, 3],
+        input_name=node.outputs[0] + '_4d',
+        output_name=node.outputs[0]
+    )
+
+    # Squeeze dimensions of output_h and output_c
+    builder.add_squeeze(
+        name=node.name+'_squeeze_out_h',
+        input_name=output_h_5d,
+        output_name=output_h,
+        axes=[-1, -2]
+    )
+    builder.add_squeeze(
+        name=node.name+'_squeeze_out_c',
+        input_name=output_c_5d,
+        output_name=output_c,
+        axes=[-1, -2]
     )
 
 def _convert_matmul(builder, node, graph, err):
@@ -349,6 +653,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "Constant": _convert_constant,
     "ConstantOfShape": _convert_constant_of_shape,
     "Gather": _convert_gather,
+    "LSTM": _convert_lstm,
     "MatMul": _convert_matmul,
     "Relu": _convert_relu,
     "Reshape": _convert_reshape,
