@@ -498,6 +498,153 @@ class ReshapeTransposeTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 12, 4, 6), (12, 4, 6))  # type: ignore
 
+class UnaryOperationTests(unittest.TestCase):
+    '''
+    Unary Operation Test cases
+    '''
+    ## Sqrt tests
+    def sqrt_tensor(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return torch.sqrt(x)
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
+
+class BinaryOperationTests(unittest.TestCase):
+    '''
+    Binary Operation Test cases
+    '''
+    ## Addition tests
+    def add_same_shape(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return torch.add(x, y)
+
+        y = torch.rand((18, 4, 5))
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
+
+    def add_same_shape_multiple(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return x + y + y1 + y2 + y3
+
+        y = torch.rand((18, 4, 5))
+        y1 = torch.rand((4, 5))
+        y2 = torch.rand((18, 4, 5))
+        y3 = 7.234
+        
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
+
+    def add_tensor_scalar(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return torch.add(x, y)
+
+        y = 5
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
+
+    def add_diff_shape(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return torch.add(x, y)
+
+        y = torch.rand((4, 5))
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
+
+    ## Subtraction tests
+    def sub_same_shape(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return torch.sub(x, y)
+
+        y = torch.rand((18, 4, 5))
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
+
+    def sub_same_shape_multiple(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return x - y - y1 - y2 - y3
+
+        y = torch.rand((18, 4, 5))
+        y1 = torch.rand((4, 5))
+        y2 = torch.rand((18, 4, 5))
+        y3 = 7.234
+        
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
+
+    def sub_tensor_scalar(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return torch.sub(x, y)
+
+        y = 5
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
+
+    def sub_diff_shape(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return torch.sub(x, y)
+
+        y = torch.rand((4, 5))
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
+
+    def bianry_ops_mix_test(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return ((x * g + a) - d * (c + b) + (a * e - g) / e) / f
+
+        a = torch.rand((18, 4, 5))
+        b = torch.rand((4, 5))
+        c = torch.rand((18, 4, 5))
+        d = 7.234
+        e = torch.rand((5))
+        f = 8.234
+        g = 5
+         
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
+
+class ReduceOperationTests(unittest.TestCase):
+    '''
+    Reduction Operation Test cases
+    '''
+    ## Reduction tests
+    def reduce_sum(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return x.sum(dim=0)
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (4, 5), disable_rank5_mapping=disable_rank5_mapping)
+
+    def reduce_mean(self, disable_rank5_mapping=True):
+        class Net(nn.Module):
+            def forward(self, x):
+                return x.mean(dim=1) 
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 5), disable_rank5_mapping=disable_rank5_mapping)
 
 if __name__ == '__main__':
     unittest.main()
