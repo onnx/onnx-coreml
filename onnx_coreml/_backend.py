@@ -36,6 +36,7 @@ class CoreMLBackend(Backend):
     def prepare(cls,
                 model,  # type: ModelProto
                 device='CPU',  # type: Text
+                disable_rank5_mapping=False, # type: Bool
                 **kwargs  # type: Any
                 ):
         # type: (...) -> CoreMLRep
@@ -44,7 +45,7 @@ class CoreMLBackend(Backend):
             with open('/tmp/node_model.onnx', 'wb') as f:
                 s = model.SerializeToString()
                 f.write(s)
-        coreml_model = convert(model)
+        coreml_model = convert(model, disable_coreml_rank5_mapping=disable_rank5_mapping)
         if DEBUG:
             coreml_model.save('/tmp/node_model.mlmodel')
         onnx_outputs_info = _get_onnx_outputs_info(model)
@@ -108,8 +109,53 @@ class CoreMLBackend(Backend):
         return device == 'CPU'
 
 
-prepare = CoreMLBackend.prepare
+class CoreMLBackendND(Backend):
+    @classmethod
+    def prepare(cls,
+                model,  # type: ModelProto
+                device='CPU',  # type: Text
+                disable_rank5_mapping=True, # type: Bool
+                **kwargs  # type: Any
+                ):
+        # type: (...) -> CoreMLRep
+        super(CoreMLBackendND, cls).prepare(model, device, **kwargs)
+        if DEBUG:
+            with open('/tmp/node_model.onnx', 'wb') as f:
+                s = model.SerializeToString()
+                f.write(s)
+        coreml_model = convert(model, disable_coreml_rank5_mapping=disable_rank5_mapping)
+        if DEBUG:
+            coreml_model.save('/tmp/node_model.mlmodel')
+        onnx_outputs_info = _get_onnx_outputs_info(model)
+        return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU')
 
-run_node = CoreMLBackend.run_node
+    @classmethod
+    def is_compatible(cls,
+                       model,  # type: ModelProto
+                       device='CPU',  # type: Text
+                       **kwargs  # type: Any
+                       ):  # type: (...) -> bool
+        # Return whether the model is compatible with CoreML.
+        '''
+        This function will gradually grow to cover more cases. 
+        Need to be careful of false negatives. There are some cases that seemingly 
+        are not supported on CoreML, which the graph transformer optimizes and converts to 
+        a graph that can be converted to CoreML. 
+        
+        2. Unsupported ops: If graph has one of unsupported op, exit
+           
+        '''
+        ## TODO: Add un-supported ops
+        unsupported_ops = []
+        graph = model.graph
+        for node in graph.node:
+            if node.op_type in unsupported_ops:
+                return False
+        return True
 
-run_model = CoreMLBackend.run_model
+    @classmethod
+    def supports_device(cls,
+                        device,  # type: Text
+                        ):
+        # type: (...) -> bool
+        return device == 'CPU'

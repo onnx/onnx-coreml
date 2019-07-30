@@ -9,10 +9,21 @@ import onnx
 
 import onnx.backend.test
 
-from onnx_coreml._backend import CoreMLBackend
+from onnx_coreml._backend import CoreMLBackend, CoreMLBackendND
+
+from coremltools.models.utils import macos_version
+
+# Disable Rank 5 mapping for ONNX backend testing
+DISABLE_RANK5_MAPPING = False
+
+MIN_MACOS_VERSION_10_15 = (10, 15)
+# If MACOS version is less than 10.15
+# Then force testing on CoreML 2.0
+if macos_version() < MIN_MACOS_VERSION_10_15:
+    DISABLE_RANK5_MAPPING = False
 
 # import all test cases at global scope to make them visible to python.unittest
-backend_test = onnx.backend.test.BackendTest(CoreMLBackend, __name__)
+backend_test = onnx.backend.test.BackendTest(CoreMLBackendND if DISABLE_RANK5_MAPPING else CoreMLBackend, __name__)
 
 # Only include the big models tests
 backend_test.include('test_resnet50')
@@ -22,7 +33,7 @@ backend_test.include('test_densenet121')
 backend_test.include('test_shufflenet')
 backend_test.include('test_squeezenet')
 
-#Slow tests. Skipping for now.
+# Slow tests. Skipping for now.
 backend_test.exclude('test_vgg19')
 backend_test.exclude('test_bvlc_alexnet')
 backend_test.exclude('test_zfnet')

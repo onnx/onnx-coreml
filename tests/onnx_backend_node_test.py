@@ -10,9 +10,20 @@ from typing import Any, Text, Optional, Tuple, Sequence
 import onnx.backend.test
 import numpy
 
-from onnx_coreml._backend import CoreMLBackend
+from onnx_coreml._backend import CoreMLBackend, CoreMLBackendND
 
-class CoreMLTestingBackend(CoreMLBackend):
+from coremltools.models.utils import macos_version
+
+# Disable Rank 5 mapping for ONNX backend testing
+DISABLE_RANK5_MAPPING = False
+
+MIN_MACOS_VERSION_10_15 = (10, 15)
+# If MACOS version is less than 10.15
+# Then force testing on CoreML 2.0
+if macos_version() < MIN_MACOS_VERSION_10_15:
+    DISABLE_RANK5_MAPPING = False
+
+class CoreMLTestingBackend(CoreMLBackendND if DISABLE_RANK5_MAPPING else CoreMLBackend):
     @classmethod
     def run_node(cls,
                  node,  # type: onnx.NodeProto
@@ -63,226 +74,895 @@ class CoreMLTestingBackend(CoreMLBackend):
         return cls.prepare(model).run(inputs)
 
 
+def exclude_test_cases(backend_test):
+    # Test cases to be disabled till coreml 2
+    unsupported_tests_till_coreml2 = [
+        # Failing due to tolerance (in particular due to the way outputs are compared,
+        'test_log_example_cpu',
+        'test_operator_add_broadcast_cpu',
+        'test_operator_add_size1_right_broadcast_cpu',
+        'test_operator_add_size1_singleton_broadcast_cpu',
+        'test_operator_addconstant_cpu',
+        'test_sign_cpu',
+        'test_sign_model_cpu',
+
+        # Dynamic ONNX ops not supported in CoreML
+        'test_reshape_extended_dims_cpu',
+        'test_reshape_negative_dim_cpu',
+        'test_reshape_one_dim_cpu',
+        'test_reshape_reduced_dims_cpu',
+        'test_reshape_reordered_dims_cpu',
+        'test_gemm_broadcast_cpu',
+        'test_gemm_nobroadcast_cpu',
+        'test_upsample_nearest_cpu',
+
+        # Failure due to axis alignment between ONNX and CoreML
+        'test_add_bcast_cpu', # (3,4,5, shaped tensor + (5,, shaped tensor
+        'test_div_bcast_cpu', # (3,4,5, shaped tensor + (5,, shaped tensor
+        'test_mul_bcast_cpu', # (3,4,5, shaped tensor + (5,, shaped tensor
+        'test_sub_bcast_cpu', # (3,4,5, shaped tensor + (5,, shaped tensor
+        'test_operator_index_cpu', # input: [1,1]: cannot slice along batch axis
+        'test_concat_2d_axis_0_cpu', # cannot slice along batch axis
+        'test_argmax_default_axis_example_cpu', # batch axis
+        'test_argmin_default_axis_example_cpu', # batch axis
+        'test_AvgPool1d_cpu', # 3-D tensor unsqueezed to 4D with axis = 3 and then pool
+        'test_AvgPool1d_stride_cpu', # same as above
+
+        # Possibly Fixable by the converter
+        'test_slice_start_out_of_bounds_cpu', # starts and ends exceed input size
+
+        # "Supported ops, but Unsupported parameters by CoreML"
+        'test_logsoftmax_axis_1_cpu', # this one converts but fails at runtime: must give error during conversion
+        'test_logsoftmax_default_axis_cpu', # this one converts but fails at runtime: must give error during conversion
+        'test_softmax_axis_1_cpu', # this one converts but fails at runtime: must give error during conversion
+        'test_softmax_default_axis_cpu', # this one converts but fails at runtime: must give error during conversion
+        'test_logsoftmax_axis_0_cpu',
+        'test_logsoftmax_axis_2_cpu',
+        'test_softmax_axis_0_cpu',
+        'test_softmax_axis_2_cpu',
+        'test_log_softmax_dim3_cpu',
+        'test_log_softmax_lastdim_cpu',
+        'test_softmax_functional_dim3_cpu',
+        'test_PReLU_1d_multiparam_cpu', # this one converts but fails at runtime: must give error during conversion
+        'test_mvn_cpu', # not sure why there is numerical mismatch
+        'test_flatten_axis2_cpu', # 2,3,4,5 --> 6,20
+        'test_flatten_axis3_cpu', # 2,3,4,5 --> 24,5
+
+        # Unsupported ops by CoreML
+        'test_constant_cpu',
+        'test_hardmax_axis_0_cpu',
+        'test_hardmax_axis_1_cpu',
+        'test_hardmax_axis_2_cpu',
+        'test_hardmax_default_axis_cpu',
+        'test_hardmax_example_cpu',
+        'test_hardmax_one_hot_cpu',
+        'test_matmul_2d_cpu',
+        'test_matmul_3d_cpu',
+        'test_matmul_4d_cpu',
+        'test_AvgPool3d_cpu',
+        'test_AvgPool3d_stride_cpu',
+        'test_BatchNorm3d_eval_cpu',
+        'test_Conv3d_cpu',
+        'test_Conv3d_dilated_cpu',
+        'test_Conv3d_dilated_strided_cpu',
+        'test_Conv3d_groups_cpu',
+        'test_Conv3d_no_bias_cpu',
+        'test_Conv3d_stride_cpu',
+        'test_Conv3d_stride_padding_cpu',
+        'test_MaxPool3d_cpu',
+        'test_MaxPool3d_stride_cpu',
+        'test_MaxPool3d_stride_padding_cpu',
+        'test_PReLU_3d_cpu',
+        'test_PReLU_3d_multiparam_cpu',
+        'test_AvgPool3d_stride1_pad0_gpu_input_cpu',
+        'test_BatchNorm3d_momentum_eval_cpu',
+        'test_BatchNorm1d_3d_input_eval_cpu',
+        'test_averagepool_3d_default_cpu',
+        'test_maxpool_3d_default_cpu',
+        'test_split_variable_parts_1d_cpu',
+        'test_split_variable_parts_2d_cpu',
+        'test_split_variable_parts_default_axis_cpu',
+        'test_cast_DOUBLE_to_FLOAT_cpu',
+        'test_cast_FLOAT_to_DOUBLE_cpu',
+        'test_shape_cpu',
+        'test_shape_example_cpu',
+        'test_size_cpu',
+        'test_size_example_cpu',
+        'test_top_k_cpu',
+        'test_PoissonNLLLLoss_no_reduce_cpu',
+        'test_operator_mm_cpu',
+        'test_operator_addmm_cpu',
+        'test_tile_cpu',
+        'test_tile_precomputed_cpu',
+        'test_acos_cpu',
+        'test_acos_example_cpu',
+        'test_asin_cpu',
+        'test_asin_example_cpu',
+        'test_atan_cpu',
+        'test_atan_example_cpu',
+        'test_cos_cpu',
+        'test_cos_example_cpu',
+        'test_sin_cpu',
+        'test_sin_example_cpu',
+        'test_tan_cpu',
+        'test_tan_example_cpu',
+        'test_dropout_cpu',
+        'test_dropout_default_cpu',
+        'test_dropout_random_cpu',
+        'test_gru_seq_length_cpu',
+        'test_identity_cpu',
+        'test_asin_example_cpu',
+        'test_reduce_log_sum_exp_default_axes_keepdims_example_cpu',
+        'test_reduce_log_sum_exp_default_axes_keepdims_random_cpu',
+        'test_reduce_log_sum_exp_do_not_keepdims_example_cpu',
+        'test_reduce_log_sum_exp_do_not_keepdims_random_cpu',
+        'test_reduce_log_sum_exp_keepdims_example_cpu',
+        'test_reduce_log_sum_exp_keepdims_random_cpu',
+        'test_rnn_seq_length_cpu',
+        'test_operator_repeat_cpu',
+        'test_operator_repeat_dim_overflow_cpu',
+        'test_thresholdedrelu_example_cpu', #different convention for CoreML
+        'test_expand_shape_model1_cpu',
+        'test_expand_shape_model2_cpu',
+        'test_expand_shape_model3_cpu',
+        'test_expand_shape_model4_cpu',
+        'test_expand_dim_changed_cpu',
+        'test_expand_dim_unchanged_cpu',
+        'test_operator_chunk_cpu', # unequal splits
+        'test_operator_permute2_cpu', # rank 6 input
+        'test_maxpool_with_argmax_2d_precomputed_pads_cpu',
+        'test_maxpool_with_argmax_2d_precomputed_strides_cpu',
+        'test_gather_1_cpu',
+        'test_gather_0_cpu',
+        'test_Embedding_cpu', # gather op
+        'test_Embedding_sparse_cpu', # gather op
+        'test_pow_bcast_scalar_cpu',
+        'test_pow_bcast_array_cpu',
+        'test_pow_cpu',
+        'test_pow_example_cpu',
+        'test_operator_pow_cpu',
+        'test_shrink_cpu',
+        'test_acosh_cpu',
+        'test_asinh_cpu',
+        'test_atanh_cpu',
+        'test_erf_cpu',
+        'test_isnan_cpu',
+        'test_where_example_cpu',
+        'test_acosh_example_cpu',
+        'test_asinh_example_cpu',
+        'test_atanh_example_cpu',
+        'test_compress_0_cpu',
+        'test_compress_1_cpu',
+        'test_compress_default_axis_cpu',
+        'test_constantofshape_float_ones_cpu',
+        'test_constantofshape_int_zeros_cpu',
+        'test_cosh_cpu',
+        'test_cosh_example_cpu',
+        'test_dynamic_slice_cpu',
+        'test_dynamic_slice_default_axes_cpu',
+        'test_dynamic_slice_end_out_of_bounds_cpu',
+        'test_dynamic_slice_neg_cpu',
+        'test_dynamic_slice_neg_cpu',
+        'test_dynamic_slice_start_out_of_bounds_cpu',
+        'test_eyelike_populate_off_main_diagonal_cpu',
+        'test_eyelike_with_dtype_cpu',
+        'test_eyelike_without_dtype_cpu',
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet',
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet'
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet'
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet'
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet'
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet'
+    ]
+
+    ## Test cases to be disabled in CoreML 3.0
+    unsupported_tests_coreml3 = [
+        # Failing due to tolerance (in particular due to the way outputs are compared,
+        'test_log_example_cpu',
+        'test_operator_add_broadcast_cpu',
+        'test_operator_add_size1_right_broadcast_cpu',
+        'test_operator_add_size1_singleton_broadcast_cpu',
+        'test_operator_addconstant_cpu',
+        'test_sign_cpu',
+        'test_sign_model_cpu',
+
+        # Dynamic ONNX ops not supported in CoreML
+        'test_reshape_extended_dims_cpu',
+        'test_reshape_negative_dim_cpu',
+        'test_reshape_one_dim_cpu',
+        'test_reshape_reduced_dims_cpu',
+        'test_reshape_reordered_dims_cpu',
+        'test_gemm_broadcast_cpu',
+        'test_gemm_nobroadcast_cpu',
+        'test_upsample_nearest_cpu',
+
+        # Failure due to axis alignment between ONNX and CoreML
+        'test_add_bcast_cpu', # (3,4,5, shaped tensor + (5,, shaped tensor
+        'test_div_bcast_cpu', # (3,4,5, shaped tensor + (5,, shaped tensor
+        'test_mul_bcast_cpu', # (3,4,5, shaped tensor + (5,, shaped tensor
+        'test_sub_bcast_cpu', # (3,4,5, shaped tensor + (5,, shaped tensor
+        'test_operator_index_cpu', # input: [1,1]: cannot slice along batch axis
+        'test_concat_2d_axis_0_cpu', # cannot slice along batch axis
+        'test_argmax_default_axis_example_cpu', # batch axis
+        'test_argmin_default_axis_example_cpu', # batch axis
+        'test_AvgPool1d_cpu', # 3-D tensor unsqueezed to 4D with axis = 3 and then pool
+        'test_AvgPool1d_stride_cpu', # same as above
+
+        # Possibly Fixable by the converter
+        'test_slice_start_out_of_bounds_cpu', # starts and ends exceed input size
+
+        # "Supported ops, but Unsupported parameters by CoreML"
+        'test_logsoftmax_axis_1_cpu', # this one converts but fails at runtime: must give error during conversion
+        'test_logsoftmax_default_axis_cpu', # this one converts but fails at runtime: must give error during conversion
+        'test_softmax_axis_1_cpu', # this one converts but fails at runtime: must give error during conversion
+        'test_softmax_default_axis_cpu', # this one converts but fails at runtime: must give error during conversion
+        'test_logsoftmax_axis_0_cpu',
+        'test_logsoftmax_axis_2_cpu',
+        'test_softmax_axis_0_cpu',
+        'test_softmax_axis_2_cpu',
+        'test_log_softmax_dim3_cpu',
+        'test_log_softmax_lastdim_cpu',
+        'test_softmax_functional_dim3_cpu',
+        'test_PReLU_1d_multiparam_cpu', # this one converts but fails at runtime: must give error during conversion
+        'test_mvn_cpu', # not sure why there is numerical mismatch
+        'test_flatten_axis2_cpu', # 2,3,4,5 --> 6,20
+        'test_flatten_axis3_cpu', # 2,3,4,5 --> 24,5
+
+        # Unsupported ops by CoreML
+        'test_constant_cpu',
+        'test_hardmax_axis_0_cpu',
+        'test_hardmax_axis_1_cpu',
+        'test_hardmax_axis_2_cpu',
+        'test_hardmax_default_axis_cpu',
+        'test_hardmax_example_cpu',
+        'test_hardmax_one_hot_cpu',
+        'test_matmul_2d_cpu',
+        'test_matmul_3d_cpu',
+        'test_matmul_4d_cpu',
+        'test_AvgPool3d_cpu',
+        'test_AvgPool3d_stride_cpu',
+        'test_BatchNorm3d_eval_cpu',
+        'test_Conv3d_cpu',
+        'test_Conv3d_dilated_cpu',
+        'test_Conv3d_dilated_strided_cpu',
+        'test_Conv3d_groups_cpu',
+        'test_Conv3d_no_bias_cpu',
+        'test_Conv3d_stride_cpu',
+        'test_Conv3d_stride_padding_cpu',
+        'test_MaxPool3d_cpu',
+        'test_MaxPool3d_stride_cpu',
+        'test_MaxPool3d_stride_padding_cpu',
+        'test_PReLU_3d_cpu',
+        'test_PReLU_3d_multiparam_cpu',
+        'test_AvgPool3d_stride1_pad0_gpu_input_cpu',
+        'test_BatchNorm3d_momentum_eval_cpu',
+        'test_BatchNorm1d_3d_input_eval_cpu',
+        'test_averagepool_3d_default_cpu',
+        'test_maxpool_3d_default_cpu',
+        'test_split_variable_parts_1d_cpu',
+        'test_split_variable_parts_2d_cpu',
+        'test_split_variable_parts_default_axis_cpu',
+        'test_cast_DOUBLE_to_FLOAT_cpu',
+        'test_cast_FLOAT_to_DOUBLE_cpu',
+        'test_shape_cpu',
+        'test_shape_example_cpu',
+        'test_size_cpu',
+        'test_size_example_cpu',
+        'test_top_k_cpu',
+        'test_PoissonNLLLLoss_no_reduce_cpu',
+        'test_operator_mm_cpu',
+        'test_operator_addmm_cpu',
+        'test_tile_cpu',
+        'test_tile_precomputed_cpu',
+        'test_acos_cpu',
+        'test_acos_example_cpu',
+        'test_asin_cpu',
+        'test_asin_example_cpu',
+        'test_atan_cpu',
+        'test_atan_example_cpu',
+        'test_cos_cpu',
+        'test_cos_example_cpu',
+        'test_sin_cpu',
+        'test_sin_example_cpu',
+        'test_tan_cpu',
+        'test_tan_example_cpu',
+        'test_dropout_cpu',
+        'test_dropout_default_cpu',
+        'test_dropout_random_cpu',
+        'test_gru_seq_length_cpu',
+        'test_identity_cpu',
+        'test_asin_example_cpu',
+        'test_reduce_log_sum_exp_default_axes_keepdims_example_cpu',
+        'test_reduce_log_sum_exp_default_axes_keepdims_random_cpu',
+        'test_reduce_log_sum_exp_do_not_keepdims_example_cpu',
+        'test_reduce_log_sum_exp_do_not_keepdims_random_cpu',
+        'test_reduce_log_sum_exp_keepdims_example_cpu',
+        'test_reduce_log_sum_exp_keepdims_random_cpu',
+        'test_rnn_seq_length_cpu',
+        'test_operator_repeat_cpu',
+        'test_operator_repeat_dim_overflow_cpu',
+        'test_thresholdedrelu_example_cpu', #different convention for CoreML
+        'test_expand_shape_model1_cpu',
+        'test_expand_shape_model2_cpu',
+        'test_expand_shape_model3_cpu',
+        'test_expand_shape_model4_cpu',
+        'test_expand_dim_changed_cpu',
+        'test_expand_dim_unchanged_cpu',
+        'test_operator_chunk_cpu', # unequal splits
+        'test_operator_permute2_cpu', # rank 6 input
+        'test_maxpool_with_argmax_2d_precomputed_pads_cpu',
+        'test_maxpool_with_argmax_2d_precomputed_strides_cpu',
+        'test_gather_1_cpu',
+        'test_gather_0_cpu',
+        'test_Embedding_cpu', # gather op
+        'test_Embedding_sparse_cpu', # gather op
+        'test_pow_bcast_scalar_cpu',
+        'test_pow_bcast_array_cpu',
+        'test_pow_cpu',
+        'test_pow_example_cpu',
+        'test_operator_pow_cpu',
+        'test_shrink_cpu',
+        'test_acosh_cpu',
+        'test_asinh_cpu',
+        'test_atanh_cpu',
+        'test_erf_cpu',
+        'test_isnan_cpu',
+        'test_where_example_cpu',
+        'test_acosh_example_cpu',
+        'test_asinh_example_cpu',
+        'test_atanh_example_cpu',
+        'test_compress_0_cpu',
+        'test_compress_1_cpu',
+        'test_compress_default_axis_cpu',
+        'test_constantofshape_float_ones_cpu',
+        'test_constantofshape_int_zeros_cpu',
+        'test_cosh_cpu',
+        'test_cosh_example_cpu',
+        'test_dynamic_slice_cpu',
+        'test_dynamic_slice_default_axes_cpu',
+        'test_dynamic_slice_end_out_of_bounds_cpu',
+        'test_dynamic_slice_neg_cpu',
+        'test_dynamic_slice_neg_cpu',
+        'test_dynamic_slice_start_out_of_bounds_cpu',
+        'test_eyelike_populate_off_main_diagonal_cpu',
+        'test_eyelike_with_dtype_cpu',
+        'test_eyelike_without_dtype_cpu',
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet',
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet'
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet'
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet'
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet'
+        'test_maxunpool_export_with_output_shape_cpu',
+        'test_maxunpool_export_without_output_shape_cpu',
+        'test_nonzero_example_cpu',
+        'test_onehot_with_axis_cpu',
+        'test_onehot_without_axis_cpu',
+        'test_scan9_sum_cpu',
+        'test_scan_sum_cpu',
+        'test_scatter_with_axis_cpu',
+        'test_scatter_without_axis_cpu',
+        'test_shrink_hard_cpu',
+        'test_shrink_soft_cpu',
+        'test_sinh_cpu',
+        'test_sinh_example_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_only_bigrams_skip0_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu',
+        'test_tfidfvectorizer_tf_onlybigrams_skip5_cpu',
+        'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
+
+        # recurrent tests.
+        'test_operator_rnn_cpu',
+        'test_operator_rnn_single_layer_cpu',
+        'test_operator_lstm_cpu',
+        'test_gru_defaults_cpu',
+        'test_gru_with_initial_bias_cpu',
+        'test_lstm_defaults_cpu',
+        'test_lstm_with_initial_bias_cpu',
+        'test_lstm_with_peepholes_cpu',
+        'test_simple_rnn_defaults_cpu',
+        'test_simple_rnn_with_initial_bias_cpu',
+
+        # exclude all the model zoo tests. They are tested elsewhere.
+        'test_bvlc_alexnet',
+        'test_resnet50',
+        'test_vgg16',
+        'test_vgg19',
+        'test_densenet121',
+        'test_inception_v1',
+        'test_inception_v2',
+        'test_shufflenet',
+        'test_squeezenet',
+        'test_zfnet'
+    ]
+
+    if DISABLE_RANK5_MAPPING:
+        for each in unsupported_tests_coreml3:
+            backend_test.exclude(each)
+    else:
+        for each in unsupported_tests_till_coreml2:
+            backend_test.exclude(each)
+    
 # import all test cases at global scope to make them visible to python.unittest
 backend_test = onnx.backend.test.BackendTest(CoreMLTestingBackend, __name__)
 
-# Failing due to tolerance (in particular due to the way outputs are compared)
-backend_test.exclude('test_log_example_cpu')
-backend_test.exclude('test_operator_add_broadcast_cpu')
-backend_test.exclude('test_operator_add_size1_right_broadcast_cpu')
-backend_test.exclude('test_operator_add_size1_singleton_broadcast_cpu')
-backend_test.exclude('test_operator_addconstant_cpu')
-backend_test.exclude('test_sign_cpu')
-backend_test.exclude('test_sign_model_cpu')
-
-# Dynamic ONNX ops not supported in CoreML
-backend_test.exclude('test_reshape_extended_dims_cpu')
-backend_test.exclude('test_reshape_negative_dim_cpu')
-backend_test.exclude('test_reshape_one_dim_cpu')
-backend_test.exclude('test_reshape_reduced_dims_cpu')
-backend_test.exclude('test_reshape_reordered_dims_cpu')
-backend_test.exclude('test_gemm_broadcast_cpu')
-backend_test.exclude('test_gemm_nobroadcast_cpu')
-backend_test.exclude('test_upsample_nearest_cpu')
-
-# Failure due to axis alignment between ONNX and CoreML
-backend_test.exclude('test_add_bcast_cpu') # (3,4,5) shaped tensor + (5,) shaped tensor
-backend_test.exclude('test_div_bcast_cpu') # (3,4,5) shaped tensor + (5,) shaped tensor
-backend_test.exclude('test_mul_bcast_cpu') # (3,4,5) shaped tensor + (5,) shaped tensor
-backend_test.exclude('test_sub_bcast_cpu') # (3,4,5) shaped tensor + (5,) shaped tensor
-backend_test.exclude('test_operator_index_cpu') # input: [1,1]: cannot slice along batch axis
-backend_test.exclude('test_concat_2d_axis_0_cpu') # cannot slice along batch axis
-backend_test.exclude('test_argmax_default_axis_example_cpu') # batch axis
-backend_test.exclude('test_argmin_default_axis_example_cpu') # batch axis
-backend_test.exclude('test_AvgPool1d_cpu') # 3-D tensor unsqueezed to 4D with axis = 3 and then pool
-backend_test.exclude('test_AvgPool1d_stride_cpu') # same as above
-
-# Possibly Fixable by the converter
-backend_test.exclude('test_slice_start_out_of_bounds_cpu') # starts and ends exceed input size
-
-# "Supported ops, but Unsupported parameters by CoreML"
-backend_test.exclude('test_logsoftmax_axis_1_cpu') # this one converts but fails at runtime: must give error during conversion
-backend_test.exclude('test_logsoftmax_default_axis_cpu') # this one converts but fails at runtime: must give error during conversion
-backend_test.exclude('test_softmax_axis_1_cpu') # this one converts but fails at runtime: must give error during conversion
-backend_test.exclude('test_softmax_default_axis_cpu') # this one converts but fails at runtime: must give error during conversion
-backend_test.exclude('test_logsoftmax_axis_0_cpu')
-backend_test.exclude('test_logsoftmax_axis_2_cpu')
-backend_test.exclude('test_softmax_axis_0_cpu')
-backend_test.exclude('test_softmax_axis_2_cpu')
-backend_test.exclude('test_log_softmax_dim3_cpu')
-backend_test.exclude('test_log_softmax_lastdim_cpu')
-backend_test.exclude('test_softmax_functional_dim3_cpu')
-backend_test.exclude('test_PReLU_1d_multiparam_cpu') # this one converts but fails at runtime: must give error during conversion
-backend_test.exclude('test_mvn_cpu') # not sure why there is numerical mismatch
-backend_test.exclude('test_flatten_axis2_cpu') # 2,3,4,5 --> 6,20
-backend_test.exclude('test_flatten_axis3_cpu') # 2,3,4,5 --> 24,5
-
-# Unsupported ops by CoreML
-backend_test.exclude('test_constant_cpu')
-backend_test.exclude('test_hardmax_axis_0_cpu')
-backend_test.exclude('test_hardmax_axis_1_cpu')
-backend_test.exclude('test_hardmax_axis_2_cpu')
-backend_test.exclude('test_hardmax_default_axis_cpu')
-backend_test.exclude('test_hardmax_example_cpu')
-backend_test.exclude('test_hardmax_one_hot_cpu')
-backend_test.exclude('test_matmul_2d_cpu')
-backend_test.exclude('test_matmul_3d_cpu')
-backend_test.exclude('test_matmul_4d_cpu')
-backend_test.exclude('test_AvgPool3d_cpu')
-backend_test.exclude('test_AvgPool3d_stride_cpu')
-backend_test.exclude('test_BatchNorm3d_eval_cpu')
-backend_test.exclude('test_Conv3d_cpu')
-backend_test.exclude('test_Conv3d_dilated_cpu')
-backend_test.exclude('test_Conv3d_dilated_strided_cpu')
-backend_test.exclude('test_Conv3d_groups_cpu')
-backend_test.exclude('test_Conv3d_no_bias_cpu')
-backend_test.exclude('test_Conv3d_stride_cpu')
-backend_test.exclude('test_Conv3d_stride_padding_cpu')
-backend_test.exclude('test_MaxPool3d_cpu')
-backend_test.exclude('test_MaxPool3d_stride_cpu')
-backend_test.exclude('test_MaxPool3d_stride_padding_cpu')
-backend_test.exclude('test_PReLU_3d_cpu')
-backend_test.exclude('test_PReLU_3d_multiparam_cpu')
-backend_test.exclude('test_AvgPool3d_stride1_pad0_gpu_input_cpu')
-backend_test.exclude('test_BatchNorm3d_momentum_eval_cpu')
-backend_test.exclude('test_BatchNorm1d_3d_input_eval_cpu')
-backend_test.exclude('test_averagepool_3d_default_cpu')
-backend_test.exclude('test_maxpool_3d_default_cpu')
-backend_test.exclude('test_split_variable_parts_1d_cpu')
-backend_test.exclude('test_split_variable_parts_2d_cpu')
-backend_test.exclude('test_split_variable_parts_default_axis_cpu')
-backend_test.exclude('test_cast_DOUBLE_to_FLOAT_cpu')
-backend_test.exclude('test_cast_FLOAT_to_DOUBLE_cpu')
-backend_test.exclude('test_shape_cpu')
-backend_test.exclude('test_shape_example_cpu')
-backend_test.exclude('test_size_cpu')
-backend_test.exclude('test_size_example_cpu')
-backend_test.exclude('test_top_k_cpu')
-backend_test.exclude('test_PoissonNLLLLoss_no_reduce_cpu')
-backend_test.exclude('test_operator_mm_cpu')
-backend_test.exclude('test_operator_addmm_cpu')
-backend_test.exclude('test_tile_cpu')
-backend_test.exclude('test_tile_precomputed_cpu')
-backend_test.exclude('test_acos_cpu')
-backend_test.exclude('test_acos_example_cpu')
-backend_test.exclude('test_asin_cpu')
-backend_test.exclude('test_asin_example_cpu')
-backend_test.exclude('test_atan_cpu')
-backend_test.exclude('test_atan_example_cpu')
-backend_test.exclude('test_cos_cpu')
-backend_test.exclude('test_cos_example_cpu')
-backend_test.exclude('test_sin_cpu')
-backend_test.exclude('test_sin_example_cpu')
-backend_test.exclude('test_tan_cpu')
-backend_test.exclude('test_tan_example_cpu')
-backend_test.exclude('test_dropout_cpu')
-backend_test.exclude('test_dropout_default_cpu')
-backend_test.exclude('test_dropout_random_cpu')
-backend_test.exclude('test_gru_seq_length_cpu')
-backend_test.exclude('test_identity_cpu')
-backend_test.exclude('test_asin_example_cpu')
-backend_test.exclude('test_reduce_log_sum_exp_default_axes_keepdims_example_cpu')
-backend_test.exclude('test_reduce_log_sum_exp_default_axes_keepdims_random_cpu')
-backend_test.exclude('test_reduce_log_sum_exp_do_not_keepdims_example_cpu')
-backend_test.exclude('test_reduce_log_sum_exp_do_not_keepdims_random_cpu')
-backend_test.exclude('test_reduce_log_sum_exp_keepdims_example_cpu')
-backend_test.exclude('test_reduce_log_sum_exp_keepdims_random_cpu')
-backend_test.exclude('test_rnn_seq_length_cpu')
-backend_test.exclude('test_operator_repeat_cpu')
-backend_test.exclude('test_operator_repeat_dim_overflow_cpu')
-backend_test.exclude('test_thresholdedrelu_example_cpu') #different convention for CoreML
-backend_test.exclude('test_expand_shape_model1_cpu')
-backend_test.exclude('test_expand_shape_model2_cpu')
-backend_test.exclude('test_expand_shape_model3_cpu')
-backend_test.exclude('test_expand_shape_model4_cpu')
-backend_test.exclude('test_expand_dim_changed_cpu')
-backend_test.exclude('test_expand_dim_unchanged_cpu')
-backend_test.exclude('test_operator_chunk_cpu') # unequal splits
-backend_test.exclude('test_operator_permute2_cpu') # rank 6 input
-backend_test.exclude('test_maxpool_with_argmax_2d_precomputed_pads_cpu')
-backend_test.exclude('test_maxpool_with_argmax_2d_precomputed_strides_cpu')
-backend_test.exclude('test_gather_1_cpu')
-backend_test.exclude('test_gather_0_cpu')
-backend_test.exclude('test_Embedding_cpu') # gather op
-backend_test.exclude('test_Embedding_sparse_cpu') # gather op
-backend_test.exclude('test_pow_bcast_scalar_cpu')
-backend_test.exclude('test_pow_bcast_array_cpu')
-backend_test.exclude('test_pow_cpu')
-backend_test.exclude('test_pow_example_cpu')
-backend_test.exclude('test_operator_pow_cpu')
-backend_test.exclude('test_shrink_cpu')
-backend_test.exclude('test_acosh_cpu')
-backend_test.exclude('test_asinh_cpu')
-backend_test.exclude('test_atanh_cpu')
-backend_test.exclude('test_erf_cpu')
-backend_test.exclude('test_isnan_cpu')
-backend_test.exclude('test_where_example_cpu')
-backend_test.exclude('test_acosh_example_cpu')
-backend_test.exclude('test_asinh_example_cpu')
-backend_test.exclude('test_atanh_example_cpu')
-backend_test.exclude('test_compress_0_cpu')
-backend_test.exclude('test_compress_1_cpu')
-backend_test.exclude('test_compress_default_axis_cpu')
-backend_test.exclude('test_constantofshape_float_ones_cpu')
-backend_test.exclude('test_constantofshape_int_zeros_cpu')
-backend_test.exclude('test_cosh_cpu')
-backend_test.exclude('test_cosh_example_cpu')
-backend_test.exclude('test_dynamic_slice_cpu')
-backend_test.exclude('test_dynamic_slice_default_axes_cpu')
-backend_test.exclude('test_dynamic_slice_end_out_of_bounds_cpu')
-backend_test.exclude('test_dynamic_slice_neg_cpu')
-backend_test.exclude('test_dynamic_slice_neg_cpu')
-backend_test.exclude('test_dynamic_slice_start_out_of_bounds_cpu')
-backend_test.exclude('test_eyelike_populate_off_main_diagonal_cpu')
-backend_test.exclude('test_eyelike_with_dtype_cpu')
-backend_test.exclude('test_eyelike_without_dtype_cpu')
-backend_test.exclude('test_maxunpool_export_with_output_shape_cpu')
-backend_test.exclude('test_maxunpool_export_without_output_shape_cpu')
-backend_test.exclude('test_nonzero_example_cpu')
-backend_test.exclude('test_onehot_with_axis_cpu')
-backend_test.exclude('test_onehot_without_axis_cpu')
-backend_test.exclude('test_scan9_sum_cpu')
-backend_test.exclude('test_scan_sum_cpu')
-backend_test.exclude('test_scatter_with_axis_cpu')
-backend_test.exclude('test_scatter_without_axis_cpu')
-backend_test.exclude('test_shrink_hard_cpu')
-backend_test.exclude('test_shrink_soft_cpu')
-backend_test.exclude('test_sinh_cpu')
-backend_test.exclude('test_sinh_example_cpu')
-backend_test.exclude('test_tfidfvectorizer_tf_batch_onlybigrams_skip0_cpu')
-backend_test.exclude('test_tfidfvectorizer_tf_batch_onlybigrams_skip5_cpu')
-backend_test.exclude('test_tfidfvectorizer_tf_batch_uniandbigrams_skip5_cpu')
-backend_test.exclude('test_tfidfvectorizer_tf_only_bigrams_skip0_cpu')
-backend_test.exclude('test_tfidfvectorizer_tf_onlybigrams_levelempty_cpu')
-backend_test.exclude('test_tfidfvectorizer_tf_onlybigrams_skip5_cpu')
-backend_test.exclude('test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu')
-
-
-
-# recurrent tests.
-backend_test.exclude('test_operator_rnn_cpu')
-backend_test.exclude('test_operator_rnn_single_layer_cpu')
-backend_test.exclude('test_operator_lstm_cpu')
-backend_test.exclude('test_gru_defaults_cpu')
-backend_test.exclude('test_gru_with_initial_bias_cpu')
-backend_test.exclude('test_lstm_defaults_cpu')
-backend_test.exclude('test_lstm_with_initial_bias_cpu')
-backend_test.exclude('test_lstm_with_peepholes_cpu')
-backend_test.exclude('test_simple_rnn_defaults_cpu')
-backend_test.exclude('test_simple_rnn_with_initial_bias_cpu')
-
-# exclude all the model zoo tests. They are tested elsewhere.
-backend_test.exclude('test_bvlc_alexnet')
-backend_test.exclude('test_resnet50')
-backend_test.exclude('test_vgg16')
-backend_test.exclude('test_vgg19')
-backend_test.exclude('test_densenet121')
-backend_test.exclude('test_inception_v1')
-backend_test.exclude('test_inception_v2')
-backend_test.exclude('test_shufflenet')
-backend_test.exclude('test_squeezenet')
-backend_test.exclude('test_zfnet')
-
+# exclude unsupported test cases
+exclude_test_cases(backend_test)
 
 globals().update(backend_test
                  .enable_report()
