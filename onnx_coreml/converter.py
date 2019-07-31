@@ -202,6 +202,8 @@ def _transform_coreml_dtypes(builder, # type : NeuralNetworkBuilder
             continue
         elif onnx_type == TensorProto.INT32 or onnx_type == TensorProto.INT64:
             _update_multiarray_to_int32(builder.spec.description.input[i])
+        elif onnx_type == TensorProto.BOOL:
+            _update_multiarray_to_float32(builder.spec.description.input[i])
         else:
             raise TypeError("Input must be of of type FLOAT, DOUBLE, INT32 or INT64")
 
@@ -213,6 +215,8 @@ def _transform_coreml_dtypes(builder, # type : NeuralNetworkBuilder
             continue
         elif onnx_type == TensorProto.INT32 or onnx_type == TensorProto.INT64:
             _update_multiarray_to_int32(builder.spec.description.output[i])
+        elif onnx_type == TensorProto.BOOL:
+            _update_multiarray_to_float32(builder.spec.description.input[i])
         else:
             raise TypeError("Output must be of of type FLOAT, DOUBLE, INT32 or INT64")
 

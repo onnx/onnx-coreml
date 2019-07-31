@@ -523,6 +523,19 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
         axes=[-1, -2]
     )
 
+def _convert_logical(builder, node, graph, err):
+    '''
+    convert to CoreML Logical And/Or/Xor/Not Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L1013
+    '''
+    mode = node.op_type.upper()
+    builder.add_logical(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=node.outputs[0],
+        mode=mode
+    )
+
 def _convert_matmul(builder, node, graph, err):
     '''
     convert to CoreML BatchedMatMul Layer:
@@ -907,6 +920,7 @@ def _convert_unsqueeze(builder, node, graph, err):
 
 _ONNX_NODE_REGISTRY_ND = {
     "Add": _convert_add,
+    "And": _convert_logical,
     "Concat": _convert_concat,
     "Constant": _convert_constant,
     "ConstantOfShape": _convert_constant_of_shape,
@@ -917,6 +931,8 @@ _ONNX_NODE_REGISTRY_ND = {
     "LSTM": _convert_lstm,
     "MatMul": _convert_matmul,
     "Mul": _convert_mul,
+    "Not": _convert_logical,
+    "Or": _convert_logical,
     "Pow": _convert_pow,
     "ReduceL1": _convert_reduce,
     "ReduceL2": _convert_reduce,
@@ -938,7 +954,8 @@ _ONNX_NODE_REGISTRY_ND = {
     "Sub": _convert_sub,
     "Tanh": _convert_tanh,
     "Transpose": _convert_transpose,
-    "Unsqueeze": _convert_unsqueeze
+    "Unsqueeze": _convert_unsqueeze,
+    "Xor": _convert_logical,
 }
 
 def _get_node_converter_fn(builder, node, err):  # type: (NeuralNetworkBuilder, Node, ErrorHandling) -> Callable[[NeuralNetworkBuilder, Node, Graph, ErrorHandling], None]

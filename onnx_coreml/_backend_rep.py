@@ -6,6 +6,7 @@ from __future__ import print_function
 import numpy as np
 from typing import Any, Sequence, List
 from onnx.backend.base import BackendRep, namedtupledict
+from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
 from coremltools.models import MLModel  #type: ignore
 from typing import Dict, Any, Text, Tuple
@@ -33,11 +34,13 @@ class CoreMLRep(BackendRep):
                  coreml_model,  # type: MLModel
                  onnx_outputs_info,  # type: Dict[Text, EdgeInfo]
                  useCPUOnly=False,  # type: bool
+                 disable_rank5_mapping=False # type: bool
                  ):
         # type: (...) -> None
         super(CoreMLRep, self).__init__()
         self.model = coreml_model
         self.useCPUOnly = useCPUOnly
+        self.disable_rank5_mapping = disable_rank5_mapping
 
         spec = coreml_model.get_spec()
         self.input_names = [str(i.name) for i in spec.description.input]
@@ -52,38 +55,47 @@ class CoreMLRep(BackendRep):
         super(CoreMLRep, self).run(inputs, **kwargs)
         inputs_ = inputs
         _reshaped = False
-        for i, input_ in enumerate(inputs_):
-            shape = input_.shape
-            if len(shape) == 4 or len(shape) == 2:
-                inputs_[i] = input_[np.newaxis, :]
-                _reshaped = True
-            elif len(shape) == 3:
-                spec = self.model.get_spec()
-                spec_shape = [int(k) for k in spec.description.input[i].type.multiArrayType.shape]
-                prod = spec_shape[0] * spec_shape[1] * spec_shape[2]
-                onnx_shape = list(shape)
-                if onnx_shape != spec_shape:
-                    if onnx_shape[2] == prod:
-                        inputs_[i] = np.reshape(inputs_[i], [onnx_shape[0], onnx_shape[1]] + spec_shape)
-                    elif onnx_shape[1] * onnx_shape[2] == prod:
-                        inputs_[i] = np.reshape(inputs_[i], [1, onnx_shape[0]] + spec_shape)
+        if not self.disable_rank5_mapping:
+            for i, input_ in enumerate(inputs_):
+                shape = input_.shape
+                if len(shape) == 4 or len(shape) == 2:
+                    inputs_[i] = input_[np.newaxis, :]
+                    _reshaped = True
+                elif len(shape) == 3:
+                    spec = self.model.get_spec()
+                    spec_shape = [int(k) for k in spec.description.input[i].type.multiArrayType.shape]
+                    prod = spec_shape[0] * spec_shape[1] * spec_shape[2]
+                    onnx_shape = list(shape)
+                    if onnx_shape != spec_shape:
+                        if onnx_shape[2] == prod:
+                            inputs_[i] = np.reshape(inputs_[i], [onnx_shape[0], onnx_shape[1]] + spec_shape)
+                        elif onnx_shape[1] * onnx_shape[2] == prod:
+                            inputs_[i] = np.reshape(inputs_[i], [1, onnx_shape[0]] + spec_shape)
         input_dict = dict(
             zip(self.input_names,
                 map(np.array, inputs_)))
         _set_dtypes(input_dict, self.model) #type: ignore
+
         prediction = self.model.predict(input_dict, self.useCPUOnly)
         output_values = [prediction[name] for name in self.output_names]
+
+        if not self.disable_rank5_mapping:
+            for i, output_ in enumerate(output_values):
+                shape = output_.shape
+                #reshape the CoreML output to match Onnx's output shape
+                try:
+                    output_values[i] = np.reshape(output_, self.onnx_outputs_info[self.output_names[i]][2])  # type: ignore
+                except RuntimeError:
+                    print("Output '%s' shape incompatible between CoreML (%s) and onnx (%s)"
+                        %(self.output_names[i], output_.shape,
+                            self.onnx_outputs_info[self.output_names[i]]))
+        
+        ## Type Cast to ONNX expected output types
         for i, output_ in enumerate(output_values):
-            shape = output_.shape
-            #reshape the CoreML output to match Onnx's output shape
-            try:
-                output_values[i] = np.reshape(output_, self.onnx_outputs_info[self.output_names[i]][2])  # type: ignore
-                if self.onnx_outputs_info[self.output_names[i]][1] == TensorProto.INT64:
-                    output_values[i] = output_values[i].astype(np.int64)
-            except RuntimeError:
-                print("Output '%s' shape incompatible between CoreML (%s) and onnx (%s)"
-                      %(self.output_names[i], output_.shape,
-                        self.onnx_outputs_info[self.output_names[i]]))
+            output_type = self.onnx_outputs_info[self.output_names[i]][1]
+            if TENSOR_TYPE_TO_NP_TYPE[output_type] != output_values[i].dtype:
+                output_values[i] = output_values[i].astype(TENSOR_TYPE_TO_NP_TYPE[output_type])
+
         result = namedtupledict('Outputs',
                               self.output_names)(*output_values)  # type: Tuple[Any, ...]
         return result

@@ -49,7 +49,7 @@ class CoreMLBackend(Backend):
         if DEBUG:
             coreml_model.save('/tmp/node_model.mlmodel')
         onnx_outputs_info = _get_onnx_outputs_info(model)
-        return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU')
+        return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU', disable_rank5_mapping=disable_rank5_mapping)
 
     @classmethod
     def is_compatible(cls,
