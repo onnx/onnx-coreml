@@ -12,7 +12,9 @@ from ._graph import Node, Graph
 from coremltools.proto import NeuralNetwork_pb2 #type: ignore
 from ._error_utils import ErrorHandling
 
-from ._operators import _convert_relu, _convert_sqrt, _convert_exp
+from ._operators import _convert_abs, _convert_relu, _convert_sqrt, _convert_exp, \
+                        _convert_elu, _convert_selu, _convert_sigmoid, _convert_sign, \
+                        _convert_prelu
 
 INT_MAX = 2**30
 
@@ -38,6 +40,62 @@ def _convert_add(builder, node, graph, err):
         name=node.name,
         input_names=node.inputs,
         output_name=node.outputs[0]
+    )
+
+def _convert_argmax(builder, node, graph, err):
+    '''
+    convert to CoreML ArgMax Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4961
+    '''
+    axis = node.attrs.get('axis', 0)
+    keepdims = node.attrs.get('keepdims', True)
+    builder.add_argmax(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        axis=axis,
+        keepdims=keepdims
+    )
+
+def _convert_argmin(builder, node, graph, err):
+    '''
+    convert to CoreML ArgMin Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4988
+    '''
+    axis = node.attrs.get('axis', 0)
+    keepdims = node.attrs.get('keepdims', True)
+    builder.add_argmin(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        axis=axis,
+        keepdims=keepdims
+    )
+
+def _convert_ceil(builder, node, graph, err):
+    '''
+    convert to CoreML Ceil Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5018
+    '''
+    builder.add_ceil(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+    )
+
+def _convert_clip(builder, node, graph, err):
+    '''
+    convert to CoreML Clip Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5066
+    '''
+    max_value = node.attrs.get('max', 3.4028234663852886e+38)
+    min_value = node.attrs.get('min', -3.4028234663852886e+38)
+    builder.add_clip(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        min_value=min_value,
+        max_value=max_value
     )
 
 def _convert_concat(builder, node, graph, err):
@@ -106,6 +164,17 @@ def _convert_div(builder, node, graph, err):
     builder.add_divide_broadcastable(
         name=node.name,
         input_names=node.inputs,
+        output_name=node.outputs[0]
+    )
+
+def _convert_floor(builder, node, graph, err):
+    '''
+    convert to CoreML Floor Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5040
+    '''
+    builder.add_floor(
+        name=node.name,
+        input_names=node.inputs[0],
         output_name=node.outputs[0]
     )
 
@@ -919,13 +988,20 @@ def _convert_unsqueeze(builder, node, graph, err):
 
 
 _ONNX_NODE_REGISTRY_ND = {
+    "Abs": _convert_abs,
     "Add": _convert_add,
     "And": _convert_logical,
+    "ArgMax": _convert_argmax,
+    "ArgMin": _convert_argmin,
+    "Ceil": _convert_ceil,
+    "Clip": _convert_clip,
     "Concat": _convert_concat,
     "Constant": _convert_constant,
     "ConstantOfShape": _convert_constant_of_shape,
     "Div": _convert_div,
+    "Elu": _convert_elu,
     "Exp": _convert_exp,
+    "Floor": _convert_floor,
     "Gather": _convert_gather,
     "Gemm": _convert_gemm,
     "LSTM": _convert_lstm,
@@ -934,6 +1010,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "Not": _convert_logical,
     "Or": _convert_logical,
     "Pow": _convert_pow,
+    "Prelu": _convert_prelu,
     "ReduceL1": _convert_reduce,
     "ReduceL2": _convert_reduce,
     "ReduceLogSum": _convert_reduce,
@@ -946,6 +1023,9 @@ _ONNX_NODE_REGISTRY_ND = {
     "ReduceSumSquare": _convert_reduce,
     "Relu": _convert_relu,
     "Reshape": _convert_reshape,
+    "Selu": _convert_selu,
+    "Sigmoid": _convert_sigmoid,
+    "Sign": _convert_sign,
     "Slice": _convert_slice,
     "Split": _convert_split,
     "Shape": _convert_shape,
