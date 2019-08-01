@@ -8,13 +8,15 @@ import copy
 
 from typing import Sequence, Callable, List, Tuple, Optional, Text, Any
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
+from onnx import TensorProto
 from ._graph import Node, Graph
 from coremltools.proto import NeuralNetwork_pb2 #type: ignore
 from ._error_utils import ErrorHandling
 
 from ._operators import _convert_abs, _convert_relu, _convert_sqrt, _convert_exp, \
                         _convert_elu, _convert_selu, _convert_sigmoid, _convert_sign, \
-                        _convert_prelu
+                        _convert_prelu, _convert_conv, _convert_bn, _convert_upsample, \
+                        _convert_pool
 
 INT_MAX = 2**30
 
@@ -71,6 +73,33 @@ def _convert_argmin(builder, node, graph, err):
         axis=axis,
         keepdims=keepdims
     )
+
+def _convert_cast(builder, node, graph, err):
+    '''
+    Perform cast operation in CoreML
+        e.g. Casting from Float (assumed) to Int maps to Floor Layer
+             For Others, add copy layer
+    '''
+    convert_to = node.attrs.get('to')
+    convert_to_int = set({TensorProto.UINT8, TensorProto.INT8, TensorProto.UINT16, TensorProto.INT32,
+                          TensorProto.INT64, TensorProto.UINT32, TensorProto.UINT64})
+
+    ## TODO: Add support for conversion from STRING TO FLOAT
+    ## Currently, such input will error out in parsing
+    if convert_to in convert_to_int:
+        builder.add_floor(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0]
+        )
+    else:
+        builder.add_activation(
+            name=node.name,
+            non_linearity = 'LINEAR',
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            params=[1.0, 0.0]
+        )
 
 def _convert_ceil(builder, node, graph, err):
     '''
@@ -291,6 +320,19 @@ def _convert_gemm(builder, node, graph, err):
             input_names=[node.outputs[0]+'_b_mat_mul', C],
             output_name=node.outputs[0]
         )
+
+def _convert_identity(builder, node, graph, err):
+    '''
+    convert to CoreML Linear Activation Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L417
+    '''
+    builder.add_activation(
+        name=node.name,
+        non_linearity = 'LINEAR',
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        params=[1.0, 0.0]
+    )
 
 def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     '''
@@ -854,7 +896,6 @@ def _convert_slice(builder, node, graph, err):
     convert to CoreML Slice Static Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5082
     ''' 
-    
     data_shape = graph.shape_dict[node.inputs[0]]
     len_of_data = len(data_shape)
     begin_masks = [True] * len_of_data
@@ -993,19 +1034,25 @@ _ONNX_NODE_REGISTRY_ND = {
     "And": _convert_logical,
     "ArgMax": _convert_argmax,
     "ArgMin": _convert_argmin,
+    "BatchNormalization": _convert_bn,
+    "Cast": _convert_cast,
     "Ceil": _convert_ceil,
     "Clip": _convert_clip,
     "Concat": _convert_concat,
     "Constant": _convert_constant,
     "ConstantOfShape": _convert_constant_of_shape,
+    "Conv": _convert_conv,
+    "ConvTranspose": _convert_conv,
     "Div": _convert_div,
     "Elu": _convert_elu,
     "Exp": _convert_exp,
     "Floor": _convert_floor,
     "Gather": _convert_gather,
     "Gemm": _convert_gemm,
+    "Identity": _convert_identity,
     "LSTM": _convert_lstm,
     "MatMul": _convert_matmul,
+    "MaxPool": _convert_pool,
     "Mul": _convert_mul,
     "Not": _convert_logical,
     "Or": _convert_logical,
@@ -1035,6 +1082,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "Tanh": _convert_tanh,
     "Transpose": _convert_transpose,
     "Unsqueeze": _convert_unsqueeze,
+    "Upsample": _convert_upsample,
     "Xor": _convert_logical,
 }
 

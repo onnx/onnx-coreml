@@ -737,7 +737,8 @@ def _convert_bn(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node
             np.zeros(shape=channels, dtype=np.float32)
     var = node.input_tensors[node.inputs[4]] if node.inputs[4] in node.input_tensors else \
             np.ones(shape=channels, dtype=np.float32)
-    mapp = graph.onnx_coreml_shape_mapping[node.inputs[0]]
+
+    mapp = graph.onnx_coreml_shape_mapping.get(node.inputs[0], None)
     if mapp == [2,3,4]:
         _add_transpose_before_after(add_bn,
                                 [node.inputs[0]],

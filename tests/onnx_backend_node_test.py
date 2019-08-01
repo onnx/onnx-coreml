@@ -600,8 +600,6 @@ def exclude_test_cases(backend_test):
         'test_split_variable_parts_1d_cpu',
         'test_split_variable_parts_2d_cpu',
         'test_split_variable_parts_default_axis_cpu',
-        'test_cast_DOUBLE_to_FLOAT_cpu',
-        'test_cast_FLOAT_to_DOUBLE_cpu',
         'test_shape_cpu',
         'test_shape_example_cpu',
         'test_size_cpu',
