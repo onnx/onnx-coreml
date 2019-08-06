@@ -1741,14 +1741,9 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
 
 
 def _convert_custom(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-
-    if node.op_type in err.custom_conversion_functions:
-        func = err.custom_conversion_functions[node.op_type]
-        params = func(node)
-    else:
-        params = NeuralNetwork_pb2.CustomLayerParams()
-        params.className = node.op_type
-        params.description = "Custom layer that corresponds to the ONNX op {}".format(node.op_type,)
+    params = NeuralNetwork_pb2.CustomLayerParams()
+    params.className = node.op_type
+    params.description = "Custom layer that corresponds to the ONNX op {}".format(node.op_type,)
 
     inputs_ = []
     # skip the inputs that are initializers
@@ -1756,11 +1751,12 @@ def _convert_custom(builder, node, graph, err): # type: (NeuralNetworkBuilder, N
         if inp not in node.input_tensors:
             inputs_.append(inp)
 
-    builder.add_custom(name=node.name,
-                       input_names=inputs_,
-                       output_names=node.outputs,
-                       custom_proto_spec=params)
-
+    builder.add_custom(
+        name=node.name,
+        input_names=inputs_,
+        output_names=node.outputs,
+        custom_proto_spec=params
+    )
     err.custom_layer_nodes.append(node)
 
 def _convert_identity(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
@@ -1946,7 +1942,15 @@ def _get_node_converter_fn(builder, node, err):  # type: (NeuralNetworkBuilder, 
     Get the right converter function for ONNX node op_type
     """
     op_type = node.op_type
-    if op_type in _ONNX_NODE_REGISTRY:
+    # Return custom conversion function if provided
+    # If both node type and node name custom function
+    # is provided, then use node name specific custom function, as
+    # type specific custom function is more generic than name specific
+    if node.name in err.custom_conversion_functions:
+        return err.custom_conversion_functions[node.name]
+    elif op_type in err.custom_conversion_functions:
+        return err.custom_conversion_functions[op_type]
+    elif op_type in _ONNX_NODE_REGISTRY:
         return _ONNX_NODE_REGISTRY[op_type]
     else:
         return err.unsupported_op(node)

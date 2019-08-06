@@ -365,8 +365,11 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         Flag to turn on addition of custom CoreML layers for unsupported ONNX ops or attributes within
         a supported op.
     custom_conversion_functions: dict()
-        A dictionary with keys corresponding to the names of onnx ops and values as functions taking
-        an object of class 'Node' (see onnx-coreml/_graph.Node) and returning CoreML custom layer parameters.
+        A dictionary with keys corresponding to the names/types of onnx ops and values as functions taking
+        an object of class coreml-tools's 'NeuralNetworkBuilder', Graph' (see onnx-coreml/_graph.Graph),
+        'Node' (see onnx-coreml/_graph.Node), ErrorHandling (see onnx-coreml/_error_utils.ErrorHandling).
+        This custom conversion function gets full control and responsibility for converting given onnx op.
+        This function returns nothing and is responsible for adding a equivalent CoreML layer via 'NeuralNetworkBuilder'
     onnx_coreml_input_shape_map: dict()
         (Optional) A dictionary with keys corresponding to the model input names. Values are a list of integers that specify
         how the shape of the input is mapped to CoreML. Convention used for CoreML shapes is

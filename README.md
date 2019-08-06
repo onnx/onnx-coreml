@@ -123,6 +123,18 @@ __add_custom_layers__: bool
 	  Parameters for these custom layers should be filled manually by editing the mlmodel  
 	  or the 'custom_conversion_functions' argument can be used to do the same during the process of conversion
 
+__custom_conversion_fuctions__: dict (str: function)  
+	  Specify custom function to be used for conversion for given op.
+        User can override existing conversion function and provide their own custom implementation to convert certain ops.
+        Dictionary key must be string specifying ONNX Op name or Op type and value must be a function implementation available in current context.
+        Example usage: {'Flatten': custom_flatten_converter, 'Exp': exp_converter}
+        `custom_flatten_converter()` and `exp_converter()` will be invoked instead of internal onnx-coreml conversion implementation for these two Ops;
+        Hence, User must provide implementation for functions specified in the dictionary. If user provides two separate functions for node name and node type, then custom function tied to node name will be used. As, function tied to node type is more generic than one tied to node name.
+        `custom_conversion_functions` option is different than `add_custom_layers`. Both options can be used in conjuction in which case, custom function will be invoked for provided ops and custom layer will be added for ops with no respective conversion function.
+        This option gives finer control to user. One use case could be to modify input attributes or certain graph properties before calling 
+        existing onnx-coreml conversion function. Note that, It is custom conversion function's responsibility to add respective CoreML layer into builder(coreml tools's NeuralNetworkBuilder).
+        Examples: https://github.com/onnx/onnx-coreml/blob/master/tests/custom_layers_test.py#L43
+
 __onnx_coreml_input_shape_map__: dict (str: List[int])  
     (Optional) A dictionary with keys corresponding to the model input names. Values are a list of integers that specify
     how the shape of the input is mapped to CoreML. Convention used for CoreML shapes is:  

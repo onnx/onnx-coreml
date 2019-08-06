@@ -1091,7 +1091,15 @@ def _get_node_converter_fn(builder, node, err):  # type: (NeuralNetworkBuilder, 
     Get the right converter function for ONNX node op_type
     """
     op_type = node.op_type
-    if op_type in _ONNX_NODE_REGISTRY_ND:
+    # Return custom conversion function if provided
+    # If both node type and node name custom function
+    # is provided, then use node name specific custom function, as
+    # type specific custom function is more generic than name specific
+    if node.name in err.custom_conversion_functions:
+        return err.custom_conversion_functions[node.name]
+    elif op_type in err.custom_conversion_functions:
+        return err.custom_conversion_functions[op_type]
+    elif op_type in _ONNX_NODE_REGISTRY_ND:
         return _ONNX_NODE_REGISTRY_ND[op_type]
     else:
         return err.unsupported_op(node)
