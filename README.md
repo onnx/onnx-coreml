@@ -57,7 +57,8 @@ def convert(model,
             class_labels=None,
             predicted_feature_name='classLabel',
             add_custom_layers = False,
-            custom_conversion_functions = {})
+            custom_conversion_functions = {},
+	    disable_coreml_rank5_mapping=False)
 ```
 
 The function returns a coreml model instance that can be saved to a .mlmodel file, e.g.: 
@@ -141,7 +142,12 @@ __onnx_coreml_input_shape_map__: dict (str: List[int])
     0: Sequence, 1: Batch, 2: channel, 3: height, 4: width.  
     For example, an input of rank 2 could be mapped as [3,4] (i.e. H,W) or [1,2] (i.e. B,C) etc.  
 
-     
+__disable_coreml_rank5_mapping__: bool  
+	  If True, then it disables the "RANK5_ARRAY_MAPPING" or enables the "EXACT_ARRAY_MAPPING"
+        option in CoreML (https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L67)
+        Thus, no longer, onnx tensors are forced to map to rank 5 CoreML tensors.
+        With this flag on, a rank r ONNX tensor, (1<=r<=5), will map to a rank r tensor in CoreML as well.
+        This flag must be on to utilize any of the new layers added in CoreML 3 (i.e. specification version 4, iOS13)
 
 ### Returns
 __model__: A coreml model.

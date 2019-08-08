@@ -22,6 +22,11 @@ class ErrorHandling(object):
       self.custom_conversion_functions = custom_conversion_functions
       self.custom_layer_nodes = custom_layer_nodes
       self.disable_coreml_rank5_mapping = disable_coreml_rank5_mapping
+      # TODO: Remove following error message once, disable_coreml_rank5_mapping is default to True
+      self.coreml_3_rerun_message = ''
+      if not disable_coreml_rank5_mapping:
+        self.coreml_3_rerun_message = '\nPlease try converting again with disable_coreml_rank5_mapping=True' \
+                                                        ' and coremltools 3.0 latest beta'
 
 
   def unsupported_op(self,
@@ -36,7 +41,7 @@ class ErrorHandling(object):
         return _convert_custom
       else:
         raise TypeError(
-          "ONNX node of type {} is not supported.\n".format(node.op_type,)
+          "ONNX node of type {} is not supported. {}\n".format(node.op_type, self.coreml_3_rerun_message)
         )
 
 
@@ -55,7 +60,8 @@ class ErrorHandling(object):
         _convert_custom(builder, node, graph, self)
       else:
         raise TypeError(
-          "Error while converting op of type: {}. Error message: {}\n".format(node.op_type, err_message, )
+          "Error while converting op of type: {}. Error message: {} {}\n".format(node.op_type, err_message,
+                                                                                  self.coreml_3_rerun_message)
         )
 
 
@@ -69,8 +75,8 @@ class ErrorHandling(object):
       '''
       raise ValueError(
         "Missing initializer error in op of type {}, with input name = {}, "
-        "output name = {}. Error message: {}\n".
-        format(node.op_type, node.inputs[0], node.outputs[0], err_message)
+        "output name = {}. Error message: {} {}\n".
+        format(node.op_type, node.inputs[0], node.outputs[0], err_message, self.coreml_3_rerun_message)
       )
 
   def unsupported_feature_warning(self,
@@ -83,8 +89,8 @@ class ErrorHandling(object):
       '''
       print(
         "Warning: Unsupported Feature in op of type {}, with input name = {}, "
-        "output name = {}. Warning message: {}\n".
-        format(node.op_type, node.inputs[0], node.outputs[0], err_message)
+        "output name = {}. Warning message: {} {}\n".
+        format(node.op_type, node.inputs[0], node.outputs[0], err_message, self.coreml_3_rerun_message)
       )
 
 

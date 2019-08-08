@@ -170,9 +170,13 @@ def _check_unsupported_ops(nodes, disable_coreml_rank5_mapping=False): # type: (
           node.op_type not in unsupported_op_types:
             unsupported_op_types.append(node.op_type)
 
+    coreml_3_rerun_message = ''
+    if not disable_coreml_rank5_mapping:
+        coreml_3_rerun_message = '\nPlease try converting again with disable_coreml_rank5_mapping=True' \
+                                 ' and coremltools 3.0 latest beta'
     if len(unsupported_op_types) > 0:
-        raise NotImplementedError("Unsupported ONNX ops of type: %s" % (
-            ','.join(unsupported_op_types)))
+        raise NotImplementedError("Unsupported ONNX ops of type: %s %s" % (
+            ','.join(unsupported_op_types), coreml_3_rerun_message))
 
 
 def _update_multiarray_to_float32(feature, #type: Any
