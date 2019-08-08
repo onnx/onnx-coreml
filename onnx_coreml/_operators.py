@@ -179,43 +179,43 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
             if not (mapp == [1, 2, 3, 4] or mapp == [0, 2, 3, 4]):
                 return err.unsupported_op_configuration(builder, node, graph,
                                                         "error in axes alignment between onnx and coreml")
-            get_params_func(node, params_dict)
-            add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder)
+            get_params_func(builder, node, graph, err, params_dict)
+            add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder, graph=graph, err=err)
         if r == 3:
             if mapp == [1, 2, 3]:  # [B,C,H]
                 # spatial dimension: height
-                get_params_func(node, params_dict, axis='height')
-                add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder)
+                get_params_func(builder, node, graph, err, params_dict, axis='height')
+                add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder, graph=graph, err=err)
             elif mapp == [1, 2, 4]:  # [B,C,W]
                 # spatial dimension: width
-                get_params_func(node, params_dict, axis='width')
-                add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder)
+                get_params_func(builder, node, graph, err, params_dict, axis='width')
+                add_func(node.inputs, node.outputs, params_dict=params_dict, node=node, builder=builder, graph=graph, err=err)
             elif mapp == [2, 3, 4]:  # [C,H,W] in CoreML, but it represents [B,C,D] in ONNX.
                 # spatial dimension: sequence
-                get_params_func(node, params_dict, axis='width')
+                get_params_func(builder, node, graph, err, params_dict, axis='width')
                 node.inputs = [node.inputs[0]]
                 _add_transpose_before_after(add_func,
                                             node.inputs,
                                             node.outputs,
                                             [0, 2, 1, 3], # swap C & H
-                                            builder=builder, node=node, params_dict=params_dict)
+                                            builder=builder, node=node, params_dict=params_dict, graph=graph, err=err)
 
             elif mapp == [1, 2, 0]:  # [B,C,S]
                 # spatial dimension: sequence
-                get_params_func(node, params_dict, axis='width')
+                get_params_func(builder, node, graph, err, params_dict, axis='width')
                 node.inputs = [node.inputs[0]]
                 _add_transpose_before_after(add_func,
                                             node.inputs,
                                             node.outputs,
                                             [3, 1, 2, 0],
-                                            builder=builder, node=node, params_dict=params_dict)
+                                            builder=builder, node=node, params_dict=params_dict, graph=graph, err=err)
             else:
                 return err.unsupported_op_configuration(builder, node, graph,
                                                         "error in axes alignment between onnx and coreml")
 
     else:
-        get_params_func(node, params_dict)
-        add_func(node.inputs, node.outputs, params_dict=params_dict, builder=builder, node=node)
+        get_params_func(builder, node, graph, err, params_dict)
+        add_func(node.inputs, node.outputs, params_dict=params_dict, builder=builder, node=node, graph=graph, err=err)
 
 
 def _is_no_op(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> Bool
@@ -279,184 +279,206 @@ def _convert_sub(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
     _convert_broadcast_op(builder, node, graph, err, "ADD")
 
 
-def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-
-    def _get_conv_params(node, params_dict, axis=None):
-
-        if 'dilations' not in node.attrs:
-            params_dict['dilations'] = [1, 1]
-        else:
-            if axis == 'height':
-                params_dict['dilations'] = node.attrs['dilations']
-                params_dict['dilations'].append(1)
-            elif axis == 'width':
-                params_dict['dilations'] = node.attrs['dilations']
-                params_dict['dilations'].insert(0, 1)
-            else:
-                params_dict['dilations'] = node.attrs['dilations']
-
-        if 'pads' not in node.attrs:
-            params_dict['pads'] = [0, 0, 0, 0]
-        else:
-            pads = node.attrs['pads']
-            if axis == 'height':
-                pads = [pads[0], 0, pads[1], 0]
-            elif axis == 'width':
-                pads = [0, pads[0], 0, pads[1]]
-            params_dict['pads'] = pads
-
-        if params_dict['is_deconv']:
-            params_dict['crops'] = copy.copy(params_dict['pads'])
-            params_dict['pads'] = [0, 0, 0, 0]
-            if sum(params_dict['crops']) == 0:
-                params_dict['is_post_crop'] = False
-            else:
-                params_dict['is_post_crop'] = True
-
-        params_dict['kernel_shape'] = node.attrs["kernel_shape"]
-        params_dict['strides'] = node.attrs["strides"]
-
+def _get_conv_params(builder, node, graph, err, params_dict, axis=None):
+    if 'dilations' not in node.attrs:
+        params_dict['dilations'] = [1, 1]
+    else:
         if axis == 'height':
-            params_dict['W'] = np.expand_dims(params_dict['W'], axis=-1)
-            params_dict['kernel_shape'].append(1)
-            params_dict['strides'].append(1)
+            params_dict['dilations'] = node.attrs['dilations']
+            params_dict['dilations'].append(1)
         elif axis == 'width':
+            params_dict['dilations'] = node.attrs['dilations']
+            params_dict['dilations'].insert(0, 1)
+        else:
+            params_dict['dilations'] = node.attrs['dilations']
+
+    if 'pads' not in node.attrs:
+        params_dict['pads'] = [0, 0, 0, 0]
+    else:
+        pads = node.attrs['pads']
+        if axis == 'height':
+            pads = [pads[0], 0, pads[1], 0]
+        elif axis == 'width':
+            pads = [0, pads[0], 0, pads[1]]
+        params_dict['pads'] = pads
+
+    if params_dict['is_deconv']:
+        params_dict['crops'] = copy.copy(params_dict['pads'])
+        params_dict['pads'] = [0, 0, 0, 0]
+        if sum(params_dict['crops']) == 0:
+            params_dict['is_post_crop'] = False
+        else:
+            params_dict['is_post_crop'] = True
+
+    if "kernel_shape" in node.attrs:
+        params_dict['kernel_shape'] = node.attrs["kernel_shape"]
+    else:
+        # w_shape is ONNX format shape
+        w_shape = params_dict["w_shape"]
+        if len(w_shape) == 4:
+            params_dict['kernel_shape'] = [w_shape[-2], w_shape[-1]]
+        else:
+            params_dict['kernel_shape'] = [w_shape[-1]]
+    params_dict['strides'] = node.attrs.get("strides", [1, 1] if axis is None else [1])
+
+    if axis == 'height':
+        if params_dict['W'] is not None:
+            params_dict['W'] = np.expand_dims(params_dict['W'], axis=-1)
+        params_dict['kernel_shape'].append(1)
+        params_dict['strides'].append(1)
+    elif axis == 'width':
+        if params_dict['W'] is not None:
             params_dict['W'] = np.expand_dims(params_dict['W'], axis=-2)
-            params_dict['kernel_shape'].insert(0,1)
-            params_dict['strides'].insert(0,1)
+        params_dict['strides'].insert(0,1)
+        params_dict['kernel_shape'].insert(0,1)
 
-        params_dict['out_shape'] = None
-        params_dict['padding_type'] = 'valid'
-        params_dict['same_padding_asymmetry_mode'] = 'BOTTOM_RIGHT_HEAVY'
+        
+    params_dict['out_shape'] = None
+    params_dict['padding_type'] = 'valid'
+    params_dict['same_padding_asymmetry_mode'] = 'BOTTOM_RIGHT_HEAVY'
 
+    if params_dict['W'] is not None:
         if not params_dict['is_deconv']:
             params_dict['W'] = params_dict['W'].transpose((2, 3, 1, 0))  # type: ignore
         else:
             params_dict['W'] = params_dict['W'].transpose((2, 3, 0, 1))  # type: ignore
 
-        if "auto_pad" in node.attrs and \
-                not _compare(node.attrs["auto_pad"], 'VALID'):
-            params_dict['padding_type'] = 'same'
-            if _compare(node.attrs["auto_pad"], 'SAME_LOWER'):
-                params_dict['same_padding_asymmetry_mode'] = 'TOP_LEFT_HEAVY'
+    if "auto_pad" in node.attrs and \
+            not _compare(node.attrs["auto_pad"], 'VALID'):
+        params_dict['padding_type'] = 'same'
+        if _compare(node.attrs["auto_pad"], 'SAME_LOWER'):
+            params_dict['same_padding_asymmetry_mode'] = 'TOP_LEFT_HEAVY'
 
-        if params_dict['is_deconv']:
-            if 'output_shape' in node.attrs:
-                if axis == 'height':
-                    params_dict['out_shape'] = (node.attrs['output_shape'][-1], 1)  # (Hout, wout)
-                elif axis == 'width':
-                    params_dict['out_shape'] = (1, node.attrs['output_shape'][-1])  # (Hout, wout)
-                else:
-                    params_dict['out_shape'] = (node.attrs['output_shape'][-2], node.attrs['output_shape'][-1])  # (Hout, wout)
-            elif 'output_padding' in node.attrs:
-                post_pads = node.attrs['output_padding']
-                if sum(post_pads) != 0:
-                    t = l = b = r = 0
-                    if len(post_pads) == 1:
-                        if axis == 'height':
-                            b = post_pads[0]
-                        elif axis == 'width':
-                            r = post_pads[0]
-                        else:
-                            err.unsupported_op_configuration(builder, node, graph,
-                                                             "length 1 output padding attribute only supported for 1D conv")
-                    elif len(post_pads) == 2:
-                        if axis == 'height':
-                            b, r = post_pads
-                        elif axis == 'width':
-                            r, b = post_pads
-                        else:
-                            b, r = post_pads
-                    elif len(post_pads) == 4:
-                        b, r, t, l = post_pads
+    if params_dict['is_deconv']:
+        if 'output_shape' in node.attrs:
+            if axis == 'height':
+                params_dict['out_shape'] = (node.attrs['output_shape'][-1], 1)  # (Hout, wout)
+            elif axis == 'width':
+                params_dict['out_shape'] = (1, node.attrs['output_shape'][-1])  # (Hout, wout)
+            else:
+                params_dict['out_shape'] = (node.attrs['output_shape'][-2], node.attrs['output_shape'][-1])  # (Hout, wout)
+        elif 'output_padding' in node.attrs:
+            post_pads = node.attrs['output_padding']
+            if sum(post_pads) != 0:
+                t = l = b = r = 0
+                if len(post_pads) == 1:
+                    if axis == 'height':
+                        b = post_pads[0]
+                    elif axis == 'width':
+                        r = post_pads[0]
                     else:
-                        return err.unsupported_op_configuration(builder, node, graph,
-                                                                "Supports only length 1 or 2 or 4 output padding attribute")
-                    def _update_crop_pad(idx, v):
-                        if params_dict['crops'][idx] >= v:
-                            params_dict['crops'][idx] -= v
-                        else:
-                            params_dict['pads'][idx] = v - params_dict['crops'][idx]
+                        err.unsupported_op_configuration(builder, node, graph,
+                                                            "length 1 output padding attribute only supported for 1D conv")
+                elif len(post_pads) == 2:
+                    if axis == 'height':
+                        b, r = post_pads
+                    elif axis == 'width':
+                        r, b = post_pads
+                    else:
+                        b, r = post_pads
+                elif len(post_pads) == 4:
+                    b, r, t, l = post_pads
+                else:
+                    return err.unsupported_op_configuration(builder, node, graph,
+                                                            "Supports only length 1 or 2 or 4 output padding attribute")
+                def _update_crop_pad(idx, v):
+                    if params_dict['crops'][idx] >= v:
+                        params_dict['crops'][idx] -= v
+                    else:
+                        params_dict['pads'][idx] = v - params_dict['crops'][idx]
 
-                    _update_crop_pad(0, t)
-                    _update_crop_pad(1, l)
-                    _update_crop_pad(2, b)
-                    _update_crop_pad(3, r)
-                    params_dict['is_post_crop'] = True if sum(params_dict['crops']) > 0 else False
-                    params_dict['is_pre_pad'] = True if sum(params_dict['pads']) > 0 else False
+                _update_crop_pad(0, t)
+                _update_crop_pad(1, l)
+                _update_crop_pad(2, b)
+                _update_crop_pad(3, r)
+                params_dict['is_post_crop'] = True if sum(params_dict['crops']) > 0 else False
+                params_dict['is_pre_pad'] = True if sum(params_dict['pads']) > 0 else False
 
-    def _add_conv(input_names, output_names, **kwargs):
-        params_dict = kwargs['params_dict']
-        node = kwargs['node']
-        builder = kwargs['builder']
-        output_name = output_names[0]
-        input_name = input_names[0]
+def _add_conv(input_names, output_names, **kwargs):
+    params_dict = kwargs['params_dict']
+    node = kwargs['node']
+    builder = kwargs['builder']
+    graph = kwargs['graph']
+    err = kwargs['err']
 
-        if params_dict.get('is_post_crop', False):
-            output_name += '_conv_tranpose_post_crop'
-        if params_dict.get('is_pre_pad', False):
-            input_name += '_conv_tranpose_pre_crop'
+    W_shape = params_dict['w_shape']
+    # params_dict['W'].shape if params_dict['W'] is not None else graph.shape_dict[node.inputs[1]]
 
-        if params_dict['is_deconv']:
-            oc = params_dict['W'].shape[3] * params_dict['groups']
-            kc = params_dict['W'].shape[2]
-        else:
-            oc = params_dict['W'].shape[3]
-            kc = params_dict['W'].shape[2]
+    output_name = output_names[0]
+    pre_padding_input_name = input_names[0]
 
-        if params_dict.get('is_pre_pad', False):
-            builder.add_padding(
-                name=node.name + '_pre_pad',  # type: ignore
-                left=params_dict['pads'][1],
-                right=params_dict['pads'][3],
-                top=params_dict['pads'][0],
-                bottom=params_dict['pads'][2],
-                input_name=input_names[0],
-                output_name=input_name,
-                value=0
-            )
-        builder.add_convolution(
-            name=node.name,
-            kernel_channels=kc,
-            output_channels=oc,
-            height=params_dict['kernel_shape'][0],
-            width=params_dict['kernel_shape'][1],
-            stride_height=params_dict['strides'][0],
-            stride_width=params_dict['strides'][1],
-            border_mode=params_dict['padding_type'],
-            same_padding_asymmetry_mode=params_dict['same_padding_asymmetry_mode'],
-            groups=params_dict['groups'],
-            W=params_dict['W'],
-            b=params_dict['bias'],
-            has_bias=params_dict['bias'] is not None,
-            is_deconv=params_dict['is_deconv'],
-            output_shape=params_dict['out_shape'],
-            input_name=input_name,
-            output_name=output_name,
-            dilation_factors=params_dict['dilations'],
-            padding_top=params_dict['pads'][0],
-            padding_bottom=params_dict['pads'][2],
-            padding_left=params_dict['pads'][1],
-            padding_right=params_dict['pads'][3]
+    if params_dict.get('is_post_crop', False):
+        output_name += '_conv_tranpose_post_crop'
+    if params_dict.get('is_pre_pad', False):
+        input_names[0] += '_conv_tranpose_pre_pad'
+
+    if params_dict['W'] is None and len(node.inputs) == 1:
+        return err.unsupported_op_configuration(builder, node, graph, "Kernel weight missing")
+    
+    if params_dict['is_deconv']:
+        oc = W_shape[1] * params_dict['groups']
+        kc = W_shape[0]
+    else:
+        oc = W_shape[0]
+        kc = W_shape[1]
+
+    if params_dict.get('is_pre_pad', False):
+        builder.add_padding(
+            name=node.name + '_pre_pad',  # type: ignore
+            left=params_dict['pads'][1],
+            right=params_dict['pads'][3],
+            top=params_dict['pads'][0],
+            bottom=params_dict['pads'][2],
+            input_name=pre_padding_input_name,
+            output_name=input_names[0],
+            value=0
         )
-        if params_dict.get('is_post_crop', False):
-            builder.add_crop(
-                name=node.name + '_post_crop',  # type: ignore
-                left=params_dict['crops'][1],
-                right=params_dict['crops'][3],
-                top=params_dict['crops'][0],
-                bottom=params_dict['crops'][2],
-                input_names=[output_name],
-                output_name=output_names[0],
-                offset = [0,0]
-            )
+    
+    builder.add_convolution(
+        name=node.name,
+        kernel_channels=kc,
+        output_channels=oc,
+        height=params_dict['kernel_shape'][0],
+        width=params_dict['kernel_shape'][1],
+        stride_height=params_dict['strides'][0],
+        stride_width=params_dict['strides'][1],
+        border_mode=params_dict['padding_type'],
+        same_padding_asymmetry_mode=params_dict['same_padding_asymmetry_mode'],
+        groups=params_dict['groups'],
+        W=params_dict['W'],
+        b=params_dict['bias'],
+        has_bias=params_dict['bias'] is not None,
+        is_deconv=params_dict['is_deconv'],
+        output_shape=params_dict['out_shape'],
+        input_name=input_names[0] if params_dict['W'] is not None else [input_names[0], input_names[1]],
+        output_name=output_name,
+        dilation_factors=params_dict['dilations'],
+        padding_top=params_dict['pads'][0],
+        padding_bottom=params_dict['pads'][2],
+        padding_left=params_dict['pads'][1],
+        padding_right=params_dict['pads'][3]
+    )
+    if params_dict.get('is_post_crop', False):
+        builder.add_crop(
+            name=node.name + '_post_crop',  # type: ignore
+            left=params_dict['crops'][1],
+            right=params_dict['crops'][3],
+            top=params_dict['crops'][0],
+            bottom=params_dict['crops'][2],
+            input_names=[output_name],
+            output_name=output_names[0],
+            offset = [0,0]
+        )
 
+
+def _convert_conv(builder, node, graph, err): # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     params_dict = dict()
     #get weights for convolution
     weight_name = node.inputs[1]
     W = None
     if weight_name in node.input_tensors:
         W = node.input_tensors[weight_name]
+        params_dict['w_shape'] = W.shape
     else:
         err.missing_initializer(node,
                                 "Weight tensor: {} not found in the graph initializer".format(weight_name,))
@@ -607,82 +629,81 @@ def _convert_transpose(builder, node, graph, err):  # type: (NeuralNetworkBuilde
     )
     _update_shape_mapping_unchanged(node, graph, err)
 
+def _get_pool_params(builder, node, graph, err, params_dict, axis=None):
+
+    params_dict['pad_b'], params_dict['pad_l'], params_dict['pad_r'], params_dict['pad_t'] = 0, 0, 0, 0
+    params_dict['stride_height'], params_dict['stride_width'] = 1, 1
+    params_dict['padding_type'] = 'VALID'
+    params_dict['same_padding_asymmetry_mode'] = 'BOTTOM_RIGHT_HEAVY'
+
+    if params_dict['is_global']:
+        params_dict['height'], params_dict['width'] = 0, 0
+        params_dict['stride_height'], params_dict['stride_width'] = 1, 1
+    else:
+        kernel_shape = node.attrs["kernel_shape"]
+        if axis == 'height':
+            params_dict['height'] = kernel_shape[0]
+        elif axis == 'width':
+            params_dict['width'] = kernel_shape[0]
+        else:
+            params_dict['height'] = kernel_shape[0]
+            params_dict['width'] = kernel_shape[1]
+
+        pads = node.attrs.get('pads', None)
+        if pads:
+            if axis == 'height':
+                params_dict['pad_t'] = pads[0]
+                params_dict['pad_b'] = pads[1]
+            elif axis == 'width':
+                params_dict['pad_l'] = pads[0]
+                params_dict['pad_r'] = pads[1]
+            else:
+                params_dict['pad_t'] = pads[0]
+                params_dict['pad_l'] = pads[1]
+                params_dict['pad_b'] = pads[2]
+                params_dict['pad_r'] = pads[3]
+
+        strides = node.attrs.get('strides', [1, 1])
+        if axis == 'height':
+            params_dict['stride_height'] = strides[0]
+        elif axis == 'width':
+            params_dict['stride_width'] = strides[0]
+        else:
+            params_dict['stride_height'] = strides[0]
+            params_dict['stride_width'] = strides[1]
+
+        if "auto_pad" in node.attrs and \
+                not _compare(node.attrs["auto_pad"], 'VALID'):
+            params_dict['padding_type'] = 'SAME'
+            if _compare(node.attrs["auto_pad"], 'SAME_LOWER'):
+                params_dict['same_padding_asymmetry_mode'] = 'TOP_LEFT_HEAVY'
+
+    params_dict['exclude_pad_area'] = node.attrs.get('count_include_pad', 0) == 0
+
+def _add_pool(input_names, output_names, **kwargs):
+    params_dict = kwargs['params_dict']
+    node = kwargs['node']
+    kwargs['builder'].add_pooling(
+        name=node.name,
+        height=params_dict.get('height',1),
+        width=params_dict.get('width',1),
+        stride_height=params_dict.get('stride_height',1),
+        stride_width=params_dict.get('stride_width',1),
+        layer_type=params_dict['layer_type'],
+        padding_type=params_dict['padding_type'],
+        exclude_pad_area=params_dict['exclude_pad_area'],
+        is_global=params_dict['is_global'],
+        input_name=input_names[0],
+        output_name=output_names[0],
+        padding_top=params_dict.get('pad_t',0),
+        padding_bottom=params_dict.get('pad_b',0),
+        padding_left=params_dict.get('pad_l',0),
+        padding_right=params_dict.get('pad_r',0),
+        same_padding_asymmetry_mode=params_dict['same_padding_asymmetry_mode']
+    )
+
 
 def _convert_pool(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-
-
-    def _get_pool_params(node, params_dict, axis=None):
-
-        params_dict['pad_b'], params_dict['pad_l'], params_dict['pad_r'], params_dict['pad_t'] = 0, 0, 0, 0
-        params_dict['stride_height'], params_dict['stride_width'] = 1, 1
-        params_dict['padding_type'] = 'VALID'
-        params_dict['same_padding_asymmetry_mode'] = 'BOTTOM_RIGHT_HEAVY'
-
-        if params_dict['is_global']:
-            params_dict['height'], params_dict['width'] = 0, 0
-            params_dict['stride_height'], params_dict['stride_width'] = 1, 1
-        else:
-            kernel_shape = node.attrs["kernel_shape"]
-            if axis == 'height':
-                params_dict['height'] = kernel_shape[0]
-            elif axis == 'width':
-                params_dict['width'] = kernel_shape[0]
-            else:
-                params_dict['height'] = kernel_shape[0]
-                params_dict['width'] = kernel_shape[1]
-
-            pads = node.attrs.get('pads', None)
-            if pads:
-                if axis == 'height':
-                    params_dict['pad_t'] = pads[0]
-                    params_dict['pad_b'] = pads[1]
-                elif axis == 'width':
-                    params_dict['pad_l'] = pads[0]
-                    params_dict['pad_r'] = pads[1]
-                else:
-                    params_dict['pad_t'] = pads[0]
-                    params_dict['pad_l'] = pads[1]
-                    params_dict['pad_b'] = pads[2]
-                    params_dict['pad_r'] = pads[3]
-
-            strides = node.attrs.get('strides', [1, 1])
-            if axis == 'height':
-                params_dict['stride_height'] = strides[0]
-            elif axis == 'width':
-                params_dict['stride_width'] = strides[0]
-            else:
-                params_dict['stride_height'] = strides[0]
-                params_dict['stride_width'] = strides[1]
-
-            if "auto_pad" in node.attrs and \
-                    not _compare(node.attrs["auto_pad"], 'VALID'):
-                params_dict['padding_type'] = 'SAME'
-                if _compare(node.attrs["auto_pad"], 'SAME_LOWER'):
-                    params_dict['same_padding_asymmetry_mode'] = 'TOP_LEFT_HEAVY'
-
-        params_dict['exclude_pad_area'] = node.attrs.get('count_include_pad', 0) == 0
-
-    def _add_pool(input_names, output_names, **kwargs):
-        params_dict = kwargs['params_dict']
-        node = kwargs['node']
-        kwargs['builder'].add_pooling(
-            name=node.name,
-            height=params_dict.get('height',1),
-            width=params_dict.get('width',1),
-            stride_height=params_dict.get('stride_height',1),
-            stride_width=params_dict.get('stride_width',1),
-            layer_type=params_dict['layer_type'],
-            padding_type=params_dict['padding_type'],
-            exclude_pad_area=params_dict['exclude_pad_area'],
-            is_global=params_dict['is_global'],
-            input_name=input_names[0],
-            output_name=output_names[0],
-            padding_top=params_dict.get('pad_t',0),
-            padding_bottom=params_dict.get('pad_b',0),
-            padding_left=params_dict.get('pad_l',0),
-            padding_right=params_dict.get('pad_r',0),
-            same_padding_asymmetry_mode=params_dict['same_padding_asymmetry_mode']
-        )
 
     input_name = node.inputs[0]
     output_name = node.outputs[0]
@@ -1286,7 +1307,7 @@ def _convert_tanh(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
 
 def _convert_pad(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
 
-    def _get_pad_params(node, params_dict, axis=None):
+    def _get_pad_params(builder, node, graph, err, params_dict, axis=None):
 
         pads = node.attrs['pads']
         if not (len(pads) % 2 == 0 and len(pads) >= 2):
