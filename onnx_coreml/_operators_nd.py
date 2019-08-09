@@ -1131,11 +1131,20 @@ def _convert_reshape(builder, node, graph, err):
     '''
     shape_node = node.inputs[1]
     if shape_node in node.input_tensors:
-        output_shape = node.input_tensors[shape_node]
+        output_shape = node.input_tensors[shape_node].astype(np.int64)
     
         # if rank is same, then call rank preserving reshape
         if node.inputs[0] not in graph.shape_dict:
-            err.unsupported_op_configuration(builder, node, graph, "Input shape not represented in graph")
+            # If Input shape is not present and output shape is known
+            # add reshape static as 
+            # TODO: ONNX should be able to infer the shape
+            builder.add_reshape_static(
+                name=node.name,
+                input_name=node.inputs[0],
+                output_name=node.outputs[0],
+                output_shape=output_shape
+            )
+            return
     
         len_of_input_shape = len(graph.shape_dict[node.inputs[0]])
         if len(output_shape) == len_of_input_shape:
@@ -1148,6 +1157,8 @@ def _convert_reshape(builder, node, graph, err):
         else:
             add_static_reshape = True
             if len_of_input_shape > len(output_shape):
+                # Output rank is less than input rank
+                # Case when most of the dims size is unchanged
                 num_zeros = 0
                 num_neg_ones = 0
                 for i in output_shape:
@@ -1279,11 +1290,13 @@ def _convert_split(builder, node, graph, err):
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#5003
     '''
     axis = node.attrs.get('axis', 0)
+    split = node.attrs.get('split', None)
     builder.add_split_nd(
         name=node.name,
         input_name=node.inputs[0],
         output_names=node.outputs,
-        axis=axis
+        axis=axis,
+        split_sizes=split
     )
 
 def _convert_shape(builder, node, graph, err):
