@@ -643,7 +643,6 @@ def exclude_test_cases(backend_test):
         'test_expand_shape_model3_cpu',
         'test_expand_shape_model4_cpu',
         'test_expand_dim_changed_cpu',
-        'test_expand_dim_unchanged_cpu',
         'test_operator_chunk_cpu', # unequal splits
         'test_operator_permute2_cpu', # rank 6 input
         'test_maxpool_with_argmax_2d_precomputed_pads_cpu',

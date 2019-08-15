@@ -17,7 +17,8 @@ from ._operators import _convert_abs, _convert_relu, _convert_sqrt, _convert_exp
                         _convert_elu, _convert_selu, _convert_sigmoid, _convert_sign, \
                         _convert_prelu, _convert_upsample, _convert_softsign, _convert_softplus, \
                         _convert_log, _convert_neg, _convert_reciprocal, _convert_hardsigmoid, \
-                        _convert_reorganize_data, _add_pool, _get_pool_params, _add_conv, _get_conv_params
+                        _convert_reorganize_data, _add_pool, _get_pool_params, _add_conv, _get_conv_params, \
+                        _convert_thresholdedrelu, _convert_leaky_relu, _convert_lrn
 
 from ._operators import _convert_pad as _convert_pad_5d
 
@@ -120,6 +121,45 @@ def add_broadcastable_op_chain(builder, node, err, add_op_function):
             output_name=out_name
         )
 
+def add_bn_with_expansion(builder, node, err, node_name, channels, scale, bias, mean, var, input_name, output_name,
+                          epsilon, compute_mean_var=False, instance_normalization=False, axes_for_expansion=[]):
+    real_input_name = input_name
+    real_output_name = output_name
+
+    # Expand input if needed
+    if len(axes_for_expansion) != 0:
+        input_name=input_name+'_expanded'
+        output_name=output_name+'_expanded'
+        builder.add_expand_dims(
+            name=node_name+'_expand',
+            input_name=real_input_name,
+            output_name=input_name,
+            axes=axes_for_expansion
+        )
+
+    builder.add_batchnorm(
+        name=node.name,
+        channels=channels,
+        gamma=scale,
+        beta=bias,
+        mean=mean,
+        variance=var,
+        input_name=input_name,
+        output_name=output_name,
+        compute_mean_var=compute_mean_var,
+        instance_normalization=instance_normalization,
+        epsilon=epsilon
+    )
+
+    # Squeeze output if needed
+    if len(axes_for_expansion) != 0:
+        builder.add_squeeze(
+            name=node_name+'_squeeze',
+            input_name=output_name,
+            output_name=real_output_name,
+            axes=axes_for_expansion
+        )
+
 ## Converter functions
 def _convert_add(builder, node, graph, err):
     '''
@@ -164,43 +204,6 @@ def _convert_bn(builder, node, graph, err):
     convert to CoreML BatchNorm Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L1633
     '''
-
-    def add_bn_with_expansion(node_name, channels, scale, bias, mean, var, input_name, output_name, epsilon, axes_for_expansion=[]):
-        real_input_name = input_name
-        real_output_name = output_name
-
-        # Expand input if needed
-        if len(axes_for_expansion) != 0:
-            input_name=input_name+'_expanded'
-            output_name=output_name+'_expanded'
-            builder.add_expand_dims(
-                name=node_name+'_expand',
-                input_name=real_input_name,
-                output_name=input_name,
-                axes=axes_for_expansion
-            )
-
-        builder.add_batchnorm(
-            name=node.name,
-            channels=channels,
-            gamma=scale,
-            beta=bias,
-            mean=mean,
-            variance=var,
-            input_name=input_name,
-            output_name=output_name,
-            epsilon=epsilon
-        )
-
-        # Squeeze output if needed
-        if len(axes_for_expansion) != 0:
-            builder.add_squeeze(
-                name=node_name+'_squeeze',
-                input_name=output_name,
-                output_name=real_output_name,
-                axes=axes_for_expansion
-            )
-
     if len(node.outputs) > 1:
         return err.unsupported_op_configuration(builder, node, graph, "This converter only supports BatchNormalization with one output")
 
@@ -231,17 +234,20 @@ def _convert_bn(builder, node, graph, err):
     var = node.input_tensors[node.inputs[4]] if node.inputs[4] in node.input_tensors else \
             np.ones(shape=channels, dtype=np.float32)
 
+    if node.inputs[0] not in graph.shape_dict:
+        return err.unsupported_op_configuration(builder, node, graph, "Shape of input unknown")
+
     rank = len(graph.shape_dict[node.inputs[0]])
     # ONNX converts B x C tensor into B x C x 1 hence
     # Rank 2 BN is mapped to Rank 3 BN
     if rank == 3:
         # 1D Batch Norm
-        add_bn_with_expansion(node.name, channels[0], scale, bias, mean, var,
-                              node.inputs[0], node.outputs[0], epsilon, [0, 3])
+        add_bn_with_expansion(builder, node, err, node.name, channels[0], scale, bias, mean, var,
+                              node.inputs[0], node.outputs[0], epsilon, axes_for_expansion=[0, 3])
     elif rank == 4:
         # 2D Batch Norm
-        add_bn_with_expansion(node.name, channels[0], scale, bias, mean, var,
-                              node.inputs[0], node.outputs[0], epsilon, [])
+        add_bn_with_expansion(builder, node, err, node.name, channels[0], scale, bias, mean, var,
+                              node.inputs[0], node.outputs[0], epsilon, axes_for_expansion=[])
     else:
         # Unsupported 1D, 3D and above
         err.unsupported_op_configuration(builder, node, graph, "provided number axes {} not supported".format(rank))
@@ -436,6 +442,27 @@ def _convert_equal(builder, node, graph, err):
         output_name=node.outputs[0]
     )
 
+def _convert_expand(builder, node, graph, err):
+    '''
+    convert to CoreML Broadcast To Static/Dynamic Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4086
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4108
+    '''
+    if node.inputs[1] in node.input_tensors:
+        output_shape = node.input_tensors[node.inputs[1]].astype(np.int64)
+        builder.add_broadcast_to_static(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            output_shape=output_shape
+        )
+    else:
+        builder.add_broadcast_to_dynamic(
+            name=node.name,
+            input_names=node.inputs,
+            output_name=node.outputs[0],
+        )
+
 def _convert_flatten(builder, node, graph, err):
     '''
     convert to CoreML Flatten Layer:
@@ -586,6 +613,39 @@ def _convert_identity(builder, node, graph, err):
         output_name=node.outputs[0],
         params=[1.0, 0.0]
     )
+
+def _convert_instancenorm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+    '''
+    convert to CoreML BatchNorm Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L1633
+    '''
+    epsilon = node.attrs.get("epsilon", 1e-5)
+    if node.inputs[1] not in node.input_tensors or node.inputs[2] not in node.input_tensors:
+        return err.unsupported_op_configuration(builder, node, graph, "CoreML InstanceNorm requires Scale and Bias to be known")
+    
+    scale = node.input_tensors[node.inputs[1]]
+    bias = node.input_tensors[node.inputs[2]]
+
+    if node.inputs[0] not in graph.shape_dict:
+        return err.unsupported_op_configuration(builder, node, graph, "Shape of input unknown")
+    
+    rank = len(graph.shape_dict[node.inputs[0]])
+    # ONNX converts B x C tensor into B x C x 1 hence
+    # Rank 2 BN is mapped to Rank 3 BN
+    if rank == 3:
+        # 1D Batch Norm
+        add_bn_with_expansion(builder, node, err, node.name, channels[0], scale, bias, mean, var,
+                              node.inputs[0], node.outputs[0], epsilon, compute_mean_var=True,
+                              instance_normalization=True, axes_for_expansion=[0, 3])
+    elif rank == 4:
+        # 2D Batch Norm
+        add_bn_with_expansion(builder, node, err, node.name, channels[0], scale, bias, mean, var,
+                              node.inputs[0], node.outputs[0], epsilon, compute_mean_var=True,
+                              instance_normalization=True, axes_for_expansion=[])
+    else:
+        # Unsupported 1D, 3D and above
+        err.unsupported_op_configuration(builder, node, graph, "provided number axes {} not supported".format(rank))
+    
 
 def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     '''
@@ -961,6 +1021,36 @@ def _convert_max(builder, node, graph, err):
     load_input_constants(builder, node, graph, err)
     add_broadcastable_op_chain(builder, node, err, builder.add_max_broadcastable)
 
+def _convert_mean(builder, node, graph, err):
+    '''
+    convert to CoreML Add Broadcastable Layer and Divide BroadCastable Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4117
+    '''
+    number_of_inputs = len(node.inputs)
+    output_name = node.outputs[0]
+    node.outputs[0] = node.outputs[0] + '_sum'
+
+    builder.add_load_constant_nd(
+        name=node.name + '_divider',
+        output_name=output_name+'_divider',
+        constant_value=number_of_inputs,
+        shape=[1]
+    )
+    add_broadcastable_op_chain(builder, node, err, builder.add_add_broadcastable)
+    builder.add_divide_broadcastable(
+        name=node.name+'_mean',
+        input_names=[node.outputs[0], output_name+'_divider'],
+        output_name=node.outputs[0]
+    )
+
+def _convert_pow(builder, node, graph, err):
+    '''
+    convert to CoreML Pow Broadcastable Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3969
+    '''
+    load_input_constants(builder, node, graph, err)
+    add_broadcastable_op_chain(builder, node, err, builder.add_pow_broadcastable)
+
 def _convert_min(builder, node, graph, err):
     '''
     convert to CoreML Min Broadcastable Layer:
@@ -1006,14 +1096,6 @@ def _convert_pool(builder, node, graph, err):
 
     _add_conv_like_op(_add_pool, _get_pool_params, params_dict,
                       builder, node, graph, err)
-
-def _convert_pow(builder, node, graph, err):
-    '''
-    convert to CoreML Pow Broadcastable Layer:
-    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3969
-    '''
-    load_input_constants(builder, node, graph, err)
-    add_broadcastable_op_chain(builder, node, err, builder.add_pow_broadcastable)
 
 def _convert_reduce(builder, node, graph, err):
     '''
@@ -1343,6 +1425,20 @@ def _convert_tanh(builder, node, graph, err):
         output_name=node.outputs[0]
     )
 
+def _convert_tile(builder, node, graph, err):
+    '''
+    convert to CoreML Tile Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5117
+    '''
+    if node.inputs[1] is not node.input_tensors:
+        err.unsupported_op_configuration(builder, node, graph, "CoreML Tile layer does not support dynamic 'reps'. 'reps' should be known statically")
+    builder.add_tile(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        reps=node.input_tensors[node.inputs[1]]
+    )
+
 def _convert_transpose(builder, node, graph, err):
     '''
     convert to CoreML Transpose Layer:
@@ -1396,6 +1492,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "Elu": _convert_elu,
     "Equal": _convert_equal,
     "Exp": _convert_exp,
+    "Expand": _convert_expand,
     "Flatten": _convert_flatten,
     "Floor": _convert_floor,
     "Gather": _convert_gather,
@@ -1404,12 +1501,16 @@ _ONNX_NODE_REGISTRY_ND = {
     "GlobalMaxPool": _convert_pool,
     "HardSigmoid": _convert_hardsigmoid,
     "Identity": _convert_identity,
+    "InstanceNormalization": _convert_instancenorm,
+    "LeakyRelu": _convert_leaky_relu,
     "Log": _convert_log,
     "LogSoftmax": _convert_softmax,
+    "LRN": _convert_lrn,
     "LSTM": _convert_lstm,
     "MatMul": _convert_matmul,
     "Max": _convert_max,
     "MaxPool": _convert_pool,
+    "Mean": _convert_mean,
     "Min": _convert_min,
     "Mod": _convert_mod,
     "Mul": _convert_mul,
@@ -1445,7 +1546,10 @@ _ONNX_NODE_REGISTRY_ND = {
     "Sqrt": _convert_sqrt,
     "Squeeze": _convert_squeeze,
     "Sub": _convert_sub,
+    "Sum": _convert_add,
     "Tanh": _convert_tanh,
+    "ThresholdedRelu": _convert_thresholdedrelu,
+    "Tile": _convert_tile,
     "Transpose": _convert_transpose,
     "Unsqueeze": _convert_unsqueeze,
     "Upsample": _convert_upsample,
