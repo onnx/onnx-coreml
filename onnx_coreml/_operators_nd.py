@@ -37,7 +37,6 @@ def load_input_constants(builder, node, graph, err):
             )
             graph.constants_loaded.add(node.inputs[i])
 
-
 def _add_conv_like_op(add_func, get_params_func, params_dict,
                       builder, node, graph, err):
 
@@ -84,6 +83,7 @@ def add_broadcastable_op_chain(builder, node, err, add_op_function):
     total_nodes = len(node.inputs)
     
     if total_nodes < 2:
+        # TODO: Skip or CopyProp + DeadCode elimination
         builder.add_activation(
             name=node.name,
             non_linearity = 'LINEAR',
@@ -159,8 +159,50 @@ def add_bn_with_expansion(builder, node, err, node_name, channels, scale, bias, 
             output_name=real_output_name,
             axes=axes_for_expansion
         )
+# Helper function to convert RandomNormal, RandomUniform and it's variants
+def add_random(builder, node, graph, err, add_op_function):
+    # Ignoring attribute `dtype` as CoreML internally represents tensors into 'Float'
+    mean  = node.attributes.get('mean', 0.0)
+    scale = node.attributes.get('scale', 1.0)
+    seed  = node.attributes.get('seed', -1)
+    shape = node.attributes.get('shape', None)
+    if shape is None:
+        return err.unsupported_op_configuration(builder, node, graph, "Shape not provided")
+    add_op_function(
+        name=node.name,
+        output_name=node.outputs[0],
+        output_shape=shape,
+        mean=mean,
+        stddev=scale,
+        seed=seed
+    )
 
 ## Converter functions
+
+def _convert_acos(builder, node, graph, err):
+    '''
+    convert to CoreML Acos Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3793
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_acos(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
+def _convert_acosh(builder, node, graph, err):
+    '''
+    convert to CoreML Acosh Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3925
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_acosh(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
 def _convert_add(builder, node, graph, err):
     '''
     convert to CoreML Add Broadcastable Layer:
@@ -197,6 +239,54 @@ def _convert_argmin(builder, node, graph, err):
         output_name=node.outputs[0],
         axis=axis,
         keepdims=keepdims
+    )
+
+def _convert_asin(builder, node, graph, err):
+    '''
+    convert to CoreML Asin Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3771
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_asin(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
+def _convert_asinh(builder, node, graph, err):
+    '''
+    convert to CoreML Asinh Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3903
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_asinh(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
+def _convert_atan(builder, node, graph, err):
+    '''
+    convert to CoreML Atan Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3815
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_atan(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
+def _convert_atanh(builder, node, graph, err):
+    '''
+    convert to CoreML Atanh Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3947
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_atanh(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
     )
 
 def _convert_bn(builder, node, graph, err):
@@ -314,12 +404,24 @@ def _convert_concat(builder, node, graph, err):
     axis = node.attrs.get('axis')
     load_input_constants(builder, node, graph, err)
 
-    builder.add_concat_nd(
-        name=node.name,
-        input_names=node.inputs,
-        output_name=node.outputs[0],
-        axis=axis
-    )
+    # TODO: Adding Linear layer will change to
+    #       either: Skip the op right away
+    #       or:     Insert Linear and perform copy-propogation followed by dead code elimination        
+    if len(node.inputs) == 1:
+        builder.add_activation(
+            name=node.name,
+            non_linearity = 'LINEAR',
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            params=[1.0, 0.0]
+        )
+    else:
+        builder.add_concat_nd(
+            name=node.name,
+            input_names=node.inputs,
+            output_name=node.outputs[0],
+            axis=axis
+        )
 
 def _convert_constant(builder, node, graph, err):
     '''
@@ -422,6 +524,30 @@ def _convert_conv(builder, node, graph, err):
     _add_conv_like_op(_add_conv, _get_conv_params, params_dict,
                       builder, node, graph, err)
 
+def _convert_cos(builder, node, graph, err):
+    '''
+    convert to CoreML Cos Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3727
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_cos(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
+def _convert_cosh(builder, node, graph, err):
+    '''
+    convert to CoreML Cosh Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3859
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_cosh(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
 def _convert_div(builder, node, graph, err):
     '''
     convert to CoreML Divide Broadcastable Layer:
@@ -439,6 +565,18 @@ def _convert_equal(builder, node, graph, err):
     builder.add_equal(
         name=node.name,
         input_names=node.inputs,
+        output_name=node.outputs[0]
+    )
+
+def _convert_erf(builder, node, graph, err):
+    '''
+    convert to CoreML Erf Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5140
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_erf(
+        name=node.name,
+        input_names=node.inputs[0],
         output_name=node.outputs[0]
     )
 
@@ -601,11 +739,24 @@ def _convert_gemm(builder, node, graph, err):
             output_name=node.outputs[0]
         )
 
+def _convert_greater(builder, node, graph, err):
+    '''
+    convert to CoreML Greater than Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L853
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_greater_than(
+        name=node.name,
+        input_name=node.inputs,
+        output_name=node.outputs[0],
+    )
+
 def _convert_identity(builder, node, graph, err):
     '''
     convert to CoreML Linear Activation Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L417
     '''
+    # TODO: Skip or CopyProp + DeadCode elimination
     builder.add_activation(
         name=node.name,
         non_linearity = 'LINEAR',
@@ -645,7 +796,18 @@ def _convert_instancenorm(builder, node, graph, err):  # type: (NeuralNetworkBui
     else:
         # Unsupported 1D, 3D and above
         err.unsupported_op_configuration(builder, node, graph, "provided number axes {} not supported".format(rank))
-    
+
+def _convert_less(builder, node, graph, err):
+    '''
+    convert to CoreML Less Than Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L907
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_less_than(
+        name=node.name,
+        input_name=node.inputs,
+        output_name=node.outputs[0],
+    )
 
 def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
     '''
@@ -1051,6 +1213,58 @@ def _convert_pow(builder, node, graph, err):
     load_input_constants(builder, node, graph, err)
     add_broadcastable_op_chain(builder, node, err, builder.add_pow_broadcastable)
 
+def _convert_randomnormal(builder, node, graph, err):
+    '''
+    convert to CoreML Random Normal Static Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4457
+    '''
+    add_random(builder, node, graph, err, builder.random_normal_static)
+
+def _convert_randomnormallike(builder, node, graph, err):
+    '''
+    convert to CoreML Random Normal Like Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4434
+    '''
+     # Ignoring attribute `dtype` as CoreML internally represents tensors into 'Float'
+    mean  = node.attributes.get('mean', 0.0)
+    scale = node.attributes.get('scale', 1.0)
+    seed  = node.attributes.get('seed', -1)
+
+    builder.add_random_normal_like(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mean=mean,
+        stddev=scale,
+        seed=seed
+    )
+
+def _convert_randomuniform(builder, node, graph, err):
+    '''
+    convert to CoreML Random Uniform Static Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4526
+    '''
+    add_random(builder, node, graph, err, builder.random_uniform_static)
+
+def _convert_randomuniformlike(builder, node, graph, err):
+    '''
+    convert to CoreML Random Normal Like Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4503
+    '''
+     # Ignoring attribute `dtype` as CoreML internally represents tensors into 'Float'
+    mean  = node.attributes.get('mean', 0.0)
+    scale = node.attributes.get('scale', 1.0)
+    seed  = node.attributes.get('seed', -1)
+
+    builder.add_random_uniform_like(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mean=mean,
+        stddev=scale,
+        seed=seed
+    )
+
 def _convert_min(builder, node, graph, err):
     '''
     convert to CoreML Min Broadcastable Layer:
@@ -1074,6 +1288,18 @@ def _convert_mul(builder, node, graph, err):
     '''
     load_input_constants(builder, node, graph, err)
     add_broadcastable_op_chain(builder, node, err, builder.add_multiply_broadcastable)
+
+def _convert_nonzero(builder, node, graph, err):
+    '''
+    convert to CoreML Where Non Zero Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4002
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_where_nonzero(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
 
 def _convert_pool(builder, node, graph, err):
     '''
@@ -1297,6 +1523,17 @@ def _convert_reshape(builder, node, graph, err):
             output_name=node.outputs[0],
         )
 
+def _convert_round(builder, node, graph, err):
+    '''
+    convert to CoreML Round Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5029
+    '''
+    builder.add_round(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
 def _convert_slice(builder, node, graph, err):
     '''
     convert to CoreML Slice Static Layer:
@@ -1430,7 +1667,8 @@ def _convert_tile(builder, node, graph, err):
     convert to CoreML Tile Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5117
     '''
-    if node.inputs[1] is not node.input_tensors:
+    load_input_constants(builder, node, graph, err)
+    if node.inputs[1] not in node.input_tensors:
         err.unsupported_op_configuration(builder, node, graph, "CoreML Tile layer does not support dynamic 'reps'. 'reps' should be known statically")
     builder.add_tile(
         name=node.name,
@@ -1473,10 +1711,16 @@ def _convert_unsqueeze(builder, node, graph, err):
 
 _ONNX_NODE_REGISTRY_ND = {
     "Abs": _convert_abs,
+    "Acos": _convert_acos,
+    "Acosh": _convert_acosh,
     "Add": _convert_add,
     "And": _convert_logical,
     "ArgMax": _convert_argmax,
     "ArgMin": _convert_argmin,
+    "Asin": _convert_asin,
+    "Asinh": _convert_asinh,
+    "Atan": _convert_atan,
+    "Atanh": _convert_atanh,
     "AveragePool": _convert_pool,
     "BatchNormalization": _convert_bn,
     "Cast": _convert_cast,
@@ -1487,16 +1731,20 @@ _ONNX_NODE_REGISTRY_ND = {
     "ConstantOfShape": _convert_constant_of_shape,
     "Conv": _convert_conv,
     "ConvTranspose": _convert_conv,
+    "Cos": _convert_cos,
+    "Cosh": _convert_cosh,
     "DepthToSpace": _convert_reorganize_data,
     "Div": _convert_div,
     "Elu": _convert_elu,
     "Equal": _convert_equal,
+    "Erf": _convert_erf,
     "Exp": _convert_exp,
     "Expand": _convert_expand,
     "Flatten": _convert_flatten,
     "Floor": _convert_floor,
     "Gather": _convert_gather,
     "Gemm": _convert_gemm,
+    "Greater": _convert_greater,
     "GlobalAveragePool": _convert_pool,
     "GlobalMaxPool": _convert_pool,
     "HardSigmoid": _convert_hardsigmoid,
@@ -1506,6 +1754,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "Log": _convert_log,
     "LogSoftmax": _convert_softmax,
     "LRN": _convert_lrn,
+    "Less": _convert_less,
     "LSTM": _convert_lstm,
     "MatMul": _convert_matmul,
     "Max": _convert_max,
@@ -1515,11 +1764,16 @@ _ONNX_NODE_REGISTRY_ND = {
     "Mod": _convert_mod,
     "Mul": _convert_mul,
     "Neg": _convert_neg,
+    "NonZero": _convert_nonzero,
     "Not": _convert_logical,
     "Or": _convert_logical,
     "Pad": _convert_pad,
     "Pow": _convert_pow,
     "Prelu": _convert_prelu,
+    "RandomNormal": _convert_randomnormal,
+    "RandomNormalLike": _convert_randomnormallike,
+    "RandomUniform": _convert_randomuniform,
+    "RandomUniformLike": _convert_randomuniformlike,
     "Reciprocal": _convert_reciprocal,
     "ReduceL1": _convert_reduce,
     "ReduceL2": _convert_reduce,
@@ -1533,6 +1787,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "ReduceSumSquare": _convert_reduce,
     "Relu": _convert_relu,
     "Reshape": _convert_reshape,
+    "Round": _convert_round,
     "Selu": _convert_selu,
     "Sigmoid": _convert_sigmoid,
     "Sign": _convert_sign,
