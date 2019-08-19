@@ -22,9 +22,7 @@ if [ "$TRAVIS_OS_NAME" == "linux" ]; then
 
   # Setup Python.
   if [ "${PYTHON_VERSION}" == "python3" ]; then
-    export PYTHON_DIR="$(ls -d /opt/python/3.*.*)/bin"
-  elif [ "${PYTHON_VERSION}" == "python2" ]; then
-    export PYTHON_DIR="$(ls -d /opt/python/2.*.*)/bin"
+    export PYTHON_DIR="$(ls -d /opt/python/3.7.1/bin)"
   else
     echo Unknown Python Version: ${PYTHON_VERSION}
     exit 1
@@ -37,8 +35,6 @@ elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
     brew install ccache protobuf
     brew unlink python 
     brew install --ignore-dependencies https://raw.githubusercontent.com/Homebrew/homebrew-core/f2a764ef944b1080be64bd88dca9a1d80130c558/Formula/python.rb
-  elif [ "${PYTHON_VERSION}" == "python2" ]; then
-    brew install ccache protobuf ${PYTHON_VERSION}
   else
     echo Unknown Python Version: ${PYTHON_VERSION}
     exit 1
