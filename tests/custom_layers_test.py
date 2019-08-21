@@ -14,7 +14,7 @@ def _make_model_acos_exp_topk(): # type: (...) -> ModelProto
   '''
   make a very simple model for testing: input->clip->exp->topk->2 outputs
   '''
-  inputs = [('input0', (10,))]
+  inputs = [('input0', (10,), TensorProto.FLOAT), ('K', (1,), TensorProto.INT64)]
   outputs = [('output_values', (3,), TensorProto.FLOAT), ('output_indices', (3,), TensorProto.INT64)]
   acos = helper.make_node("Acos",
                           inputs=[inputs[0][0]],
@@ -23,9 +23,9 @@ def _make_model_acos_exp_topk(): # type: (...) -> ModelProto
                         inputs=[acos.output[0]],
                         outputs=['exp_out'])
   topk = helper.make_node("TopK",
-                        inputs=[exp.output[0]],
+                        inputs=[exp.output[0], inputs[1][0]],
                         outputs=[outputs[0][0], outputs[1][0]],
-                        axis=0, k=3)
+                        axis=0)
   return _onnx_create_model([acos, exp, topk], inputs, outputs)
 
 def _make_model_flatten_axis3(): # type: (...) -> ModelProto
@@ -74,7 +74,6 @@ class CustomLayerTest(unittest.TestCase):
       params.className = node.op_type
       params.description = "Custom layer that corresponds to the ONNX op {}".format(node.op_type, )
       params.parameters["axis"].intValue = node.attrs.get('axis', -1)
-      params.parameters["k"].intValue = node.attrs['k']
 
       builder.add_custom(
         name=node.name,
@@ -95,10 +94,8 @@ class CustomLayerTest(unittest.TestCase):
     self.assertEqual('Acos', layers[0].custom.className)
     self.assertEqual('TopK', layers[2].custom.className)
     self.assertEqual(0, layers[2].custom.parameters['axis'].intValue)
-    self.assertEqual(3, layers[2].custom.parameters['k'].intValue)
 
   def test_node_name_type_custom_functions(self):  # type: () -> None
-    NODE_NAME_TOP_K_VAL = 2
     def convert_acos(builder, node, graph, err):
       params = NeuralNetwork_pb2.CustomLayerParams()
       params.className = node.op_type
@@ -130,7 +127,6 @@ class CustomLayerTest(unittest.TestCase):
       params.className = node.op_type
       params.description = "Custom layer that corresponds to the ONNX op {}".format(node.op_type, )
       params.parameters["axis"].intValue = node.attrs.get('axis', -1)
-      params.parameters["k"].intValue = NODE_NAME_TOP_K_VAL
 
       builder.add_custom(
         name=node.name,
@@ -153,7 +149,6 @@ class CustomLayerTest(unittest.TestCase):
     self.assertEqual('Acos', layers[0].custom.className)
     self.assertEqual('TopK', layers[2].custom.className)
     self.assertEqual(0, layers[2].custom.parameters['axis'].intValue)
-    self.assertEqual(NODE_NAME_TOP_K_VAL, layers[2].custom.parameters['k'].intValue)
   
   def test_unsupported_op_attribute(self):  # type: () -> None
     onnx_model = _make_model_flatten_axis3()
@@ -161,7 +156,6 @@ class CustomLayerTest(unittest.TestCase):
 
     spec = coreml_model.get_spec()
     layers = spec.neuralNetwork.layers
-    print(layers[0].custom)
     self.assertIsNotNone(layers[0].custom)
     self.assertEqual('Flatten', layers[0].custom.className)
 

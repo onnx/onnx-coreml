@@ -49,12 +49,13 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
         get_params_func(builder, node, graph, err, params_dict)
         add_func(node.inputs, node.outputs, params_dict=params_dict, builder=builder, node=node, graph=graph, err=err)
     elif rank == 3:
+        axes = [0, 3]
         # Make 5d tensor
         builder.add_expand_dims(
             name=node.name+'_ip_expand',
             input_name=node.inputs[0],
             output_name=node.inputs[0]+'_expanded',
-            axes=[0, 3]
+            axes=axes
         )
         node.inputs[0] = node.inputs[0] + '_expanded'
         output_name = node.outputs[0]
@@ -67,10 +68,11 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
             name=node.name+'_ip_squeeze_out',
             input_name=node.outputs[0],
             output_name=output_name,
-            axes=[0, 3]
+            axes=axes
         )
     else:
         return err.unsupported_op_configuration(builder, node, graph, "provided number axes {} not supported".format(rank))
+
     
 def add_broadcastable_op_chain(builder, node, err, add_op_function):
     '''
@@ -121,8 +123,8 @@ def add_broadcastable_op_chain(builder, node, err, add_op_function):
             output_name=out_name
         )
 
-def add_bn_with_expansion(builder, node, err, node_name, channels, scale, bias, mean, var, input_name, output_name,
-                          epsilon, compute_mean_var=False, instance_normalization=False, axes_for_expansion=[]):
+def add_bn_with_expansion(builder, node, err, node_name, input_name, output_name, channels, scale, bias, mean=None, var=None,
+                          epsilon=None, compute_mean_var=False, instance_normalization=False, axes_for_expansion=[]):
     real_input_name = input_name
     real_output_name = output_name
 
@@ -332,12 +334,12 @@ def _convert_bn(builder, node, graph, err):
     # Rank 2 BN is mapped to Rank 3 BN
     if rank == 3:
         # 1D Batch Norm
-        add_bn_with_expansion(builder, node, err, node.name, channels[0], scale, bias, mean, var,
-                              node.inputs[0], node.outputs[0], epsilon, axes_for_expansion=[0, 3])
+        add_bn_with_expansion(builder, node, err, node.name, node.inputs[0], node.outputs[0], channels[0],
+                              scale, bias, mean, var, epsilon, axes_for_expansion=[0, 3])
     elif rank == 4:
         # 2D Batch Norm
-        add_bn_with_expansion(builder, node, err, node.name, channels[0], scale, bias, mean, var,
-                              node.inputs[0], node.outputs[0], epsilon, axes_for_expansion=[])
+        add_bn_with_expansion(builder, node, err, node.name, node.inputs[0], node.outputs[0], channels[0],
+                              scale, bias, mean, var, epsilon, axes_for_expansion=[])
     else:
         # Unsupported 1D, 3D and above
         err.unsupported_op_configuration(builder, node, graph, "provided number axes {} not supported".format(rank))
@@ -748,7 +750,7 @@ def _convert_greater(builder, node, graph, err):
     load_input_constants(builder, node, graph, err)
     builder.add_greater_than(
         name=node.name,
-        input_name=node.inputs,
+        input_names=node.inputs,
         output_name=node.outputs[0],
     )
 
@@ -786,13 +788,13 @@ def _convert_instancenorm(builder, node, graph, err):  # type: (NeuralNetworkBui
     # Rank 2 BN is mapped to Rank 3 BN
     if rank == 3:
         # 1D Batch Norm
-        add_bn_with_expansion(builder, node, err, node.name, channels[0], scale, bias, mean, var,
-                              node.inputs[0], node.outputs[0], epsilon, compute_mean_var=True,
+        add_bn_with_expansion(builder, node, err, node.name, node.inputs[0], node.outputs[0], scale.shape[0],
+                              scale, bias, epsilon=epsilon, compute_mean_var=True,
                               instance_normalization=True, axes_for_expansion=[0, 3])
     elif rank == 4:
         # 2D Batch Norm
-        add_bn_with_expansion(builder, node, err, node.name, channels[0], scale, bias, mean, var,
-                              node.inputs[0], node.outputs[0], epsilon, compute_mean_var=True,
+        add_bn_with_expansion(builder, node, err, node.name, node.inputs[0], node.outputs[0], scale.shape[0],
+                              scale, bias, epsilon=epsilon, compute_mean_var=True,
                               instance_normalization=True, axes_for_expansion=[])
     else:
         # Unsupported 1D, 3D and above
@@ -806,7 +808,7 @@ def _convert_less(builder, node, graph, err):
     load_input_constants(builder, node, graph, err)
     builder.add_less_than(
         name=node.name,
-        input_name=node.inputs,
+        input_names=node.inputs,
         output_name=node.outputs[0],
     )
 
@@ -1196,14 +1198,14 @@ def _convert_mean(builder, node, graph, err):
     builder.add_load_constant_nd(
         name=node.name + '_divider',
         output_name=output_name+'_divider',
-        constant_value=number_of_inputs,
+        constant_value=np.array(number_of_inputs),
         shape=[1]
     )
     add_broadcastable_op_chain(builder, node, err, builder.add_add_broadcastable)
     builder.add_divide_broadcastable(
         name=node.name+'_mean',
         input_names=[node.outputs[0], output_name+'_divider'],
-        output_name=node.outputs[0]
+        output_name=output_name
     )
 
 def _convert_pow(builder, node, graph, err):
@@ -1320,6 +1322,12 @@ def _convert_pool(builder, node, graph, err):
 
     if len(node.outputs) == 2:
         return err.unsupported_op_configuration(builder, node, graph, "argmax with pool unsupported")
+
+    if 'ceil_mode' in node.attrs and node.attrs['ceil_mode'] == 1:
+        return err.unsupported_op_configuration(builder, node, graph, "ceil_mode=1 not supported")
+
+    if 'dilations' in node.attrs:
+        return err.unsupported_op_configuration(builder, node, graph, "dilations not supported")
 
     _add_conv_like_op(_add_pool, _get_pool_params, params_dict,
                       builder, node, graph, err)
@@ -1548,35 +1556,51 @@ def _convert_slice(builder, node, graph, err):
     default_axes = list(range(len_of_data))
     default_steps = [1] * len_of_data
     
-    ip_starts = node.attrs.get('starts')
-    ip_ends = node.attrs.get('ends')
-    axes = node.attrs.get('axes', default_axes)
-    steps = node.attrs.get('steps', default_steps)
+    add_static_slice_layer = False
+    if node.inputs[1] in node.input_tensors and node.inputs[2] in node.input_tensors:
+        if len(node.inputs) > 3:
+            if node.inputs[3] in node.input_tensors:
+                if len(node.inputs) > 4:
+                    if node.inputs[4] in node.input_tensors:
+                        add_static_slice_layer = True
+                else:
+                    add_static_slice_layer = True
+        else:
+            add_static_slice_layer = True
+    
+    if add_static_slice_layer:
+        ip_starts = node.input_tensors[node.inputs[1]]
+        ip_ends   = node.input_tensors[node.inputs[2]]
 
-    starts = [0] * len_of_data
-    ends = [0] * len_of_data
+        axes  = node.input_tensors[node.inputs[3]] if len(node.inputs) > 3 else default_axes
+        steps = node.input_tensors[node.inputs[4]] if len(node.inputs) > 4 else default_steps
 
-    for i in range(len(axes)):
-        current_axes = axes[i]
-        starts[current_axes] = ip_starts[i]
-        ends[current_axes] = ip_ends[i]
-        if ends[current_axes] != INT_MAX or ends[current_axes] < data_shape[current_axes]:
-            end_masks[current_axes] = False
+        starts = [0] * len_of_data
+        ends = [0] * len_of_data
 
-        if starts[current_axes] != 0:
-            begin_masks[current_axes] = False
+        for i in range(len(axes)):
+            current_axes = axes[i]
+            starts[current_axes] = ip_starts[i]
+            ends[current_axes] = ip_ends[i]
+            if ends[current_axes] != INT_MAX or ends[current_axes] < data_shape[current_axes]:
+                end_masks[current_axes] = False
 
-    builder.add_slice_static(
-        name=node.name,
-        input_name=node.inputs[0],
-        output_name=node.outputs[0],
-        begin_ids=starts,
-        end_ids=ends,
-        strides=steps,
-        begin_masks=begin_masks,
-        end_masks=end_masks
-    )
+            if starts[current_axes] != 0:
+                begin_masks[current_axes] = False
 
+        builder.add_slice_static(
+            name=node.name,
+            input_name=node.inputs[0],
+            output_name=node.outputs[0],
+            begin_ids=starts,
+            end_ids=ends,
+            strides=steps,
+            begin_masks=begin_masks,
+            end_masks=end_masks
+        )
+    else:
+        err.unsupported_op_configuration(builder, node, graph, "CoreML does not support Dynamic Slice with unknown axes. Please provide Custom Function/Layer")
+    
 def _convert_softmax(builder, node, graph, err):
     '''
     convert to CoreML SoftMax ND Layer:
@@ -1611,11 +1635,14 @@ def _convert_split(builder, node, graph, err):
     '''
     axis = node.attrs.get('axis', 0)
     split = node.attrs.get('split', None)
+    num_splits = len(node.outputs) if split is None else 2
+        
     builder.add_split_nd(
         name=node.name,
         input_name=node.inputs[0],
         output_names=node.outputs,
         axis=axis,
+        num_splits=num_splits,
         split_sizes=split
     )
 
@@ -1770,7 +1797,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "Or": _convert_logical,
     "Pad": _convert_pad,
     "Pow": _convert_pow,
-    "Prelu": _convert_prelu,
+    "PRelu": _convert_prelu,
     "RandomNormal": _convert_randomnormal,
     "RandomNormalLike": _convert_randomnormallike,
     "RandomUniform": _convert_randomuniform,

@@ -220,7 +220,7 @@ def _transform_coreml_dtypes(builder, # type : NeuralNetworkBuilder
         elif onnx_type == TensorProto.INT32 or onnx_type == TensorProto.INT64:
             _update_multiarray_to_int32(builder.spec.description.output[i])
         elif onnx_type == TensorProto.BOOL:
-            _update_multiarray_to_float32(builder.spec.description.input[i])
+            _update_multiarray_to_float32(builder.spec.description.output[i])
         else:
             raise TypeError("Output must be of of type FLOAT, DOUBLE, INT32 or INT64")
 
@@ -403,6 +403,8 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     global USE_SHAPE_MAPPING
     if disable_coreml_rank5_mapping:
         USE_SHAPE_MAPPING = False
+    else:
+        USE_SHAPE_MAPPING = True
 
 
     '''

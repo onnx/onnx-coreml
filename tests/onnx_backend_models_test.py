@@ -32,11 +32,9 @@ backend_test.include('test_inception_v2')
 backend_test.include('test_densenet121')
 backend_test.include('test_shufflenet')
 backend_test.include('test_squeezenet')
-
-# Slow tests. Skipping for now.
-backend_test.exclude('test_vgg19')
-backend_test.exclude('test_bvlc_alexnet')
-backend_test.exclude('test_zfnet')
+backend_test.include('test_bvlc_alexnet')
+backend_test.include('test_zfnet512')
+backend_test.include('test_vgg19')
 
 globals().update(backend_test
                  .enable_report()

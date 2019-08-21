@@ -135,7 +135,7 @@ class SingleOperatorTest(unittest.TestCase):
             kernel_shape=kernel_shape,
             strides=strides
         )
-
+    @unittest.skip('Skip due to internal CoreML CPU backend issue')
     def test_avg_pool(self):  # type: () -> None
         kernel_shape = (5, 3)
         pads = (2, 1, 2, 1)
@@ -256,41 +256,6 @@ class SingleOperatorTest(unittest.TestCase):
             bias=1.0,
             size=5
         )
-
-    def test_slice_axis_3_rank_4(self, disable_rank5_mapping=False):  # type: () -> None
-        _test_single_node(
-            "Slice",
-            [(1, 3, 224, 224)],
-            [(1, 3, 224, 222)],
-            axes=[3],
-            starts=[1],
-            ends=[223],
-            disable_rank5_mapping=disable_rank5_mapping
-        )
-    
-    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
-                     'macOS 10.15+ required. Skipping test.')
-    def test_slice_axis_3_rank_4_disable_rank5_mapping(self):
-        self.test_slice_axis_3_rank_4(True)
-
-
-    def test_slice_axis_0_rank_2(self, disable_rank5_mapping=False): # type: () -> None
-        _test_single_node(
-            "Slice",
-            [(10, 2)],
-            [(5, 2)],
-            onnx_coreml_input_shape_map = {'input0': [3,4]},
-            coreml_input_shape = {'input0':[1,10,2]},
-            axes=[0],
-            starts=[5],
-            ends=[10],
-            disable_rank5_mapping=disable_rank5_mapping
-        )
-
-    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
-                     'macOS 10.15+ required. Skipping test.')
-    def test_slice_axis_0_rank_2_disable_rank5_mapping(self):
-        self.test_slice_axis_0_rank_2(True)
 
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                      'macOS 10.15+ required. Skipping test.')

@@ -402,11 +402,10 @@ def _add_conv(input_names, output_names, **kwargs):
     err = kwargs['err']
 
     W_shape = params_dict['w_shape']
-    # params_dict['W'].shape if params_dict['W'] is not None else graph.shape_dict[node.inputs[1]]
 
     output_name = output_names[0]
     pre_padding_input_name = input_names[0]
-
+    
     if params_dict.get('is_post_crop', False):
         output_name += '_conv_tranpose_post_crop'
     if params_dict.get('is_pre_pad', False):
@@ -630,7 +629,6 @@ def _convert_transpose(builder, node, graph, err):  # type: (NeuralNetworkBuilde
     _update_shape_mapping_unchanged(node, graph, err)
 
 def _get_pool_params(builder, node, graph, err, params_dict, axis=None):
-
     params_dict['pad_b'], params_dict['pad_l'], params_dict['pad_r'], params_dict['pad_t'] = 0, 0, 0, 0
     params_dict['stride_height'], params_dict['stride_width'] = 1, 1
     params_dict['padding_type'] = 'VALID'
@@ -704,7 +702,6 @@ def _add_pool(input_names, output_names, **kwargs):
 
 
 def _convert_pool(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
-
     input_name = node.inputs[0]
     output_name = node.outputs[0]
     params_dict = dict()
@@ -720,6 +717,12 @@ def _convert_pool(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
 
     if len(node.outputs) == 2:
         return err.unsupported_op_configuration(builder, node, graph, "argmax with pool unsupported")
+
+    if 'ceil_mode' in node.attrs and node.attrs['ceil_mode'] == 1:
+        return err.unsupported_op_configuration(builder, node, graph, "ceil_mod=1 not supported")
+    
+    if 'dilations' in node.attrs:
+        return err.unsupported_op_configuration(builder, node, graph, "dilations not supported")
 
     _add_conv_like_op(_add_pool, _get_pool_params, params_dict,
                       builder, node, graph, err)
@@ -1286,6 +1289,9 @@ def _convert_selu(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
     _update_shape_mapping_unchanged(node, graph, err)
 
 def _convert_prelu(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+    if node.inputs[1] not in node.input_tensors:
+        return err.unsupported_op_configuration(builder, node, graph, "Slope must be known!")
+
     slope = node.input_tensors[node.inputs[1]]
     builder.add_activation(
         name=node.name,
