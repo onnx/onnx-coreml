@@ -586,6 +586,7 @@ def _convert_expand(builder, node, graph, err):
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4086
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4108
     '''
+    load_input_constants(builder, node, graph, err)
     if node.inputs[1] in node.input_tensors:
         output_shape = node.input_tensors[node.inputs[1]].astype(np.int64)
         builder.add_broadcast_to_static(
