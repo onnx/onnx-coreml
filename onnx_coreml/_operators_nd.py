@@ -1292,6 +1292,7 @@ def _convert_mul(builder, node, graph, err):
     load_input_constants(builder, node, graph, err)
     add_broadcastable_op_chain(builder, node, err, builder.add_multiply_broadcastable)
 
+
 def _convert_nonzero(builder, node, graph, err):
     '''
     convert to CoreML Where Non Zero Layer:
@@ -1532,6 +1533,63 @@ def _convert_reshape(builder, node, graph, err):
             output_name=node.outputs[0],
         )
 
+def _convert_resize(builder, node, graph, err):
+    '''
+    convert to CoreML Upsample or Resize Bilinear Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L2139
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L2178
+    '''
+    mode = node.attrs.get('mode', 'nearest')
+    if node.inputs[1] not in node.input_tensors:
+        return err.unsupported_op_configuration(builder, node, graph, "Scaling factor unknown!! CoreML does not support dynamic scaling for Resize")
+    
+    mode = 'NN' if mode == 'nearest' else 'BILINEAR'
+    scale = node.input_tensors[node.inputs[1]]
+    
+    builder.add_upsample(
+        name=node.name,
+        scaling_factor_h=scale[-2],
+        scaling_factor_w=scale[-1],
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        mode=mode
+    )
+
+def _convert_reverse_sequence(builder, node, graph, err):
+    '''
+    convert to CoreML Reverse Sequence Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3577
+    '''
+    batch_axis = node.attrs.get('batch_axis', 1)
+    time_axis  = node.attrs.get('time_axis', 0)
+
+    output_name = node.outputs[0]
+    add_transpose = False
+    if batch_axis > time_axis:
+        output_name += '_before_reverse'
+        batch_axis, time_axis = time_axis, batch_axis
+        add_transpose = True
+    
+    builder.add_reverse_sequence(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=output_name,
+        batch_axis=batch_axis,
+        seq_axis=time_axis
+    )
+
+    if add_transpose:
+        output_name_post = '_before_reverse'
+        rank = len(graph.shape_dict[node.inputs[0]])
+        axes = list(range(rank))
+        axes[batch_axis], axes[time_axis] = axes[time_axis], axes[batch_axis]
+        builder.add_transpose(
+            name=node.name+'_transpose',
+            axes=axes,
+            input_name=output_name,
+            output_name=node.outputs[0]
+        )
+
 def _convert_round(builder, node, graph, err):
     '''
     convert to CoreML Round Layer:
@@ -1540,6 +1598,36 @@ def _convert_round(builder, node, graph, err):
     builder.add_round(
         name=node.name,
         input_name=node.inputs[0],
+        output_name=node.outputs[0]
+    )
+
+def _convert_scatter(builder, node, graph, err):
+    '''
+    convert to CoreML Scatter Along Axis Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4308
+    '''
+    axis = node.attrs.get('axis', 0)
+    builder.add_scatter_along_axis(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=node.outputs[0],
+        axis=axis
+    )
+
+def _convert_size(builder, node, graph, err):
+    '''
+    convert to CoreML GetShape and ReduceProd Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5131
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4722
+    ''' 
+    builder.add_get_shape(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.inputs[0]+'_getshape'
+    )
+    builder.add_reduce_prod(
+        name=node.name+'_reduce_prod',
+        input_name=node.inputs[0]+'_getshape',
         output_name=node.outputs[0]
     )
 
@@ -1607,25 +1695,18 @@ def _convert_softmax(builder, node, graph, err):
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#3547
     '''
     axis = node.attrs.get('axis', 1)
+    builder.add_softmax_nd(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0] + ('_softmax' if node.op_type == 'LogSoftmax' else ''),
+        axis=axis
+    )
     if node.op_type == 'LogSoftmax':
-        builder.add_softmax_nd(
-            name=node.name + '_softmax',  # type: ignore
-            input_name=node.inputs[0],
-            output_name=node.outputs[0] + '_softmax',
-            axis=axis
-        )
         builder.add_unary(
-            name=node.name,
-            input_name=node.outputs[0] + '_softmax',
+            name=node.name+'_log',
+            input_name=node.outputs[0]+'_softmax',
             output_name=node.outputs[0],
             mode='log'
-        )
-    else:
-        builder.add_softmax_nd(
-            name=node.name,
-            input_name=node.inputs[0],
-            output_name=node.outputs[0],
-            axis=axis
         )
 
 def _convert_split(builder, node, graph, err):
@@ -1815,10 +1896,14 @@ _ONNX_NODE_REGISTRY_ND = {
     "ReduceSumSquare": _convert_reduce,
     "Relu": _convert_relu,
     "Reshape": _convert_reshape,
+    "Resize": _convert_resize,
+    "ReverseSequence": _convert_reverse_sequence,
     "Round": _convert_round,
+    "Scatter": _convert_scatter,
     "Selu": _convert_selu,
     "Sigmoid": _convert_sigmoid,
     "Sign": _convert_sign,
+    "Size": _convert_size,
     "Slice": _convert_slice,
     "Softmax": _convert_softmax,
     "Softplus": _convert_softplus,

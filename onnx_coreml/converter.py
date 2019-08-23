@@ -124,7 +124,13 @@ def _make_coreml_output_features(graph, forceShape=False, disable_coreml_rank5_m
     features = []
     outputs = graph.outputs
     op_types = graph.blob_from_op_type
+    ops_allowing_zerod_output = {'Size'}
+
     for output_ in outputs:
+        if op_types[output_[0]] in ops_allowing_zerod_output and len(output_[2]) == 0:
+            output_ = list(output_)
+            output_[2] = (1,)
+
         if disable_coreml_rank5_mapping:
             shape = output_[2]
             if len(shape) > 5:
