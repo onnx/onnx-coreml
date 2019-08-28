@@ -301,10 +301,14 @@ def _convert_bn(builder, node, graph, err):
 
     epsilon = node.attrs.get("epsilon", 1e-5)
     scale_name = node.inputs[1]
-
-    if scale_name not in graph.shape_dict:
+        
+    if scale_name in node.input_tensors:
+        channels = node.input_tensors[scale_name].shape
+    elif scale_name in graph.shape_dict:
+        channels = graph.shape_dict[scale_name]
+    else:
         err.unsupported_op_configuration(builder, node, graph, "Input shape not available")
-    channels = node.input_tensors[scale_name].shape if scale_name in node.input_tensors else graph.shape_dict[scale_name]
+
     # TODO: Move error check under VERBOSE / DEBUG Mode
     for i in range(2, len(node.inputs)):
         ip_name = node.inputs[i]
