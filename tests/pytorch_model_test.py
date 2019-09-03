@@ -503,7 +503,7 @@ class UnaryOperationTests(unittest.TestCase):
     Unary Operation Test cases
     '''
     ## Sqrt tests
-    def sqrt_tensor(self, disable_rank5_mapping=True):
+    def test_sqrt_tensor(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return torch.sqrt(x)
@@ -517,7 +517,7 @@ class BinaryOperationTests(unittest.TestCase):
     Binary Operation Test cases
     '''
     ## Addition tests
-    def add_same_shape(self, disable_rank5_mapping=True):
+    def test_add_same_shape(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return torch.add(x, y)
@@ -527,7 +527,7 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
-    def add_same_shape_multiple(self, disable_rank5_mapping=True):
+    def test_add_same_shape_multiple(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return x + y + y1 + y2 + y3
@@ -541,7 +541,7 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
-    def add_tensor_scalar(self, disable_rank5_mapping=True):
+    def test_add_tensor_scalar(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return torch.add(x, y)
@@ -551,7 +551,7 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
-    def add_diff_shape(self, disable_rank5_mapping=True):
+    def test_add_diff_shape(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return torch.add(x, y)
@@ -562,7 +562,7 @@ class BinaryOperationTests(unittest.TestCase):
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
     ## Subtraction tests
-    def sub_same_shape(self, disable_rank5_mapping=True):
+    def test_sub_same_shape(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return torch.sub(x, y)
@@ -572,7 +572,7 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
-    def sub_same_shape_multiple(self, disable_rank5_mapping=True):
+    def test_sub_same_shape_multiple(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return x - y - y1 - y2 - y3
@@ -586,7 +586,7 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
-    def sub_tensor_scalar(self, disable_rank5_mapping=True):
+    def test_sub_tensor_scalar(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return torch.sub(x, y)
@@ -596,7 +596,7 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
-    def sub_diff_shape(self, disable_rank5_mapping=True):
+    def test_sub_diff_shape(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return torch.sub(x, y)
@@ -606,7 +606,7 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
-    def bianry_ops_mix_test(self, disable_rank5_mapping=True):
+    def test_bianry_ops_mix_test(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return ((x * g + a) - d * (c + b) + (a * e - g) / e) / f
@@ -628,7 +628,7 @@ class ReduceOperationTests(unittest.TestCase):
     Reduction Operation Test cases
     '''
     ## Reduction tests
-    def reduce_sum(self, disable_rank5_mapping=True):
+    def test_reducesum(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return x.sum(dim=0)
@@ -637,7 +637,7 @@ class ReduceOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (4, 5), disable_rank5_mapping=disable_rank5_mapping)
 
-    def reduce_mean(self, disable_rank5_mapping=True):
+    def test_reducemean(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
                 return x.mean(dim=1) 
@@ -645,6 +645,19 @@ class ReduceOperationTests(unittest.TestCase):
         torch_model = Net()  # type: ignore
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 5), disable_rank5_mapping=disable_rank5_mapping)
+
+class TransformationTests(unittest.TestCase):
+    '''
+    Test cases for validating transformations
+    '''
+    # Upsample Test case
+    # Upsample with scalar factor is splited in Floor -> Cast -> Div -> Concat
+    # Hence, is a good measure to test Costant Propagation and removal transformation
+    def test_cast_removal_transformation(self, disable_rank5_mapping=True):
+        print('Test')
+        torch_model = nn.Upsample(scale_factor=2)
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 18, 4, 5), (1, 18, 8, 10), disable_rank5_mapping=disable_rank5_mapping)
 
 if __name__ == '__main__':
     unittest.main()

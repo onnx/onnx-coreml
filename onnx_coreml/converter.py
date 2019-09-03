@@ -24,9 +24,8 @@ from ._graph import Graph, EdgeInfo, Transformer
 from ._transformers import ConvAddFuser, DropoutRemover, \
     ReshapeInitTensorFuser, BNBroadcastedMulFuser, BNBroadcastedAddFuser, \
     PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs, \
-    ConstantsToInitializers, ImageScalerRemover, UnsqueezeConstantRemover, TransposeConstantRemover, \
-    ShapeOpRemover, SliceConstantRemover, ConcatConstantRemover, DivMulConstantRemover, GatherConstantRemover, \
-    ConstantFillToInitializers, ReshapeTransposeReshape_pattern1
+    ConstantsToInitializers, ImageScalerRemover, ShapeOpRemover, ConstantRemover, \
+    ConstantFillToInitializers, ReshapeTransposeReshape_pattern1, CastOpRemover
 
 from ._error_utils import ErrorHandling
 from .graph_viz import plot_graph # type: ignore
@@ -426,20 +425,16 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     transformers = [
         ConstantsToInitializers(),
         ShapeOpRemover(),
+        ConstantRemover(),
+        CastOpRemover(),
         ReshapeInitTensorFuser(),
         DropoutRemover(),
-        UnsqueezeConstantRemover(),
-        TransposeConstantRemover(),
-        SliceConstantRemover(),
-        ConcatConstantRemover(),
         ConvAddFuser(),
         BNBroadcastedMulFuser(),
         BNBroadcastedAddFuser(),
         ReshapeTransposeReshape_pattern1(),
         PixelShuffleFuser(),
         AddModelInputsOutputs() if not disable_coreml_rank5_mapping else DummyTransformation(),
-        DivMulConstantRemover(),
-        GatherConstantRemover(),
         ConstantFillToInitializers(),
     ]  # type: Iterable[Transformer]
 
