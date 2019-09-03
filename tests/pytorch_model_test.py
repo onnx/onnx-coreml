@@ -304,6 +304,28 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 3, 100, 100), (3, 100, 100))  # type: ignore
 
+
+    def test_conv2d_stride(self):
+        class TestModule(torch.nn.Module):
+            def __init__(self):
+                in_channels = 1
+                out_channels = 1
+                bsz = 1  # batch size
+                super(TestModule, self).__init__()
+                self.conv1 = torch.nn.Conv2d(in_channels, out_channels,
+                                             kernel_size=(3, 4), stride=1)
+                self.conv2 = torch.nn.Conv2d(in_channels, out_channels,
+                                             kernel_size=(3, 5), stride=(2, 1), padding=(1, 2))
+
+            def forward(self, x):
+                return self.conv2(x),  # self.conv2(x)
+
+        torch_model = TestModule()  # type: ignore
+        torch_model.train(False)
+        H, W = 6, 3
+        _test_torch_model_single_io(torch_model, (1,1,H,W), (1, H, W))  # type: ignore
+
+
     def test_bachnorm_after_reshape(self):  # type: () -> None
         class Net(nn.Module):
             def __init__(self):
@@ -662,5 +684,5 @@ class TransformationTests(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
     #suite = unittest.TestSuite()
-    #suite.addTest(OnnxModelTest("test_linear_no_bias_disable_rank5_mapping"))
+    #suite.addTest(OnnxModelTest("test_conv2d_stride"))
     #unittest.TextTestRunner().run(suite)
