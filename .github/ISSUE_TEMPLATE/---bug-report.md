@@ -7,7 +7,7 @@ assignees: ''
 
 ---
 
-## Describe the bug
+## 🐞Describe the bug
 A clear and brief description of what the bug is.
 
 ## Trace
