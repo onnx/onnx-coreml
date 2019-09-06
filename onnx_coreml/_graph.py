@@ -127,6 +127,7 @@ class Graph(object):
                  inputs,  # type: List[EdgeInfo]
                  outputs,  # type: List[EdgeInfo]
                  shape_dict, # type: Dict[Text,Tuple[int,...]]
+                 onnx_ir_version, # type: int
                  ):
         # type: (...) -> None
         self.nodes = nodes
@@ -134,6 +135,7 @@ class Graph(object):
         self.outputs = outputs
         self.shape_dict = shape_dict  # data blob name to its shape
         self.constants_loaded = set() # set of constants present in graph as node
+        self.onnx_ir_version = onnx_ir_version # ONNX IR Version for current graph
 
         self.optional_inputs = [] # list of tuple(str, tuple(int)), use with recurrent layers
         self.optional_outputs = [] # list of tuple(str,tuple(int)), use with recurrent layers
@@ -184,6 +186,14 @@ class Graph(object):
                 self.blob_from_op_type[output_] = node_.op_type
 
 
+    def create_graph(self, nodes=None, inputs=None, outputs=None, shape_dict=None, onnx_ir_version=None):
+        node = self.nodes if nodes is None else nodes
+        inputs = self.inputs if inputs is None else inputs
+        outputs = self.outputs if outputs is None else outputs
+        shape_dict = self.shape_dict if shape_dict is None else shape_dict
+        onnx_ir_version = self.onnx_ir_version if onnx_ir_version is None else onnx_ir_version
+        return Graph(nodes, inputs, outputs, shape_dict, onnx_ir_version)
+    
     def transformed(self, transformers):  # type: (Iterable[Transformer]) -> Graph
         graph = self
         return _apply_graph_transformations(graph, transformers) # type: ignore
@@ -213,7 +223,7 @@ class Graph(object):
         return n_
 
     @staticmethod
-    def from_onnx(graph):  # type: (GraphProto) -> Graph
+    def from_onnx(graph, onnx_ir_version):  # type: (GraphProto) -> Graph
         input_tensors = {
             t.name: numpy_helper.to_array(t) for t in graph.initializer
         }
@@ -272,4 +282,4 @@ class Graph(object):
             extract_value_info(shape_dict, value_info)
 
 
-        return Graph(nodes_, inputs, outputs, shape_dict)
+        return Graph(nodes_, inputs, outputs, shape_dict, onnx_ir_version)

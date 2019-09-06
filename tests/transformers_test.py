@@ -63,7 +63,7 @@ class ConvAddFuserTest(unittest.TestCase):
         model = _onnx_create_model(
             [conv, add], inputs, outputs, [weight, bias]
         )
-        graph_ = Graph.from_onnx(model.graph)
+        graph_ = Graph.from_onnx(model.graph, onnx_ir_version=5)
         fused_graph = graph_.transformed([ConvAddFuser()])
 
         self.assertEqual(len(fused_graph.nodes), 1)
@@ -117,7 +117,7 @@ class ConvAddFuserTest(unittest.TestCase):
         model = _onnx_create_model(
             [conv, add], inputs, outputs, [weight, bias]
         )
-        graph_ = Graph.from_onnx(model.graph)
+        graph_ = Graph.from_onnx(model.graph, onnx_ir_version=5)
         fused_graph = graph_.transformed([ConvAddFuser()])
 
         self.assertEqual(len(fused_graph.nodes), 1)
@@ -150,7 +150,7 @@ class NodeRemoverTests(unittest.TestCase):
 
         onnx_model = _onnx_create_model([conv, drop, exp], inputs, outputs)
 
-        graph = Graph.from_onnx(onnx_model.graph)
+        graph = Graph.from_onnx(onnx_model.graph, onnx_ir_version=5)
         new_graph = graph.transformed([DropoutRemover()])
         self.assertEqual(len(graph.nodes), 3)
         self.assertEqual(len(new_graph.nodes), 2)
@@ -173,7 +173,7 @@ class NodeRemoverTests(unittest.TestCase):
 
         onnx_model = _onnx_create_model([im_scaler, exp], inputs, outputs)
 
-        graph = Graph.from_onnx(onnx_model.graph)
+        graph = Graph.from_onnx(onnx_model.graph, onnx_ir_version=5)
         new_graph = graph.transformed([ImageScalerRemover()])
         self.assertEqual(len(graph.nodes), 2)
         self.assertEqual(len(new_graph.nodes), 1)

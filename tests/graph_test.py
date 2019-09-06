@@ -68,7 +68,7 @@ class GraphTest(unittest.TestCase):
         )
 
         model = _onnx_create_model([conv, relu], inputs, outputs, [weight])
-        graph_ = Graph.from_onnx(model.graph)
+        graph_ = Graph.from_onnx(model.graph, onnx_ir_version=5)
         self.assertTrue(len(graph_.inputs) == 1)
         self.assertEqual(graph_.inputs[0][2], input_shape)
         self.assertTrue(len(graph_.outputs) == 1)

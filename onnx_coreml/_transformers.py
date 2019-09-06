@@ -81,7 +81,7 @@ class NodesFuser(object):
                     added_merged.append(merged[0])
             else:
                 transformed_nodes.append(node)
-        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+        return graph.create_graph(nodes=transformed_nodes)
 
     def is_eligible(self, graph, nodes):  # type: (Graph, Sequence[Node]) -> bool
         '''Returns true if this subset of nodes is eligible for fusion.'''
@@ -291,7 +291,7 @@ class ReshapeInitTensorFuser(object):
                 child.input_tensors[output_name] = reshaped_tensor
 
         transformed_nodes = [node for node in nodes if node not in removed]
-        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+        return graph.create_graph(nodes=transformed_nodes)
 
 class OutputRenamer(object):
     '''
@@ -564,7 +564,7 @@ class ConstantsToInitializers(object):
         for node in graph.nodes:
             if node not in nodes_to_be_removed:
                 transformed_nodes.append(node)
-        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+        return graph.create_graph(nodes=transformed_nodes)
 
 class ConstantFillToInitializers(object):
     '''
@@ -590,7 +590,7 @@ class ConstantFillToInitializers(object):
         for node in graph.nodes:
             if node not in nodes_to_be_removed:
                 transformed_nodes.append(node)
-        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+        return graph.create_graph(nodes=transformed_nodes)
 
 class ShapeOpRemover(object):
     '''
@@ -621,7 +621,7 @@ class ShapeOpRemover(object):
         for node in graph.nodes:
             if node not in nodes_to_be_removed:
                 transformed_nodes.append(node)
-        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+        return graph.create_graph(nodes=transformed_nodes)
 
 class CastOpRemover(object):
     '''
@@ -658,7 +658,7 @@ class CastOpRemover(object):
         for node in graph.nodes:
             if node not in nodes_to_be_removed:
                 transformed_nodes.append(node)
-        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+        return graph.create_graph(nodes=transformed_nodes)
 
 class ImageScalerRemover(object):
     '''
@@ -683,7 +683,7 @@ class ImageScalerRemover(object):
         for node in graph.nodes:
             if node.name not in nodes_to_be_removed:
                 transformed_nodes.append(node)
-        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+        return graph.create_graph(nodes=transformed_nodes)
 
 class ConstantRemover(object):
     '''
@@ -767,9 +767,8 @@ class ConstantRemover(object):
                 for child_node in node.children:
                     child_node.parents.remove(node)
                     child_node.input_tensors[node.outputs[0]] = output
-        
         transformed_nodes = []
         for node in graph.nodes:
             if node not in nodes_to_be_removed:
                 transformed_nodes.append(node)
-        return Graph(transformed_nodes, graph.inputs, graph.outputs, graph.shape_dict)
+        return graph.create_graph(nodes=transformed_nodes)

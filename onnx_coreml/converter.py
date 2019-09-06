@@ -323,8 +323,8 @@ def _set_deprocessing(is_grayscale,  # type: bool
     )
 
 
-def _prepare_onnx_graph(graph, transformers):  # type: (Graph, Iterable[Transformer]) -> Graph
-    graph_ = Graph.from_onnx(graph)
+def _prepare_onnx_graph(graph, transformers, onnx_ir_version):  # type: (Graph, Iterable[Transformer]) -> Graph
+    graph_ = Graph.from_onnx(graph, onnx_ir_version)
     if DEBUG:
         plot_graph(graph_, graph_img_path='/tmp/graph_raw.pdf')
     graph_ = graph_.transformed(transformers)
@@ -440,7 +440,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
 
     onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
-    graph = _prepare_onnx_graph(onnx_model.graph, transformers)
+    graph = _prepare_onnx_graph(onnx_model.graph, transformers, onnx_model.ir_version)
 
     '''
     Check for ImageScalar nodes in ONNX, this will indicate whether input image preprocessing needs

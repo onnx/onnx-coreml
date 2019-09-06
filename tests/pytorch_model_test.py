@@ -525,6 +525,8 @@ class UnaryOperationTests(unittest.TestCase):
     Unary Operation Test cases
     '''
     ## Sqrt tests
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_sqrt_tensor(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -539,6 +541,8 @@ class BinaryOperationTests(unittest.TestCase):
     Binary Operation Test cases
     '''
     ## Addition tests
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_add_same_shape(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -549,6 +553,8 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_add_same_shape_multiple(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -563,6 +569,8 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_add_tensor_scalar(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -573,6 +581,8 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_add_diff_shape(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -584,6 +594,8 @@ class BinaryOperationTests(unittest.TestCase):
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
     ## Subtraction tests
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_sub_same_shape(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -594,6 +606,8 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_sub_same_shape_multiple(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -608,6 +622,8 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_sub_tensor_scalar(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -618,6 +634,8 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_sub_diff_shape(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -628,6 +646,8 @@ class BinaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), disable_rank5_mapping=disable_rank5_mapping)  # type: ignore
 
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_bianry_ops_mix_test(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -650,6 +670,8 @@ class ReduceOperationTests(unittest.TestCase):
     Reduction Operation Test cases
     '''
     ## Reduction tests
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_reducesum(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -658,7 +680,9 @@ class ReduceOperationTests(unittest.TestCase):
         torch_model = Net()  # type: ignore
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (4, 5), disable_rank5_mapping=disable_rank5_mapping)
-
+    
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_reducemean(self, disable_rank5_mapping=True):
         class Net(nn.Module):
             def forward(self, x):
@@ -675,8 +699,9 @@ class TransformationTests(unittest.TestCase):
     # Upsample Test case
     # Upsample with scalar factor is splited in Floor -> Cast -> Div -> Concat
     # Hence, is a good measure to test Costant Propagation and removal transformation
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
     def test_cast_removal_transformation(self, disable_rank5_mapping=True):
-        print('Test')
         torch_model = nn.Upsample(scale_factor=2)
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 18, 4, 5), (1, 18, 8, 10), disable_rank5_mapping=disable_rank5_mapping)

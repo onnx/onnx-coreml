@@ -1635,11 +1635,56 @@ def _convert_size(builder, node, graph, err):
         output_name=node.outputs[0]
     )
 
+def _convert_slice_ir4v9(builder, node, graph, err):
+    '''
+    convert to CoreML Slice Static Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5082
+    ''' 
+    data_shape = graph.shape_dict[node.inputs[0]]
+    len_of_data = len(data_shape)
+    begin_masks = [True] * len_of_data
+    end_masks = [True] * len_of_data
+
+    default_axes = list(range(len_of_data))
+    default_steps = [1] * len_of_data
+    
+    ip_starts = node.attrs.get('starts')
+    ip_ends = node.attrs.get('ends')
+    axes = node.attrs.get('axes', default_axes)
+    steps = node.attrs.get('steps', default_steps)
+
+    starts = [0] * len_of_data
+    ends = [0] * len_of_data
+
+    for i in range(len(axes)):
+        current_axes = axes[i]
+        starts[current_axes] = ip_starts[i]
+        ends[current_axes] = ip_ends[i]
+        if ends[current_axes] != INT_MAX or ends[current_axes] < data_shape[current_axes]:
+            end_masks[current_axes] = False
+
+        if starts[current_axes] != 0:
+            begin_masks[current_axes] = False
+
+    builder.add_slice_static(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0],
+        begin_ids=starts,
+        end_ids=ends,
+        strides=steps,
+        begin_masks=begin_masks,
+        end_masks=end_masks
+    )
+
 def _convert_slice(builder, node, graph, err):
     '''
     convert to CoreML Slice Static Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5082
     ''' 
+    if graph.onnx_ir_version < 5:
+        return _convert_slice_ir4v9(builder, node, graph, err)
+    
     data_shape = graph.shape_dict[node.inputs[0]]
     len_of_data = len(data_shape)
     begin_masks = [True] * len_of_data
