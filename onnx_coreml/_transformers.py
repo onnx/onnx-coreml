@@ -772,3 +772,44 @@ class ConstantRemover(object):
             if node not in nodes_to_be_removed:
                 transformed_nodes.append(node)
         return graph.create_graph(nodes=transformed_nodes)
+
+class DeadCodeElimination(object):
+    '''
+    Removes nodes with unused outputs
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        input_names = [str(input_[0]) for input_ in graph.inputs]
+        output_names = set([str(output_[0]) for output_ in graph.outputs])
+        
+        nodes_to_be_removed = []
+        use_set = set()
+
+        for node in graph.nodes:
+            for _input in node.inputs:
+                use_set.add(_input)    
+
+        for node in graph.nodes:
+            output_used = False
+            for _output in node.outputs:
+                if _output in output_names or _output in use_set:
+                    output_used = True
+                    break
+            if not output_used:
+                # Remove current node
+                nodes_to_be_removed.append(node.name)
+                for parent in node.parents:
+                    parent.children.remove(node)
+
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node.name not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        
+        for _input in input_names:
+            if _input not in use_set:
+                for i in range(len(graph.inputs)):
+                    if graph.inputs[i][0] is _input:
+                        graph.inputs.remove(graph.inputs[i])
+                        break
+        
+        return graph.create_graph(nodes=transformed_nodes)
