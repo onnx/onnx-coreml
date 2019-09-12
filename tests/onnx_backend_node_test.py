@@ -824,10 +824,8 @@ def exclude_test_cases(backend_test):
         'test_strnorm_model_nostopwords_nochangecase_cpu',
         'test_averagepool_2d_ceil_cpu',
         'test_convtranspose_pad_cpu',
-        'test_logsoftmax_large_number_cpu',
         'test_maxpool_2d_ceil_cpu',
         'test_maxpool_2d_dilations_cpu',
-        'test_softmax_large_number_cpu',
 
         # Incorrect test setup
         'test_mod_float_mixed_sign_example_cpu',

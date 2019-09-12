@@ -40,11 +40,7 @@ def load_input_constants(builder, node, graph, err):
 def _add_conv_like_op(add_func, get_params_func, params_dict,
                       builder, node, graph, err):
 
-    if node.inputs[0] not in graph.shape_dict:
-        err.unsupported_op_configuration(builder, node, graph, "Input shape not available")
-
-    rank = len(graph.shape_dict[node.inputs[0]])
-
+    rank = builder._get_rank(node.inputs[0])
     if rank == 4:
         get_params_func(builder, node, graph, err, params_dict)
         add_func(node.inputs, node.outputs, params_dict=params_dict, builder=builder, node=node, graph=graph, err=err)
@@ -330,10 +326,7 @@ def _convert_bn(builder, node, graph, err):
     var = node.input_tensors[node.inputs[4]] if node.inputs[4] in node.input_tensors else \
             np.ones(shape=channels, dtype=np.float32)
 
-    if node.inputs[0] not in graph.shape_dict:
-        return err.unsupported_op_configuration(builder, node, graph, "Shape of input unknown")
-
-    rank = len(graph.shape_dict[node.inputs[0]])
+    rank = builder._get_rank(node.inputs[0])
     # ONNX converts B x C tensor into B x C x 1 hence
     # Rank 2 BN is mapped to Rank 3 BN
     if rank == 3:
@@ -784,10 +777,7 @@ def _convert_instancenorm(builder, node, graph, err):  # type: (NeuralNetworkBui
     scale = node.input_tensors[node.inputs[1]]
     bias = node.input_tensors[node.inputs[2]]
 
-    if node.inputs[0] not in graph.shape_dict:
-        return err.unsupported_op_configuration(builder, node, graph, "Shape of input unknown")
-    
-    rank = len(graph.shape_dict[node.inputs[0]])
+    rank = builder._get_rank(node.inputs[0])
     # ONNX converts B x C tensor into B x C x 1 hence
     # Rank 2 BN is mapped to Rank 3 BN
     if rank == 3:
@@ -875,9 +865,9 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
         if len(activations_list) == 6:
             err.unsupported_feature_warning(node, "Forward and backward pass will use same activations.")
 
-        inner_activation = activations_list[0]
-        cell_state_update_activation = activations_list[1]
-        output_activation = activations_list[2]
+        inner_activation = activations_list[0].upper()
+        cell_state_update_activation = activations_list[1].upper()
+        output_activation = activations_list[2].upper()
     
     # Provide max Clip Value if not provided
     clip_threshold = node.attrs.get('clip', 500000.0)
@@ -924,12 +914,11 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
     output_c_5d = output_c + '_5d'
 
     # if input is not present in the network, load they as constant
-    if node.inputs[0] not in graph.shape_dict:
-        err.unsupported_op_configuration(builder, node, graph, "Input shape not represented within Graph")
+    load_input_constants(builder, node, graph, err)
     
     # Input is represented as [Seq Len, Batch Size, Input Size]
-    batch_size = graph.shape_dict[node.inputs[0]][1]
     if len(node.inputs) < 6:
+        batch_size = graph.shape_dict[node.inputs[0]][1]
         builder.add_load_constant_nd(
             name=node.name + '_load_initial_h_and_c',
             output_name=input_h,
@@ -944,8 +933,11 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
 
     # CoreML LSTM expects 5-d tensor
     # Expand dimensions of input to 5-d for compatibility
-    if len(graph.shape_dict[node.inputs[0]]) < 5:
-        total_dims = len(graph.shape_dict[node.inputs[0]])
+    rank = builder._get_rank(node.inputs[0])
+    if rank == -1:
+        return err.unsupported_op_configuration(builder, node, graph, "Rank unknown for input")
+    if rank < 5:
+        total_dims = rank
         add_nodes = 5 - total_dims
         
         expand_dim(node.name+'_expand_in_0', node.inputs[0], node.inputs[0]+'_expand_out_0', [total_dims])
@@ -1468,7 +1460,7 @@ def _convert_reshape(builder, node, graph, err):
             )
             return
     
-        len_of_input_shape = len(graph.shape_dict[node.inputs[0]])
+        len_of_input_shape = builder._get_rank(node.inputs[0])
         if len(output_shape) == len_of_input_shape:
             builder.add_rank_preserving_reshape(
                 name=node.name,
@@ -1584,7 +1576,9 @@ def _convert_reverse_sequence(builder, node, graph, err):
 
     if add_transpose:
         output_name_post = '_before_reverse'
-        rank = len(graph.shape_dict[node.inputs[0]])
+        rank = builder._get_rank(node.inputs[0])
+        if rank == -1:
+            return err.unsupported_op_configuration(builder, node, graph, "Rank unknown for input")
         axes = list(range(rank))
         axes[batch_axis], axes[time_axis] = axes[time_axis], axes[batch_axis]
         builder.add_transpose(
@@ -1682,8 +1676,8 @@ def _convert_slice(builder, node, graph, err):
     convert to CoreML Slice Static Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5082
     ''' 
-    if graph.onnx_ir_version < 5:
-        return _convert_slice_ir4v9(builder, node, graph, err)
+    if len(node.inputs) == 1:
+       return _convert_slice_ir4v9(builder, node, graph, err)
     
     data_shape = graph.shape_dict[node.inputs[0]]
     len_of_data = len(data_shape)
@@ -1743,20 +1737,78 @@ def _convert_softmax(builder, node, graph, err):
     convert to CoreML SoftMax ND Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#3547
     '''
+    def add_softmax(output_name, rank=-1, axis=-3):
+        softmax_axis = 3
+        axes = list(range(5-rank))
+        if axis < 0:
+            axis = rank + axis
+        axis += len(axes)
+        input_name = node.inputs[0]
+        softmax_output_name = output_name+'_expanded'
+        
+        builder.add_expand_dims(
+            name=node.name+'_expand_dims',
+            input_name=node.inputs[0],
+            output_name=node.inputs[0]+'_expanded',
+            axes=axes
+        )
+        input_name += '_expanded'
+        rank = 5
+
+        if axis != -3 and axis != rank - softmax_axis:
+            transpose_axes = list(range(rank))
+            transpose_axes[-3], transpose_axes[axis] = transpose_axes[axis], transpose_axes[-3]
+
+            print(transpose_axes)
+            builder.add_transpose(
+                name=node.name + '_transpose',
+                axes=transpose_axes,
+                input_name=input_name,
+                output_name=input_name+'_transposed'
+            )
+            input_name += '_transposed'
+            softmax_output_name += '_transposed'
+        
+        builder.add_softmax(
+            name=node.name,
+            input_name=input_name,
+            output_name=softmax_output_name
+        )
+
+        if axis != -3 and axis != rank - softmax_axis:
+            transpose_axes = list(range(rank))
+            transpose_axes[-3], transpose_axes[axis] = transpose_axes[axis], transpose_axes[-3]
+
+            builder.add_transpose(
+                name=node.name+'_transpose_back',
+                axes=transpose_axes,
+                input_name=softmax_output_name,
+                output_name=softmax_output_name + '_transposed_back'
+            )
+            softmax_output_name += '_transposed_back'
+        
+        builder.add_squeeze(
+            name=node.name+'_squeeze_dims',
+            input_name=softmax_output_name,
+            output_name=output_name,
+            axes=axes
+        )
+
     axis = node.attrs.get('axis', 1)
-    builder.add_softmax_nd(
-        name=node.name,
-        input_name=node.inputs[0],
-        output_name=node.outputs[0] + ('_softmax' if node.op_type == 'LogSoftmax' else ''),
-        axis=axis
-    )
+    rank = builder._get_rank(node.inputs[0])
+    if rank == -1:
+        return err.unsupported_op_configuration(builder, node, graph, "Rank unknown for input")
+
     if node.op_type == 'LogSoftmax':
+        add_softmax(node.outputs[0] + '_softmax', rank=rank, axis=axis)
         builder.add_unary(
             name=node.name+'_log',
-            input_name=node.outputs[0]+'_softmax',
+            input_name=node.outputs[0] + '_softmax',
             output_name=node.outputs[0],
             mode='log'
         )
+    else:
+        add_softmax(node.outputs[0], rank=rank, axis=axis)
 
 def _convert_split(builder, node, graph, err):
     '''
@@ -1844,7 +1896,9 @@ def _convert_transpose(builder, node, graph, err):
     axes = node.attrs.get('perm', [])
     # If 'perm' not provided, the reverse the dimensions
     if axes == []:
-        rank = len(graph.shape_dict[node.inputs[0]])
+        rank = builder._get_rank(node.inputs[0])
+        if rank == -1:
+            return err.unsupported_op_configuration(builder, node, graph, "Rank unknown for input")
         axes = list(range(-1, -(rank+1), -1))
 
     builder.add_transpose(
