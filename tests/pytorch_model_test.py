@@ -261,7 +261,7 @@ class OnnxModelTest(unittest.TestCase):
 
         torch_model = Net()  # type: ignore
         torch_model.train(False)
-        _test_torch_model_single_io(torch_model, (3, 1, 256), (3, 1, 256), target_ios=13, decimal=1)  # type: ignore
+        _test_torch_model_single_io(torch_model, (3, 1, 256), (3, 1, 256), target_ios='13', decimal=1)  # type: ignore
 
 
     def test_1d_conv(self):
