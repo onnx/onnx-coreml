@@ -11,19 +11,25 @@ import onnx.backend.test
 import numpy
 
 from onnx_coreml._backend import CoreMLBackend, CoreMLBackendND
+from onnx_coreml.converter import SupportedVersion
 
 from coremltools.models.utils import macos_version
 
-# Disable Rank 5 mapping for ONNX backend testing
-DISABLE_RANK5_MAPPING = False
+# Default target iOS
+TARGET_IOS = '13'
 
 MIN_MACOS_VERSION_10_15 = (10, 15)
 # If MACOS version is less than 10.15
 # Then force testing on CoreML 2.0
 if macos_version() < MIN_MACOS_VERSION_10_15:
-    DISABLE_RANK5_MAPPING = False
+    TARGET_IOS = '12'
 
-class CoreMLTestingBackend(CoreMLBackendND if DISABLE_RANK5_MAPPING else CoreMLBackend):
+if not SupportedVersion.ios_support_check(TARGET_IOS):
+    raise ValueError(
+        "Invalid Target iOS version provided. Valid target iOS: {}".format(supported_ios_version)
+    )
+
+class CoreMLTestingBackend(CoreMLBackendND if SupportedVersion.is_nd_array_supported(TARGET_IOS) else CoreMLBackend):
     @classmethod
     def run_node(cls,
                  node,  # type: onnx.NodeProto
@@ -1070,7 +1076,7 @@ def exclude_test_cases(backend_test):
         'test_zfnet'
     ]
 
-    if DISABLE_RANK5_MAPPING:
+    if SupportedVersion.is_nd_array_supported(TARGET_IOS):
         for each in unsupported_tests_coreml3:
             backend_test.exclude(each)
     else:

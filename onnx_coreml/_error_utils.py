@@ -15,18 +15,14 @@ class ErrorHandling(object):
                add_custom_layers = False, # type: bool
                custom_conversion_functions = dict(), # type: Dict[Text, Any]
                custom_layer_nodes = [], # type : List[Node]
-               disable_coreml_rank5_mapping = False
                ):
       # type: (...) -> None
       self.add_custom_layers = add_custom_layers
       self.custom_conversion_functions = custom_conversion_functions
       self.custom_layer_nodes = custom_layer_nodes
-      self.disable_coreml_rank5_mapping = disable_coreml_rank5_mapping
-      # TODO: Remove following error message once, disable_coreml_rank5_mapping is default to True
-      self.coreml_3_rerun_message = ''
-      if not disable_coreml_rank5_mapping:
-        self.coreml_3_rerun_message = '\nPlease try converting again with disable_coreml_rank5_mapping=True' \
-                                                        ' and coremltools 3.0 latest beta'
+
+      self.rerun_suggestion = '\n Please try converting with higher target_ios.\n' \
+                              'You can also provide custom function/layer to convert the model.'
 
 
   def unsupported_op(self,
@@ -41,7 +37,7 @@ class ErrorHandling(object):
         return _convert_custom
       else:
         raise TypeError(
-          "ONNX node of type {} is not supported. {}\n".format(node.op_type, self.coreml_3_rerun_message)
+          "ONNX node of type {} is not supported. {}\n".format(node.op_type, self.rerun_suggestion)
         )
 
 
@@ -61,7 +57,7 @@ class ErrorHandling(object):
       else:
         raise TypeError(
           "Error while converting op of type: {}. Error message: {} {}\n".format(node.op_type, err_message,
-                                                                                  self.coreml_3_rerun_message)
+                                                                                  self.rerun_suggestion)
         )
 
 
@@ -76,7 +72,7 @@ class ErrorHandling(object):
       raise ValueError(
         "Missing initializer error in op of type {}, with input name = {}, "
         "output name = {}. Error message: {} {}\n".
-        format(node.op_type, node.inputs[0], node.outputs[0], err_message, self.coreml_3_rerun_message)
+        format(node.op_type, node.inputs[0], node.outputs[0], err_message, self.rerun_suggestion)
       )
 
   def unsupported_feature_warning(self,
@@ -89,8 +85,8 @@ class ErrorHandling(object):
       '''
       print(
         "Warning: Unsupported Feature in op of type {}, with input name = {}, "
-        "output name = {}. Warning message: {} {}\n".
-        format(node.op_type, node.inputs[0], node.outputs[0], err_message, self.coreml_3_rerun_message)
+        "output name = {}. Warning message: {}\n".
+        format(node.op_type, node.inputs[0], node.outputs[0], err_message)
       )
 
 

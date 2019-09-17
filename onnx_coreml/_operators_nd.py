@@ -1759,7 +1759,6 @@ def _convert_softmax(builder, node, graph, err):
             transpose_axes = list(range(rank))
             transpose_axes[-3], transpose_axes[axis] = transpose_axes[axis], transpose_axes[-3]
 
-            print(transpose_axes)
             builder.add_transpose(
                 name=node.name + '_transpose',
                 axes=transpose_axes,

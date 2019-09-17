@@ -13,6 +13,9 @@ from onnx import TensorProto
 from coremltools.models.neural_network import NeuralNetworkBuilder  #type: ignore
 from coremltools.models import datatypes, MLModel  #type: ignore
 from coremltools.proto import FeatureTypes_pb2 as ft  #type: ignore
+from coremltools import _MINIMUM_CUSTOM_LAYER_SPEC_VERSION as IOS_11_2_SPEC_VERSION # iOS 11.2
+from coremltools import _MINIMUM_CUSTOM_MODEL_SPEC_VERSION as IOS_12_SPEC_VERSION # iOS 12.0
+from coremltools import _MINIMUM_NDARRAY_SPEC_VERSION as IOS_13_SPEC_VERSION # iOS 13.0
 
 from typing import Tuple
 
@@ -33,6 +36,41 @@ from .graph_viz import plot_graph # type: ignore
 USE_SHAPE_MAPPING = True
 
 DEBUG = False
+
+class SupportedVersion():
+    # Supported iOS Version
+    # New OS Version must be added at the end to maintain backward version index
+    supported_ios_version = ['11.2', '12', '13']
+    IOS_13_VERSION = supported_ios_version.index('13')
+    ND_ARRARY_SUPPORT = IOS_13_VERSION
+
+    @staticmethod
+    def ios_support_check(target_ios):
+        return target_ios in SupportedVersion.supported_ios_version
+
+    @staticmethod
+    def is_nd_array_supported(target_ios):
+        if not SupportedVersion.ios_support_check(target_ios):
+            raise TypeError('{} not supported. Please provide one of target iOS: {}', target_ios, SupportedVersion.supported_ios_version)
+        
+        target_ios_index = SupportedVersion.supported_ios_version.index(target_ios)
+        return SupportedVersion.ND_ARRARY_SUPPORT <= target_ios_index
+
+    @staticmethod
+    def get_supported_ios():
+        return SupportedVersion.supported_ios_version
+
+    @staticmethod
+    def get_specification_version(target_ios):
+        if not SupportedVersion.ios_support_check(target_ios):
+            raise TypeError('{} not supported. Please provide one of target iOS: {}', target_ios, SupportedVersion.supported_ios_version)
+
+        if target_ios == '11.2':
+            return IOS_11_2_SPEC_VERSION
+        elif target_ios == '12':
+            return IOS_12_SPEC_VERSION
+        else:
+            return IOS_13_SPEC_VERSION            
 
 '''
 inputs: list of tuples.
@@ -177,7 +215,7 @@ def _check_unsupported_ops(nodes, disable_coreml_rank5_mapping=False): # type: (
 
     coreml_3_rerun_message = ''
     if not disable_coreml_rank5_mapping:
-        coreml_3_rerun_message = '\nPlease try converting again with disable_coreml_rank5_mapping=True' \
+        coreml_3_rerun_message = '\nPlease try converting again with target_ios=13' \
                                  ' and coremltools 3.0 latest beta'
     if len(unsupported_op_types) > 0:
         raise NotImplementedError("Unsupported ONNX ops of type: %s %s" % (
@@ -343,7 +381,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             add_custom_layers = False,  # type: bool
             custom_conversion_functions = {}, #type: Dict[Text, Any]
             onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
-            disable_coreml_rank5_mapping = False):
+            target_ios = '12'):
     # type: (...) -> MLModel
     """
     Convert ONNX model to CoreML.
@@ -384,13 +422,19 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         how the shape of the input is mapped to CoreML. Convention used for CoreML shapes is
         0: Sequence, 1: Batch, 2: channel, 3: height, 4: width.
         For example, an input of rank 2 could be mapped as [3,4] (i.e. H,W) or [1,2] (i.e. B,C) etc.
-        This is ignored if "disable_coreml_rank5_mapping" is set to True.
-    disable_coreml_rank5_mapping: bool
-        If True, then it disables the "RANK5_ARRAY_MAPPING" or enables the "EXACT_ARRAY_MAPPING"
-        option in CoreML (https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L67)
-        Thus, no longer, onnx tensors are forced to map to rank 5 CoreML tensors.
-        With this flag on, a rank r ONNX tensor, (1<=r<=5), will map to a rank r tensor in CoreML as well.
-        This flag must be on to utilize any of the new layers added in CoreML 3 (i.e. specification version 4, iOS13)
+        This is ignored if "target_ios" is set to 13.
+    target_ios: str
+        Target Deployment iOS Version (default: '12')
+        Supported iOS version options: '11.2', '12', '13'        
+        CoreML model produced by the converter will be compatible with the iOS version specified in this argument.
+        e.g. if target_ios = '12', the converter would only utilize CoreML features released till iOS12 (equivalently macOS 10.14, watchOS 5 etc).
+
+        iOS 11.2 (CoreML 0.8) does not support resize_bilinear, crop_resize layers 
+         - (Supported features: https://github.com/apple/coremltools/releases/tag/v0.8)
+        iOS 12 (CoreML 2.0)
+         - (Supported features: https://github.com/apple/coremltools/releases/tag/v2.0)
+        iSO 13 (CoreML 3.0)
+         - (Supported features: https://github.com/apple/coremltools/releases/tag/3.0-beta6)
 
     Returns
     -------
@@ -405,12 +449,19 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             "Model must be file path to .onnx file or onnx loaded model"
         )
 
+    if not SupportedVersion.ios_support_check(target_ios):
+        raise TypeError('{} not supported. Please provide one of target iOS: {}', target_ios, SupportedVersion.get_supported_ios())
+        
+
     global USE_SHAPE_MAPPING
+    disable_coreml_rank5_mapping = False
+    if SupportedVersion.is_nd_array_supported(target_ios):
+        disable_coreml_rank5_mapping = True
+    
     if disable_coreml_rank5_mapping:
         USE_SHAPE_MAPPING = False
     else:
         USE_SHAPE_MAPPING = True
-
 
     '''
     First, apply a few optimizations to the ONNX graph,
@@ -495,6 +546,9 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     builder = NeuralNetworkBuilder(input_features, output_features, mode=mode, disable_rank5_shape_mapping=disable_coreml_rank5_mapping)
 
+    # TODO: To be removed once, auto-downgrading of spec version is enabled
+    builder.spec.specificationVersion = SupportedVersion.get_specification_version(target_ios)
+
     '''
     Set CoreML input,output types (float, double, int) same as onnx types, if supported
     '''
@@ -559,9 +613,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     ErrorHandling is a generic class, useful to store a variety of parameters during the conversion process  
     '''
     err = ErrorHandling(add_custom_layers,
-                        custom_conversion_functions,
-                        disable_coreml_rank5_mapping=disable_coreml_rank5_mapping)
-
+                        custom_conversion_functions)
 
     for i, node in enumerate(graph.nodes):
         print("%d/%d: Converting Node Type %s" %(i+1, len(graph.nodes), node.op_type))
@@ -657,6 +709,13 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
 
     if len(graph.optional_inputs) > 0 or len(graph.optional_outputs):
         builder.add_optionals(graph.optional_inputs, graph.optional_outputs)
+
+    # Check for specification version and target ios compatibility
+    if target_ios == '11.2' and builder.spec.WhichOneof('Type') == 'neuralNetwork':
+        nn_spec = builder.spec.neuralNetwork
+        for layer in nn_spec.layers:
+            if layer.WhichOneof('layer') == 'resizeBilinear' or layer.WhichOneof('layer') == 'cropResize':
+                raise TypeError('{} not supported with target iOS 11.2 please provide higher target iOS'.format(layer.WhichOneof('layer')))
 
     print("Translation to CoreML spec completed. Now compiling the CoreML model.")
     try:

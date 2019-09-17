@@ -198,7 +198,7 @@ class SingleOperatorTest(unittest.TestCase):
                 momentum=momentum
             )
 
-    def test_gemm(self, disable_rank5_mapping=False):  # type: () -> None
+    def test_gemm(self, target_ios='12'):  # type: () -> None
         input_shape = (1, 2048)
         output_shape = (1, 5)
         W = from_array(
@@ -214,15 +214,15 @@ class SingleOperatorTest(unittest.TestCase):
             initializer=[W, b],
             decimal=3,
             transB=1,
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
 
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                      'macOS 10.15+ required. Skipping test.')
-    def test_gemm_disable_rank5_mapping(self):
-        self.test_gemm(True)
+    def test_gemm_ios13(self):
+        self.test_gemm(target_ios='13')
 
-    def test_gemm_transB_off(self, disable_rank5_mapping=False):  # type: () -> None
+    def test_gemm_transB_off(self, target_ios='12'):  # type: () -> None
         input_shape = (1, 2048)
         output_shape = (1, 5)
         W = from_array(
@@ -238,13 +238,13 @@ class SingleOperatorTest(unittest.TestCase):
             initializer=[W, b],
             decimal=3,
             transB=0,
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
     
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                      'macOS 10.15+ required. Skipping test.')
-    def test_gemm_transB_off_disable_rank5_mapping(self):
-        self.test_gemm_transB_off(True)
+    def test_gemm_transB_off_ios13(self):
+        self.test_gemm_transB_off(target_ios='13')
 
     def test_lrn(self):  # type: () -> None
         _test_single_node(
@@ -259,113 +259,113 @@ class SingleOperatorTest(unittest.TestCase):
 
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                      'macOS 10.15+ required. Skipping test.')
-    def test_split_axis_0_rank_3(self, disable_rank5_mapping=True):  # type: () -> None
+    def test_split_axis_0_rank_3(self, target_ios='12'):  # type: () -> None
         _test_single_node(
             "Split",
             [(2, 1, 200)],
             [(1, 1, 200), (1, 1, 200)],
             axes=0,
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
 
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                     'macOS 10.15+ required. Skipping test.')
-    def test_concat(self, disable_rank5_mapping=True):  # type: () -> None
+    def test_concat(self, target_ios='13'):  # type: () -> None
         _test_single_node(
             "Concat",
             [(1, 2, 200), (1, 2, 200)],
             [(2, 2, 200)],
             axis=0,
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
    
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                     'macOS 10.15+ required. Skipping test.')
-    def test_gather(self, disable_rank5_mapping=True):  # type: () -> None
+    def test_gather(self, target_ios='13'):  # type: () -> None
         _test_single_node(
             "Gather",
             [(5, 4, 3), (3,)],
             [(3, 4, 3)],
             axis=0,
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
         
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                     'macOS 10.15+ required. Skipping test.')
-    def test_reshape_same_rank(self, disable_rank5_mapping=True):  # type: () -> None
+    def test_reshape_same_rank(self, target_ios='13'):  # type: () -> None
         _test_single_node(
             "Reshape",
             [(5, 4, 3), (3,)],
             [(4, 5, 3)],
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
 
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                     'macOS 10.15+ required. Skipping test.')
-    def test_reshape_same_rank_infer_shape(self, disable_rank5_mapping=True):  # type: () -> None
+    def test_reshape_same_rank_infer_shape(self, target_ios='13'):  # type: () -> None
         _test_single_node(
             "Reshape",
             [(5, 4, 3), (3,)],
             [(5, 2, 6)],
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
  
     # TODO: add test_reshape_diff_rank_infer_shape where shape is Constant and known
     # to test rank-4 into rank-3 reshape with shape inferencing
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                     'macOS 10.15+ required. Skipping test.')
-    def test_reshape_dynamic(self, disable_rank5_mapping=True):  # type: () -> None
+    def test_reshape_dynamic(self, target_ios='13'):  # type: () -> None
         _test_single_node(
             "Reshape",
             [(5, 4, 3, 2), (3,)],
             [(2, 3, 20)],
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )  
 
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                     'macOS 10.15+ required. Skipping test.')
-    def test_squeeze(self, disable_rank5_mapping=True):  # type: () -> None
+    def test_squeeze(self, target_ios='13'):  # type: () -> None
         _test_single_node(
             "Squeeze",
             [(5, 1, 3, 1, 1)],
             [(5, 3)],
             axes=[1, 3, 4],
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
 
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                     'macOS 10.15+ required. Skipping test.')
-    def test_transpose_default(self, disable_rank5_mapping=True):  # type: () -> None
+    def test_transpose_default(self, target_ios='13'):  # type: () -> None
         _test_single_node(
             "Transpose",
             [(5, 3, 4, 6, 2)],
             [(2, 6, 4, 3, 5)],
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
 
     @unittest.skipIf(ONNX_SHAPE_INFERENCE_FAILS,
                      'ONNX Shape inference fails to recongnize correct shape')
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                     'macOS 10.15+ required. Skipping test.')
-    def test_transpose_permute(self, disable_rank5_mapping=True):  # type: () -> None
+    def test_transpose_permute(self, target_ios='13'):  # type: () -> None
         _test_single_node(
             "Transpose",
             [(5, 3, 4, 6, 2)],
             [(2, 3, 4, 6, 5)],
             axes=[4, 1, 2, 3, 0],
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
     @unittest.skipIf(ONNX_SHAPE_INFERENCE_FAILS,
                      'ONNX Shape inference fails to recongnize correct shape')
     @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
                     'macOS 10.15+ required. Skipping test.')
-    def test_unsqueeze(self, disable_rank5_mapping=True):  # type: () -> None
+    def test_unsqueeze(self, target_ios='13'):  # type: () -> None
         _test_single_node(
             "Unsqueeze",
             [(5, 3, 4)],
             [(1, 5, 1, 3, 4)],
             axes=[0, 1],
-            disable_rank5_mapping=disable_rank5_mapping
+            target_ios=target_ios
         )
 
 
