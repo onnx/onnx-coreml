@@ -77,7 +77,7 @@ class ErrorHandling(object):
 
   def unsupported_feature_warning(self,
                                   node, # type: Node
-                                  err_message, # type: Text
+                                  warn_message, # type: Text
                                   ):
       # type: (...) -> None
       '''

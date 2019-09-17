@@ -27,7 +27,7 @@ MIN_MACOS_VERSION_10_15 = (10, 15)
 
 DEBUG = False
 
-def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_shape, target_ios='12'):
+def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_shape, target_ios='12', decimal=4):
     # run torch model
     torch_input = torch.rand(*torch_input_shape)
     torch_out_raw = torch_model(torch_input)
@@ -66,7 +66,7 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
         print('torch out shape: ', torch_out.shape)
 
     # compare
-    _assert_outputs([torch_out], [coreml_out], decimal=4) # type: ignore
+    _assert_outputs([torch_out], [coreml_out], decimal=decimal) # type: ignore
 
     # delete onnx model
     if not DEBUG:
@@ -215,8 +215,8 @@ class OnnxModelTest(unittest.TestCase):
             def __init__(self):
                 super(Net, self).__init__()
                 self.lstm = nn.LSTM(input_size=256,
-                                hidden_size=64,
-                                num_layers=1)
+                                    hidden_size=64,
+                                    num_layers=1)
 
             def forward(self, x):
                 y = self.lstm(x)
@@ -245,6 +245,23 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (3, 1, 256), (3, 1, 256), target_ios='13')  # type: ignore
 
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_gru(self):  # type: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.gru = nn.GRU(input_size=256,
+                                  hidden_size=64,
+                                  num_layers=1)
+
+            def forward(self, x):
+                y = self.gru(x)
+                return y
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (3, 1, 256), (3, 1, 256), target_ios=13, decimal=1)  # type: ignore
 
 
     def test_1d_conv(self):

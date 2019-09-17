@@ -751,6 +751,177 @@ def _convert_greater(builder, node, graph, err):
         output_name=node.outputs[0],
     )
 
+def _convert_gru(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Node, Graph, ErrorHandling) -> None
+    '''
+    convert to CoreML GRU Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3104
+    '''
+
+    def get_weights(W, W_name, R, R_name, B):
+        '''
+        Helper routine to return weights in CoreML LSTM required format
+        '''
+        W = np.expand_dims(np.expand_dims(W, 3), 3)
+        R = np.expand_dims(np.expand_dims(R, 3), 3)
+    
+        if W is None:
+            err.missing_initializer(node,
+                                    "Weight tensor: {} not found in the graph initializer".format(W_name))
+        if R is None:
+            err.missing_initializer(node,
+                                    "Weight tensor: {} not found in the graph initializer".format(R_name))
+
+        W_z, W_r, W_h = np.split(np.squeeze(W), 3)  #type: ignore
+        R_z, R_r, R_h = np.split(np.squeeze(R), 3)  #type: ignore
+
+        W_x = [W_z, W_r, W_h]
+        W_h = [R_z, R_r, R_h]
+        b = None
+        if B is not None:
+            b_Wz, b_Wr, b_Wh, b_Rz, b_Rr, b_Rh = np.split(np.squeeze(B), 6)  #type: ignore
+            b = [b_Wz + b_Rz, b_Wr + b_Rr, b_Wh + b_Rh]
+
+        return W_x, W_h, b
+
+    def expand_dim(node_name, input_name, output_name, axes):
+        builder.add_expand_dims(
+            name=node_name,
+            input_name=input_name,
+            output_name=output_name,
+            axes=axes
+        )
+
+    # Read attributes
+    # activation alpha and beta
+    if 'activation_alpha' in node.attrs or 'activation_beta' in node.attrs:
+        err.unsupported_feature_warning(node, "Activation parameter alpha and beta are currently not used")
+    
+    inner_activation = 'SIGMOID'
+    output_activation = 'TANH'
+
+    if 'activations' in node.attrs:
+        activations_list = node.attrs['activations']
+    
+        if len(activations_list) < 2:
+            err.unsupported_op_configuration(builder, node, graph, "Error in ONNX model: Less number of activations provided")
+    
+        inner_activation = activations_list[0].upper()
+        output_activation = activations_list[1].upper()
+    
+    # Extract direction from ONNX attribute
+    direction = node.attrs.get('direction', 'forward')
+    if direction == 'bidirectional':
+        return err.unsupported_op_configuration(builder, node, graph, "Bidirectional GRU not supported!! Please consider adding custom conversion function/layer")
+
+    hidden_size = node.attrs.get('hidden_size')
+
+    # Read inputs
+    W_name = node.inputs[1]
+    R_name = node.inputs[2]
+    B = None
+    if len(node.inputs) > 3:
+        B_name = node.inputs[3]
+        B = node.input_tensors.get(B_name, None)
+ 
+    if W_name not in node.input_tensors or R_name not in node.input_tensors:
+        return err.unsupported_op_configuration(builder, node, graph, "Input and Recursion weights must be known!! Please consider adding custom conversion function/layer")
+
+    W = node.input_tensors.get(W_name, None)
+    R = node.input_tensors.get(R_name, None)
+
+    # Get weights for forward direction
+    W_x, W_h, b = get_weights(W, W_name, R, R_name, B)
+
+    # shape of input
+    input_size = W_x[0].shape[1]
+
+    # Get input and output for hidden and cell  
+    input_h = node.inputs[5] if len(node.inputs) > 5 else node.inputs[0] + '_h_input'
+    output_h = node.outputs[1] if len(node.outputs) > 1 else node.outputs[0] + '_h_output'
+    output_h_5d = output_h + '_5d'
+
+    if len(node.inputs) < 6:
+        # if input is not present in the network, load they as constant
+        if node.inputs[0] not in graph.shape_dict:
+            err.unsupported_op_configuration(builder, node, graph, "Input shape not represented within Graph")
+        
+        # Input is represented as [Seq Len, Batch Size, Input Size]
+        batch_size = graph.shape_dict[node.inputs[0]][1]
+        builder.add_load_constant_nd(
+            name=node.name + '_load_initial_h',
+            output_name=input_h,
+            constant_value=0.0,
+            shape=[1, batch_size, hidden_size]
+        )
+
+    # CoreML GRU expects 5-d tensor
+    # Expand dimensions of input to 5-d for compatibility
+    input_rank = builder._get_rank(node.inputs[0])
+    if input_rank == -1:
+        return err.unsupported_op_configuration(builder, node, graph, "Rank unknown for input")
+    
+    if input_rank < 5:
+        add_nodes = 5 - input_rank
+        
+        expand_dim(node.name+'_expand_in_0', node.inputs[0], node.inputs[0]+'_expand_out_0', [input_rank])
+        expand_dim(node.name+'_expand_in_h_0', input_h, input_h+'_expand_out_h_0', [input_rank])
+
+        for i in range(1, add_nodes):
+            i_str = str(i)
+            i_p_str = str(i-1)
+            expand_dim(node.name+'_expand_in_'+i_str, node.inputs[0]+'_expand_out_'+i_p_str, node.inputs[0]+'_expand_out_'+i_str, [input_rank+i])
+            expand_dim(node.name+'_expand_in_h_'+i_str, input_h+'_expand_out_h_'+i_p_str, input_h+'_expand_out_h_'+i_str, [input_rank+i])
+
+    builder.add_gru(
+        name=node.name,
+        W_h=W_h,
+        W_x=W_x,
+        b=b,
+        hidden_size=hidden_size,
+        input_size=input_size,
+        input_names=[node.inputs[0] + '_expand_out_' + str(add_nodes-1), input_h + '_expand_out_h_' + str(add_nodes-1)],
+        output_names=[node.outputs[0]+'_5d_out', output_h_5d],
+        inner_activation=inner_activation,
+        activation=output_activation,
+        output_all=True,
+        reverse_input=(direction == 'reverse')
+    )
+
+    # CoreML output is [Seq Len, Batch Size, Num Dir * Hidden Size, 1, 1]
+    # Return output as [Seq Len, Num Dir, Batch Size, Hidden Size]
+    # Following steps:
+    #       a. Reshape and split hidden size for direction [Seq Len, Batch Size, Num Dir, Hidden Size, 1]
+    #       b. Squeeze last dimension [Seq Len, Batch Size, Num Dir, Hidden Size]
+    #       c. Permute to fix the order [Seq Len, Num Dir, Batch Size, Hidden Size, 1]
+    builder.add_rank_preserving_reshape(
+        name=node.name + '_reshape_',
+        input_name=node.outputs[0]+'_5d_out',
+        output_name=node.outputs[0]+'_5d_reshaped',
+        output_shape=[0, 0, 1, -1, 0]
+    )
+
+    builder.add_squeeze(
+        name=node.name+'_squeeze_out',
+        input_name=node.outputs[0]+'_5d_reshaped',
+        output_name=node.outputs[0]+'_4d',
+        axes=[-1]
+    )
+
+    builder.add_transpose(
+        name=node.name + '_transpose',
+        axes=[0, 2, 1, 3],
+        input_name=node.outputs[0] + '_4d',
+        output_name=node.outputs[0]
+    )
+
+    # Squeeze dimensions of output_h
+    builder.add_squeeze(
+        name=node.name+'_squeeze_out_h',
+        input_name=output_h_5d,
+        output_name=output_h,
+        axes=[-1, -2]
+    )
+
 def _convert_identity(builder, node, graph, err):
     '''
     convert to CoreML Linear Activation Layer:
@@ -937,19 +1108,18 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
     if rank == -1:
         return err.unsupported_op_configuration(builder, node, graph, "Rank unknown for input")
     if rank < 5:
-        total_dims = rank
-        add_nodes = 5 - total_dims
+        add_nodes = 5 - rank
         
-        expand_dim(node.name+'_expand_in_0', node.inputs[0], node.inputs[0]+'_expand_out_0', [total_dims])
-        expand_dim(node.name+'_expand_in_h_0', input_h, input_h+'_expand_out_h_0', [total_dims])
-        expand_dim(node.name+'_expand_in_c_0', input_c, input_c+'_expand_out_c_0', [total_dims])
+        expand_dim(node.name+'_expand_in_0', node.inputs[0], node.inputs[0]+'_expand_out_0', [rank])
+        expand_dim(node.name+'_expand_in_h_0', input_h, input_h+'_expand_out_h_0', [rank])
+        expand_dim(node.name+'_expand_in_c_0', input_c, input_c+'_expand_out_c_0', [rank])
 
         for i in range(1, add_nodes):
             i_str = str(i)
             i_p_str = str(i-1)
-            expand_dim(node.name+'_expand_in_'+i_str, node.inputs[0]+'_expand_out_'+i_p_str, node.inputs[0]+'_expand_out_'+i_str, [total_dims+i])
-            expand_dim(node.name+'_expand_in_h_'+i_str, input_h+'_expand_out_h_'+i_p_str, input_h+'_expand_out_h_'+i_str, [total_dims+i])
-            expand_dim(node.name+'_expand_in_c_'+i_str, input_c+'_expand_out_c_'+i_p_str, input_c+'_expand_out_c_'+i_str, [total_dims+i])
+            expand_dim(node.name+'_expand_in_'+i_str, node.inputs[0]+'_expand_out_'+i_p_str, node.inputs[0]+'_expand_out_'+i_str, [rank+i])
+            expand_dim(node.name+'_expand_in_h_'+i_str, input_h+'_expand_out_h_'+i_p_str, input_h+'_expand_out_h_'+i_str, [rank+i])
+            expand_dim(node.name+'_expand_in_c_'+i_str, input_c+'_expand_out_c_'+i_p_str, input_c+'_expand_out_c_'+i_str, [rank+i])
 
     if direction == 1:
         # Peephole from ONNX are of shape [Num Dir, 3 * hidden_size]
@@ -1288,7 +1458,6 @@ def _convert_mul(builder, node, graph, err):
     load_input_constants(builder, node, graph, err)
     add_broadcastable_op_chain(builder, node, err, builder.add_multiply_broadcastable)
 
-
 def _convert_nonzero(builder, node, graph, err):
     '''
     convert to CoreML Where Non Zero Layer:
@@ -1588,6 +1757,84 @@ def _convert_reverse_sequence(builder, node, graph, err):
             output_name=node.outputs[0]
         )
 
+def _convert_roialign(builder, node, graph, err):
+    '''
+    convert to CoreML CropResize and Pooling Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L2239
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L1702
+    '''
+
+    target_height = node.attrs.get('output_height', 1)
+    target_width = node.attrs.get('output_width', 1)
+    mode = node.attrs.get('mode', 'AVERAGE').upper()
+    sampling_ratio = node.attrs.get('sampling_ratio', 0)
+    spatial_scale = node.attrs.get('sampling_scale', 1.0)
+
+    if node.inputs[2] in graph.inputs:
+        graph.inputs.remove(node.inputs[2])
+    
+    builder.add_expand_dims(
+        name=node.name+'_expand_0',
+        input_name=node.inputs[0],
+        output_name=node.inputs[0]+'_expanded',
+        axes=[0]
+    )
+    node.inputs[0] += '_expanded'
+
+    builder.add_expand_dims(
+        name=node.name+'_expand_2',
+        input_name=node.inputs[2],
+        output_name=node.inputs[2]+'_expanded',
+        axes=[1]
+    )
+    node.inputs[2] += '_expanded'
+
+    builder.add_concat_nd(
+        name=node.name+'_concat_indices',
+        input_names=[node.inputs[2], node.inputs[1]],
+        output_name=node.inputs[1]+'_rois',
+        axis=1
+    )
+    node.inputs[1] += '_rois'
+    
+    builder.add_expand_dims(
+        name=node.name+'_expand_1',
+        input_name=node.inputs[1],
+        output_name=node.inputs[1]+'_expanded',
+        axes=[1, 3, 4]
+    )
+    node.inputs[1] += '_expanded'
+
+    builder.add_crop_resize(
+        name=node.name+'_crop_resize',
+        input_names=[node.inputs[0], node.inputs[1]],
+        output_name=node.outputs[0]+'_crop_resized',
+        target_height=target_height*sampling_ratio,
+        target_width=target_width*sampling_ratio,
+        mode='ROI_ALIGN_MODE',
+        box_indices_mode='CORNERS_WIDTH_FIRST',
+        spatial_scale=spatial_scale
+    )
+
+    builder.add_squeeze(
+        name=node.name+'_squeeze',
+        input_name=node.outputs[0]+'_crop_resized',
+        output_name=node.outputs[0]+'_crop_resized_squeezed',
+        axes=[1]
+    )
+
+    builder.add_pooling(
+        name=node.name+'_pool',
+        height=sampling_ratio,
+        width=sampling_ratio,
+        layer_type=mode,
+        input_name=node.outputs[0]+'_crop_resized_squeezed',
+        output_name=node.outputs[0],
+        stride_height=sampling_ratio,
+        stride_width=sampling_ratio,
+        padding_type='VALID'
+    )
+
 def _convert_round(builder, node, graph, err):
     '''
     convert to CoreML Round Layer:
@@ -1886,6 +2133,27 @@ def _convert_tile(builder, node, graph, err):
         reps=node.input_tensors[node.inputs[1]]
     )
 
+def _convert_topk(builder, node, graph, err):
+    '''
+    convert to CoreML TopK Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5190
+    '''
+    load_input_constants(builder, node, graph, err)
+    axis = node.attrs.get("axis", -1)
+    bottom_k = node.attrs.get("largest", True) == False
+    # NOTE: Sorted order attribute is currently ignored in CoreML
+    sorted_order = node.attrs.get("sorted", True)
+    if "sorted" in node.attrs:
+        err.unsupported_feature_warning(node, "Sorted Order attribute('sorted') is currently ignored in CoreML 3.0")
+    
+    builder.add_topk(
+        name=node.name,
+        input_names=node.inputs,
+        output_names=node.outputs,
+        axis=axis,
+        use_bottom_k=bottom_k
+    )
+
 def _convert_transpose(builder, node, graph, err):
     '''
     convert to CoreML Transpose Layer:
@@ -1956,6 +2224,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "Gather": _convert_gather,
     "Gemm": _convert_gemm,
     "Greater": _convert_greater,
+    "GRU": _convert_gru,
     "GlobalAveragePool": _convert_pool,
     "GlobalMaxPool": _convert_pool,
     "HardSigmoid": _convert_hardsigmoid,
@@ -2000,6 +2269,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "Reshape": _convert_reshape,
     "Resize": _convert_resize,
     "ReverseSequence": _convert_reverse_sequence,
+    "RoiAlign": _convert_roialign,
     "Round": _convert_round,
     "Scatter": _convert_scatter,
     "Selu": _convert_selu,
@@ -2020,6 +2290,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "Tanh": _convert_tanh,
     "ThresholdedRelu": _convert_thresholdedrelu,
     "Tile": _convert_tile,
+    "TopK": _convert_topk,
     "Transpose": _convert_transpose,
     "Unsqueeze": _convert_unsqueeze,
     "Upsample": _convert_upsample,
