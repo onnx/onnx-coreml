@@ -674,11 +674,21 @@ def _convert_gemm(builder, node, graph, err):
     transB = node.attrs.get('transB', False)
 
     A = node.inputs[0]
+    if A in node.input_tensors:
+        A_tensor = node.input_tensors[A]
+        builder.add_load_constant_nd(
+            name=node.name + A + "_const",
+            output_name='const_' + A,
+            constant_value=A_tensor,
+            shape=A_tensor.shape
+        )
+        A = 'const_'+A
+
     if alpha != 1.0:
         builder.add_load_constant_nd(
             name=node.name + '_load_alpha',
             output_name='alpha_for_'+A,
-            constant_value=alpha,
+            constant_value=np.array([alpha]),
             shape=[1]
         )
         builder.add_multiply_broadcastable(
@@ -715,7 +725,7 @@ def _convert_gemm(builder, node, graph, err):
             builder.add_load_constant_nd(
                 name=node.name + '_load_beta',
                 output_name='beta_for_'+B,
-                constant_value=beta,
+                constant_value=np.array([beta]),
                 shape=[1]
             )
             builder.add_multiply_broadcastable(

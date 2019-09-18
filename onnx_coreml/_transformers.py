@@ -284,7 +284,7 @@ class ReshapeInitTensorFuser(object):
             if any([s == 0 for s in shape]):
                 continue
 
-            reshaped_tensor = tensor.reshape(shape)
+            reshaped_tensor = tensor.reshape(shape.astype(int))
 
             for child in node.children:
                 child.parents.remove(node)
@@ -759,6 +759,21 @@ class ConstantRemover(object):
                 else:
                     axes = node.attrs.get('axes', None)
                     output = np.squeeze(x, axis = tuple(axes)) 
+                transformation_performed = True
+            elif node.op_type == 'Gemm':
+                alpha = node.attrs.get('alpha', 1.0)
+                beta = node.attrs.get('beta', 1.0)
+                transA = node.attrs.get('transA', False)
+                transB = node.attrs.get('transB', False)
+
+                A_tensor = node.input_tensors[node.inputs[0]]
+                B_tensor = node.input_tensors[node.inputs[1]]
+                C_tensor = node.input_tensors[node.inputs[2]]
+
+                A_tensor = np.transpose(A_tensor) if transA else A_tensor
+                B_tensor = np.transpose(B_tensor) if transB else B_tensor
+
+                output = alpha * np.dot(A_tensor, B_tensor) + beta * C_tensor
                 transformation_performed = True
 
             if transformation_performed:
