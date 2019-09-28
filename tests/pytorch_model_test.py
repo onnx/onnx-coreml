@@ -343,6 +343,24 @@ class OnnxModelTest(unittest.TestCase):
         H, W = 6, 3
         _test_torch_model_single_io(torch_model, (1,1,H,W), (1, H, W))  # type: ignore
 
+    def test_conv2d_dilation(self):
+        class TestModule(torch.nn.Module):
+            def __init__(self):
+                in_channels = 1
+                out_channels = 3
+                bsz = 1  # batch size
+                super(TestModule, self).__init__()
+                self.conv1 = torch.nn.Conv2d(in_channels, out_channels,
+                                             kernel_size=(3, 4), stride=2, dilation=2)
+
+            def forward(self, x):
+                return self.conv1(x)
+
+        torch_model = TestModule()  # type: ignore
+        torch_model.train(False)
+        H, W = 64, 64
+        _test_torch_model_single_io(torch_model, (1,1,H,W), (1, H, W))  # type: ignore
+
 
     def test_bachnorm_after_reshape(self):  # type: () -> None
         class Net(nn.Module):
