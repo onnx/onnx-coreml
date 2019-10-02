@@ -481,8 +481,8 @@ class PixelShuffleFuser(NodesFuser):
         transpose_1.children = []
         transpose_1.attrs['perm'] = [0, 3, 1, 2]
 
-        reshape_output_name = 'pixel_shuffle_reshape'
-        transpose_output_name = 'pixel_shuffle_transpose'
+        reshape_output_name = final_reshape.name + '_pixel_shuffle_reshape'
+        transpose_output_name = final_reshape.name + '_pixel_shuffle_transpose'
 
         transpose_1.outputs = [
             self.get_unique_edge_name(graph, transpose_output_name)
