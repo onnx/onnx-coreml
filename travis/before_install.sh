@@ -31,6 +31,7 @@ elif [ "$TRAVIS_OS_NAME" == "osx" ]; then
   # Setup Python.
   export PYTHON_DIR="/usr/local/bin"
   brew unlink python
+  brew install openssl
   if [ "${PYTHON_VERSION}" == "python3" ]; then
     brew install ccache
     brew unlink python 
