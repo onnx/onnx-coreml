@@ -797,20 +797,28 @@ class DeadCodeElimination(object):
         output_names = set([str(output_[0]) for output_ in graph.outputs])
         
         nodes_to_be_removed = []
-        use_set = set()
+        uses = {}
+
+        for _output in output_names:
+            uses[_output] = uses.get(_output, 0) + 1    
 
         for node in graph.nodes:
             for _input in node.inputs:
-                use_set.add(_input)    
-
-        for node in graph.nodes:
+                uses[_input] = uses.get(_input, 0) + 1
+        
+        for node in reversed(graph.nodes):
             output_used = False
             for _output in node.outputs:
-                if _output in output_names or _output in use_set:
+                if _output in uses:
                     output_used = True
                     break
+
             if not output_used:
                 # Remove current node
+                for _input in node.inputs:
+                    uses[_input] -= 1
+                    if uses[_input] == 0:
+                        del uses[_input]
                 nodes_to_be_removed.append(node.name)
                 for parent in node.parents:
                     parent.children.remove(node)
@@ -821,7 +829,7 @@ class DeadCodeElimination(object):
                 transformed_nodes.append(node)
         
         for _input in input_names:
-            if _input not in use_set:
+            if _input not in uses:
                 for i in range(len(graph.inputs)):
                     if graph.inputs[i][0] is _input:
                         graph.inputs.remove(graph.inputs[i])
