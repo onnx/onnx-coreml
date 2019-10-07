@@ -575,7 +575,7 @@ def _convert_erf(builder, node, graph, err):
     load_input_constants(builder, node, graph, err)
     builder.add_erf(
         name=node.name,
-        input_names=node.inputs[0],
+        input_name=node.inputs[0],
         output_name=node.outputs[0]
     )
 
@@ -2198,6 +2198,18 @@ def _convert_unsqueeze(builder, node, graph, err):
         axes=axes
     )
 
+def _convert_where(builder, node, graph, err):
+    '''
+    convert to CoreML WhereBroadcastable Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L3742
+    '''
+    load_input_constants(builder, node, graph, err)
+    builder.add_where_broadcastable(
+        name=node.name,
+        input_names=node.inputs,
+        output_name=node.outputs[0],
+    )
+
 _ONNX_NODE_REGISTRY_ND = {
     "Abs": _convert_abs,
     "Acos": _convert_acos,
@@ -2305,6 +2317,7 @@ _ONNX_NODE_REGISTRY_ND = {
     "Unsqueeze": _convert_unsqueeze,
     "Upsample": _convert_upsample,
     "Xor": _convert_logical,
+    "Where": _convert_where
 }
 
 def _get_node_converter_fn(builder, node, err):  # type: (NeuralNetworkBuilder, Node, ErrorHandling) -> Callable[[NeuralNetworkBuilder, Node, Graph, ErrorHandling], None]
