@@ -50,7 +50,7 @@ Converting PyTorch model into CoreML model is a two step process
 
 ### What about frameworks other than PyTorch?
   - Step 1 can be replaced by respective framework to ONNX converter,
-  - Once, you have a ONNX model, you can use onnx_coreml.convert to get CoreML model
+  - Once, you have a ONNX model, you can use `onnx_coreml.convert` to get CoreML model
     which can be deployed on device.
     
 ### More examples demonstrating prediction and validating converted model's correctness
