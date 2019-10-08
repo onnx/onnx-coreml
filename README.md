@@ -4,19 +4,19 @@
 
 This tool converts [ONNX](https://onnx.ai/) models to Apple Core ML format. To convert Core ML models to ONNX, use [ONNXMLTools](https://github.com/onnx/onnxmltools).
 
-There's a comprehensive [Tutorial](https://github.com/onnx/tutorials/tree/master/examples/CoreML/ONNXLive/README.md) showing how to convert PyTorch style transfer models through ONNX to Core ML models and run them in an iOS app.
+There's a comprehensive [Tutorial](https://github.com/onnx/tutorials/tree/master/examples/CoreML/ONNXLive/README.md) showing how to convert PyTorch style transfer models through ONNX to Core ML models and run them in an iOS app. You can find example for PyTorch model conversion [here](https://github.com/onnx/onnx-coreml/tree/master/examples).
 
-## [New] Beta onnx-coreml converter with Core ML 3
+## [New] release onnx-coreml converter with Core ML 3
 
-To try out the new beta converter with Core ML 3 (>= iOS 13, >= macOS 15),
-install coremltools 3.0b6 and coremltools 1.0b3
+To try out the new onnx-coreml 1.0 converter with Core ML 3 (>= iOS 13, >= macOS 15),
+install coremltools 3.0 and coremltools 1.0
 
 ```shell
-pip install coremltools==3.0b6
-pip install onnx-coreml==1.0b3
+pip install coremltools==3.0
+pip install onnx-coreml==1.0
 ```
 
-In beta 3, the flag `disable_coreml_rank5_mapping` (which was part of beta 2) has been removed and instead replaced by
+Since 1.0 beta 3, the flag `disable_coreml_rank5_mapping` (which was part of beta 2) has been removed and instead replaced by
 the generic argument `target_ios` which can be used to target different versions of Core ML/iOS.
 The argument `target_ios` takes a string specifying the target deployment iOS version e.g. '11.2', '12' and '13'.
 By default, the converter uses the value of '12'.
@@ -237,6 +237,8 @@ Models from https://github.com/onnx/models that have been tested to work with th
 - VGG
 - ZFNet
 
+### Examples
+You can find examples for converting a model through ONNX -> CoreML [here](https://github.com/onnx/onnx-coreml/tree/master/examples)
 
 ### Operators
 List of [ONNX operators supported in Core ML 2.0 via the converter](https://github.com/onnx/onnx-coreml/blob/4d8b1cc348e2d6a983a6d38bb6921b6b77b47e76/onnx_coreml/_operators.py#L1893)

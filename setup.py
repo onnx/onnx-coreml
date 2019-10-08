@@ -3,7 +3,7 @@ from os import path
 import sys
 
 
-VERSION = '1.0b3'
+VERSION = '1.0'
 
 here = path.abspath(path.dirname(__file__))
 
@@ -35,7 +35,7 @@ setup(
     author_email='onnx-coreml@apple.com',
     license='MIT',
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'License :: OSI Approved :: MIT License',
         'Intended Audience :: Developers',
         'Intended Audience :: End Users/Desktop',
@@ -51,7 +51,7 @@ setup(
         'onnx==1.5.0',
         'typing>=3.6.4',
         'typing-extensions>=3.6.2.1',
-        'coremltools==3.0b6',
+        'coremltools==3.0',
     ],
     setup_requires=['pytest-runner'],
     tests_require=[
