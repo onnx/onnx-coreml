@@ -1988,7 +1988,27 @@ def _convert_slice(builder, node, graph, err):
         )
     else:
         err.unsupported_op_configuration(builder, node, graph, "CoreML does not support Dynamic Slice with unknown axes. Please provide Custom Function/Layer")
-    
+
+def _convert_softmax_nd(builder, node, graph, err):
+    '''
+    convert to CoreML SoftMax ND Layer:
+    https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#3547
+    '''
+    axis = node.attrs.get('axis', 1)
+    builder.add_softmax_nd(
+        name=node.name,
+        input_name=node.inputs[0],
+        output_name=node.outputs[0] + ('_softmax' if node.op_type == 'LogSoftmax' else ''),
+        axis=axis
+    )
+    if node.op_type == 'LogSoftmax':
+        builder.add_unary(
+            name=node.name+'_log',
+            input_name=node.outputs[0]+'_softmax',
+            output_name=node.outputs[0],
+            mode='log'
+        )
+
 def _convert_softmax(builder, node, graph, err):
     '''
     convert to CoreML SoftMax ND Layer:
@@ -2053,7 +2073,7 @@ def _convert_softmax(builder, node, graph, err):
     axis = node.attrs.get('axis', 1)
     rank = builder._get_rank(node.inputs[0])
     if rank == -1:
-        return err.unsupported_op_configuration(builder, node, graph, "Rank unknown for input")
+        return _convert_softmax_nd(builder, node, graph, err)
 
     if node.op_type == 'LogSoftmax':
         add_softmax(node.outputs[0] + '_softmax', rank=rank, axis=axis)
