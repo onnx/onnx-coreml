@@ -82,7 +82,7 @@ Other → this may vary depending on the repository
 
 Any pull request submitted to the repositories will be reviewed by a member of the community and upon approval by a Core ML team member can be merged to the master branch. If you are new to GitHub, please find more information regarding creating pull requests here (https://help.github.com/en/articles/creating-a-pull-request).
 
-Developing in Core ML
+Developing in onnx-coreml
 ---
 
 Additional information regarding APIs, installation and dependencies and more can be found in the readme.md file, [here](https://github.com/onnx/onnx-coreml).
