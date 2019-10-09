@@ -243,7 +243,7 @@ You can find examples for converting a model through ONNX -> CoreML [here](https
 ### Operators
 List of [ONNX operators supported in Core ML 2.0 via the converter](https://github.com/onnx/onnx-coreml/blob/4d8b1cc348e2d6a983a6d38bb6921b6b77b47e76/onnx_coreml/_operators.py#L1893)
 
-List of [ONNX operators supported in Core ML 3.0 via the converter](https://github.com/onnx/onnx-coreml/blob/4d8b1cc348e2d6a983a6d38bb6921b6b77b47e76/onnx_coreml/_operators_nd.py#L1821)
+List of [ONNX operators supported in Core ML 3.0 via the converter](https://github.com/onnx/onnx-coreml/blob/3af826dfb0f17de4310d989acc7d6c5aea42e407/onnx_coreml/_operators_nd.py#L2233)
 
 Some of the operators are partially compatible with Core ML, for example gemm with more than 1 non constant input is not supported in Core ML 2, or scale as an input for upsample layer is not supported in Core ML 3 etc.
 For unsupported ops or unsupported attributes within supported ops, Core ML custom layers or custom functions can be used.
