@@ -9,7 +9,7 @@ To contribute to Core ML via onnx-coreml repository, a Contributor License Agree
 
 **Core ML Open Source Community**
 
-The Core ML open source community welcomes all contributions and ideas to grow the product. This can occur within this repo as well as [coremltools]() or [tf-coreml]().
+The Core ML open source community welcomes all contributions and ideas to grow the product. This can occur within this repo as well as [coremltools](https://github.com/apple/coremltools) or [tf-coreml](https://github.com/tf-coreml/tf-coreml).
 
 This could be provided in a couple of ways:
 
@@ -62,7 +62,7 @@ There will be a provided template when submitting your issue. Please ensure that
 If applicable, please provide the model that was being used when logging the issue, so that the issue is able to be reproduced.
 
 #### Labels
-Please check the labels page under each repository for a further description of each label. These labels will be added by Core ML team members depending on need. Typically an issue can be given any of the following labels:
+Please check the labels page under each repository for a further description of each label. These labels will be added by project maintainers depending on need. Typically an issue can be given any of the following labels:
 
 Status → What stage of the process the issue is in (turquoise) 
 
@@ -76,7 +76,7 @@ Release → If the issue is scheduled to be resolved in a specific release, it w
 
 Other → this may vary depending on the repository
 
-* good first issue, help wanted, CreateML
+* good first issue, help wanted
 
 ### Lifecycle of Pull Requests
 
