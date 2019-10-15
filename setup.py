@@ -48,6 +48,7 @@ setup(
     install_requires=[
         'click',
         'numpy',
+        'sympy',
         'onnx==1.5.0',
         'typing>=3.6.4',
         'typing-extensions>=3.6.2.1',
