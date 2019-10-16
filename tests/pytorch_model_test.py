@@ -572,6 +572,20 @@ class UnaryOperationTests(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), target_ios=target_ios)  # type: ignore
 
+class OperatorTests(unittest.TestCase):
+    '''
+    Operator test for Operator
+    '''
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_repeat(self, target_ios='13'):
+        class Net(nn.Module):
+            def forward(self, x):
+                return x.repeat([2, 3, 1])
+        torch_model = Net()
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), target_ios=target_ios)  # type: ignore
+
 class BinaryOperationTests(unittest.TestCase):
     '''
     Binary Operation Test cases
@@ -600,7 +614,7 @@ class BinaryOperationTests(unittest.TestCase):
         y1 = torch.rand((4, 5))
         y2 = torch.rand((18, 4, 5))
         y3 = 7.234
-        
+
         torch_model = Net()  # type: ignore
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), target_ios=target_ios)  # type: ignore
@@ -653,7 +667,7 @@ class BinaryOperationTests(unittest.TestCase):
         y1 = torch.rand((4, 5))
         y2 = torch.rand((18, 4, 5))
         y3 = 7.234
-        
+
         torch_model = Net()  # type: ignore
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), target_ios=target_ios)  # type: ignore
@@ -696,7 +710,7 @@ class BinaryOperationTests(unittest.TestCase):
         e = torch.rand((5))
         f = 8.234
         g = 5
-         
+
         torch_model = Net()  # type: ignore
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (18, 4, 5), (18, 4, 5), target_ios=target_ios)  # type: ignore
@@ -741,6 +755,7 @@ class TransformationTests(unittest.TestCase):
         torch_model = nn.Upsample(scale_factor=2)
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 18, 4, 5), (1, 18, 8, 10), target_ios=target_ios)
+
 
 if __name__ == '__main__':
     unittest.main()

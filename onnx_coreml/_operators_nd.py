@@ -1890,8 +1890,15 @@ def _convert_slice_ir4v9(builder, node, graph, err):
     '''
     convert to CoreML Slice Static Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L5082
-    ''' 
-    data_shape = graph.shape_dict[node.inputs[0]]
+    '''
+    if node.inputs[0] in graph.shape_dict:
+        data_shape = graph.shape_dict[node.inputs[0]]
+    else:
+        rank = builder._get_rank(node.inputs[0])
+        if rank == -1:
+            return err.unsupported_op_configuration(builder, node, graph, "Input shape not available")
+        data_shape = [INT_MAX] * rank
+
     len_of_data = len(data_shape)
     begin_masks = [True] * len_of_data
     end_masks = [True] * len_of_data
@@ -2160,7 +2167,7 @@ def _convert_tile(builder, node, graph, err):
         name=node.name,
         input_name=node.inputs[0],
         output_name=node.outputs[0],
-        reps=node.input_tensors[node.inputs[1]]
+        reps=node.input_tensors[node.inputs[1]].astype(np.int32).tolist()
     )
 
 def _convert_topk(builder, node, graph, err):
