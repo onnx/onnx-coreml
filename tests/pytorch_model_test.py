@@ -46,7 +46,6 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
 
     # convert to coreml and run
     coreml_model = convert(onnx_model, target_ios=target_ios)
-
     output_name = [o.name for o in onnx_model.graph.output][0]
     initializer_names = {t.name for t in onnx_model.graph.initializer}
     input_name = [i.name for i in onnx_model.graph.input if i.name not in initializer_names][0]
@@ -157,7 +156,7 @@ class OnnxModelTest(unittest.TestCase):
         class Net(nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.convT = torch.nn.ConvTranspose2d(1, 1, kernel_size=3, stride=2, output_padding=1, padding=1, groups=1)
+                self.convT = torch.nn.ConvTranspose2d(1, 1, kernel_size=3, stride=2, output_padding=0, padding=3, groups=1)
 
             def forward(self, x):
                 y = self.convT(x)
@@ -165,7 +164,21 @@ class OnnxModelTest(unittest.TestCase):
 
         torch_model = Net()  # type: ignore
         torch_model.train(False)
-        _test_torch_model_single_io(torch_model, (1, 1, 2, 2), (1, 2, 2))  # type: ignore
+        _test_torch_model_single_io(torch_model, (1, 1, 64, 64), (1, 64, 64))  # type: ignore
+
+    def test_conv2D_transpose_output_padding(self): # type: () -> None
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.convT = torch.nn.ConvTranspose2d(1, 1, kernel_size=3, stride=2, output_padding=1, padding=3, groups=1)
+
+            def forward(self, x):
+                y = self.convT(x)
+                return y
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (1, 1, 64, 64), (1, 64, 64))  # type: ignore
 
     def test_conv2D_transpose_groups(self): # type: () -> None
         class Net(nn.Module):

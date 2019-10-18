@@ -302,14 +302,6 @@ def _get_conv_params(builder, node, graph, err, params_dict, axis=None):
             pads = [0, pads[0], 0, pads[1]]
         params_dict['pads'] = pads
 
-    if params_dict['is_deconv']:
-        params_dict['crops'] = copy.copy(params_dict['pads'])
-        params_dict['pads'] = [0, 0, 0, 0]
-        if sum(params_dict['crops']) == 0:
-            params_dict['is_post_crop'] = False
-        else:
-            params_dict['is_post_crop'] = True
-
     if "kernel_shape" in node.attrs:
         params_dict['kernel_shape'] = node.attrs["kernel_shape"]
     else:
@@ -332,7 +324,6 @@ def _get_conv_params(builder, node, graph, err, params_dict, axis=None):
         params_dict['strides'].insert(0,1)
         params_dict['kernel_shape'].insert(0,1)
 
-        
     params_dict['out_shape'] = None
     params_dict['padding_type'] = 'valid'
     params_dict['same_padding_asymmetry_mode'] = 'BOTTOM_RIGHT_HEAVY'
@@ -358,6 +349,8 @@ def _get_conv_params(builder, node, graph, err, params_dict, axis=None):
             else:
                 params_dict['out_shape'] = (node.attrs['output_shape'][-2], node.attrs['output_shape'][-1])  # (Hout, wout)
         elif 'output_padding' in node.attrs:
+            params_dict['crops'] = copy.copy(params_dict['pads'])
+            params_dict['pads'] = [0, 0, 0, 0]
             post_pads = node.attrs['output_padding']
             if sum(post_pads) != 0:
                 t = l = b = r = 0
@@ -432,7 +425,6 @@ def _add_conv(input_names, output_names, **kwargs):
             output_name=input_names[0],
             value=0
         )
-    
     builder.add_convolution(
         name=node.name,
         kernel_channels=kc,
