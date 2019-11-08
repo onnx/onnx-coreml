@@ -124,9 +124,7 @@ __image_input_names__: list of strings
 __preprocessing_args__: dict
       Specify preprocessing parameters, that are be applied to all the image inputs specified through the "image_input_names" parameter.
       'is_bgr', 'red_bias', 'green_bias', 'blue_bias', 'gray_bias',
-      'image_scale' keys with the same meaning as
-
-https://apple.github.io/coremltools/generated/coremltools.models.neural_network.html#coremltools.models.neural_network.NeuralNetworkBuilder.set_pre_processing_parameters
+      'image_scale' keys with the same meaning as coremltools set_pre_processing_parameters: https://apple.github.io/coremltools/generated/coremltools.models.neural_network.builder.html#coremltools.models.neural_network.builder.NeuralNetworkBuilder.set_pre_processing_parameters
 
 __image_output_names__: list of strings
       Name of the outputs to be defined as image type. Otherwise, by default all outputs are MultiArray type.
