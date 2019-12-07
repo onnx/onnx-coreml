@@ -36,7 +36,7 @@ class CoreMLBackend(Backend):
     def prepare(cls,
                 model,  # type: ModelProto
                 device='CPU',  # type: Text
-                target_ios='12', # type: str
+                minimum_ios_deployment_target='12', # type: str
                 **kwargs  # type: Any
                 ):
         # type: (...) -> CoreMLRep
@@ -45,11 +45,11 @@ class CoreMLBackend(Backend):
             with open('/tmp/node_model.onnx', 'wb') as f:
                 s = model.SerializeToString()
                 f.write(s)
-        coreml_model = convert(model, target_ios=target_ios)
+        coreml_model = convert(model, minimum_ios_deployment_target=minimum_ios_deployment_target)
         if DEBUG:
             coreml_model.save('/tmp/node_model.mlmodel')
         onnx_outputs_info = _get_onnx_outputs_info(model)
-        return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU', target_ios=target_ios)
+        return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU', minimum_ios_deployment_target=minimum_ios_deployment_target)
 
     @classmethod
     def is_compatible(cls,
@@ -114,7 +114,7 @@ class CoreMLBackendND(Backend):
     def prepare(cls,
                 model,  # type: ModelProto
                 device='CPU',  # type: Text
-                target_ios='13', # type: str
+                minimum_ios_deployment_target='13', # type: str
                 **kwargs  # type: Any
                 ):
         # type: (...) -> CoreMLRep
@@ -123,11 +123,11 @@ class CoreMLBackendND(Backend):
             with open('/tmp/node_model.onnx', 'wb') as f:
                 s = model.SerializeToString()
                 f.write(s)
-        coreml_model = convert(model, target_ios=target_ios)
+        coreml_model = convert(model, minimum_ios_deployment_target=minimum_ios_deployment_target)
         if DEBUG:
             coreml_model.save('/tmp/node_model.mlmodel')
         onnx_outputs_info = _get_onnx_outputs_info(model)
-        return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU', target_ios=target_ios)
+        return CoreMLRep(coreml_model, onnx_outputs_info, device == 'CPU', minimum_ios_deployment_target=minimum_ios_deployment_target)
 
     @classmethod
     def is_compatible(cls,

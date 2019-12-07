@@ -17,15 +17,15 @@ pip install onnx-coreml==1.0
 ```
 
 Since 1.0 beta 3, the flag `disable_coreml_rank5_mapping` (which was part of beta 2) has been removed and instead replaced by
-the generic argument `target_ios` which can be used to target different versions of Core ML/iOS.
-The argument `target_ios` takes a string specifying the target deployment iOS version e.g. '11.2', '12' and '13'.
+the generic argument `minimum_ios_deployment_target` which can be used to target different versions of Core ML/iOS.
+The argument `minimum_ios_deployment_target` takes a string specifying the target deployment iOS version e.g. '11.2', '12' and '13'.
 By default, the converter uses the value of '12'.
 
 For example:
 
 ```python
 from onnx_coreml import convert
-ml_model = convert(model='my_model.onnx', target_ios='13')  # to use Core ML 3
+ml_model = convert(model='my_model.onnx', minimum_ios_deployment_target='13')  # to use Core ML 3
 ```
 
 ## Installation
@@ -82,7 +82,7 @@ def convert(model,
             predicted_feature_name='classLabel',
             add_custom_layers=False,
             custom_conversion_functions={},
-            target_ios='12')
+            minimum_ios_deployment_target='12')
 ```
 
 The function returns a Core ML model instance that can be saved to a `.mlmodel` file, e.g.:
@@ -162,17 +162,17 @@ __custom_conversion_fuctions__: dict (str: function)
 
 __onnx_coreml_input_shape_map__: dict (str: List[int])
     (Optional)
-    (only used if `target_ios` version is less than '13')
+    (only used if `minimum_ios_deployment_target` version is less than '13')
     A dictionary with keys corresponding to the model input names. Values are a list of integers that specify
     how the shape of the input is mapped to Core ML. Convention used for Core ML shapes is:
     0: Sequence, 1: Batch, 2: channel, 3: height, 4: width.
     For example, an input of rank 2 could be mapped as [3,4] (i.e. H,W) or [1,2] (i.e. B,C) etc.
 
-__target_ios__: str
+__minimum_ios_deployment_target__: str
       Target Deployment iOS version (default: '12')
       Supported values: '11.2', '12', '13'
       Core ML model produced by the converter will be compatible with the iOS version specified in this argument.
-      e.g. if `target_ios` = '12', the converter would only utilize Core ML features released till iOS12
+      e.g. if `minimum_ios_deployment_target` = '12', the converter would only utilize Core ML features released till iOS12
       (equivalently macOS 10.14, watchOS 5 etc).
       Release notes:
       * iOS 11 / Core ML 1: https://github.com/apple/coremltools/releases/tag/v0.8

@@ -35,13 +35,13 @@ class CoreMLRep(BackendRep):
                  coreml_model,  # type: MLModel
                  onnx_outputs_info,  # type: Dict[Text, EdgeInfo]
                  useCPUOnly=False,  # type: bool
-                 target_ios='12' # type: str
+                 minimum_ios_deployment_target='12' # type: str
                  ):
         # type: (...) -> None
         super(CoreMLRep, self).__init__()
         self.model = coreml_model
         self.useCPUOnly = useCPUOnly
-        self.target_ios = target_ios
+        self.minimum_ios_deployment_target = minimum_ios_deployment_target
 
         spec = coreml_model.get_spec()
         self.input_names = [str(i.name) for i in spec.description.input]
@@ -56,7 +56,7 @@ class CoreMLRep(BackendRep):
         super(CoreMLRep, self).run(inputs, **kwargs)
         inputs_ = inputs
         _reshaped = False
-        if not SupportedVersion.is_nd_array_supported(self.target_ios):
+        if not SupportedVersion.is_nd_array_supported(self.minimum_ios_deployment_target):
             for i, input_ in enumerate(inputs_):
                 shape = input_.shape
                 if len(shape) == 4 or len(shape) == 2:
@@ -80,7 +80,7 @@ class CoreMLRep(BackendRep):
         prediction = self.model.predict(input_dict, self.useCPUOnly)
         output_values = [prediction[name] for name in self.output_names]
 
-        if not SupportedVersion.is_nd_array_supported(self.target_ios):
+        if not SupportedVersion.is_nd_array_supported(self.minimum_ios_deployment_target):
             for i, output_ in enumerate(output_values):
                 shape = output_.shape
                 #reshape the CoreML output to match Onnx's output shape

@@ -120,10 +120,10 @@ def _shape_from_onnx_value_info(v):  # type: (ValueInfoProto) -> Sequence[Tuple[
 def _coreml_forward_model(model,  # type: ModelProto
                           input_dict,  # type: Dict[Text, np._ArrayLike[Any]]
                           output_names,  # type: Sequence[Text]
-                          target_ios='12'
+                          minimum_ios_deployment_target='12'
                           ):
     # type: (...) -> np.ndarray[Any]
-    if not SupportedVersion.is_nd_array_supported(target_ios):
+    if not SupportedVersion.is_nd_array_supported(minimum_ios_deployment_target):
         for k, arr in input_dict.items():
             if len(arr.shape) == 4:
                 input_dict[k] = arr[0]
@@ -137,12 +137,12 @@ def _coreml_forward_model(model,  # type: ModelProto
 def _coreml_forward_onnx_model(model,  # type: ModelProto
                                input_dict,  # type: Dict[Text, np._ArrayLike[Any]]
                                onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
-                               target_ios='12'
+                               minimum_ios_deployment_target='12'
                                ):
     # type: (...) -> np.ndarray[Any]
-    coreml_model = convert(model, onnx_coreml_input_shape_map=onnx_coreml_input_shape_map, target_ios=target_ios)
+    coreml_model = convert(model, onnx_coreml_input_shape_map=onnx_coreml_input_shape_map, minimum_ios_deployment_target=minimum_ios_deployment_target)
     output_names = [o.name for o in model.graph.output]
-    return _coreml_forward_model(coreml_model, input_dict, output_names, target_ios=target_ios)
+    return _coreml_forward_model(coreml_model, input_dict, output_names, minimum_ios_deployment_target=minimum_ios_deployment_target)
 
 
 def _random_array(shape, random_seed=10):  # type: (Tuple[int, ...], Any) -> np._ArrayLike[float]
@@ -225,7 +225,7 @@ def _test_onnx_model(model,  # type: ModelProto
                      decimal=5,  # type: int
                      onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
                      coreml_input_shape = {}, # type: Dict[Text, List[int,...]]
-                     target_ios='12'
+                     minimum_ios_deployment_target='12'
                      ):
     # type: (...) -> None
     if not test_name:
@@ -238,12 +238,12 @@ def _test_onnx_model(model,  # type: ModelProto
     supported_ios_version = ['11.2', '12', '13']
     IOS_13_VERSION = supported_ios_version.index('13')
     for key, value in W.items():
-        if supported_ios_version.index(target_ios) < IOS_13_VERSION and key in coreml_input_shape:
+        if supported_ios_version.index(minimum_ios_deployment_target) < IOS_13_VERSION and key in coreml_input_shape:
             coreml_input_dict[key] = np.reshape(value, coreml_input_shape[key])
         else:
             coreml_input_dict[key] = value
     coreml_outputs = _coreml_forward_onnx_model(model, coreml_input_dict, onnx_coreml_input_shape_map=onnx_coreml_input_shape_map,
-                                                target_ios=target_ios)
+                                                minimum_ios_deployment_target=minimum_ios_deployment_target)
     _assert_outputs(c2_outputs, coreml_outputs, decimal=decimal)
 
 
@@ -255,7 +255,7 @@ def _test_single_node(op_type,  # type: Text
                       test_name = '', # type: Text
                       onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
                       coreml_input_shape = {}, # type: Dict[Text, List[int,...]]
-                      target_ios='12',
+                      minimum_ios_deployment_target='12',
                       **kwargs  # type: Any
                       ):
     # type: (...) -> None
@@ -267,4 +267,4 @@ def _test_single_node(op_type,  # type: Text
     _test_onnx_model(model, test_name=test_name, decimal=decimal,
                      onnx_coreml_input_shape_map=onnx_coreml_input_shape_map,
                      coreml_input_shape = coreml_input_shape,
-                     target_ios=target_ios)
+                     minimum_ios_deployment_target=minimum_ios_deployment_target)

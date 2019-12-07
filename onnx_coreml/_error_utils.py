@@ -21,7 +21,7 @@ class ErrorHandling(object):
       self.custom_conversion_functions = custom_conversion_functions
       self.custom_layer_nodes = custom_layer_nodes
 
-      self.rerun_suggestion = '\n Please try converting with higher target_ios.\n' \
+      self.rerun_suggestion = '\n Please try converting with higher minimum_ios_deployment_target.\n' \
                               'You can also provide custom function/layer to convert the model.'
 
 

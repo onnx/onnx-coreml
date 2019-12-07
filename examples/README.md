@@ -43,7 +43,7 @@ Converting PyTorch model into CoreML model is a two step process
 2. ONNX to CoreML
     ```
       # Step 2 - ONNX to CoreML model
-      mlmodel = convert(model='./small_model.onnx', target_ios='13')
+      mlmodel = convert(model='./small_model.onnx', minimum_ios_deployment_target='13')
       # Save converted CoreML model
       mlmodel.save('small_model.mlmodel')
     ```

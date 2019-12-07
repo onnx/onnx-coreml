@@ -49,29 +49,29 @@ class SupportedVersion():
     ND_ARRARY_SUPPORT = IOS_13_VERSION
 
     @staticmethod
-    def ios_support_check(target_ios):
-        return target_ios in SupportedVersion.supported_ios_version
+    def ios_support_check(minimum_ios_deployment_target):
+        return minimum_ios_deployment_target in SupportedVersion.supported_ios_version
 
     @staticmethod
-    def is_nd_array_supported(target_ios):
-        if not SupportedVersion.ios_support_check(target_ios):
-            raise TypeError('{} not supported. Please provide one of target iOS: {}', target_ios, SupportedVersion.supported_ios_version)
+    def is_nd_array_supported(minimum_ios_deployment_target):
+        if not SupportedVersion.ios_support_check(minimum_ios_deployment_target):
+            raise TypeError('{} not supported. Please provide one of target iOS: {}', minimum_ios_deployment_target, SupportedVersion.supported_ios_version)
         
-        target_ios_index = SupportedVersion.supported_ios_version.index(target_ios)
-        return SupportedVersion.ND_ARRARY_SUPPORT <= target_ios_index
+        minimum_ios_deployment_target_index = SupportedVersion.supported_ios_version.index(minimum_ios_deployment_target)
+        return SupportedVersion.ND_ARRARY_SUPPORT <= minimum_ios_deployment_target_index
 
     @staticmethod
     def get_supported_ios():
         return SupportedVersion.supported_ios_version
 
     @staticmethod
-    def get_specification_version(target_ios):
-        if not SupportedVersion.ios_support_check(target_ios):
-            raise TypeError('{} not supported. Please provide one of target iOS: {}', target_ios, SupportedVersion.supported_ios_version)
+    def get_specification_version(minimum_ios_deployment_target):
+        if not SupportedVersion.ios_support_check(minimum_ios_deployment_target):
+            raise TypeError('{} not supported. Please provide one of target iOS: {}', minimum_ios_deployment_target, SupportedVersion.supported_ios_version)
 
-        if target_ios == '11.2':
+        if minimum_ios_deployment_target == '11.2':
             return IOS_11_2_SPEC_VERSION
-        elif target_ios == '12':
+        elif minimum_ios_deployment_target == '12':
             return IOS_12_SPEC_VERSION
         else:
             return IOS_13_SPEC_VERSION            
@@ -219,7 +219,7 @@ def _check_unsupported_ops(nodes, disable_coreml_rank5_mapping=False): # type: (
 
     coreml_3_rerun_message = ''
     if not disable_coreml_rank5_mapping:
-        coreml_3_rerun_message = '\nPlease try converting again with target_ios=13' \
+        coreml_3_rerun_message = '\nPlease try converting again with minimum_ios_deployment_target=13' \
                                  ' and coremltools 3.0 latest beta'
     if len(unsupported_op_types) > 0:
         raise NotImplementedError("Unsupported ONNX ops of type: %s %s" % (
@@ -385,7 +385,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             add_custom_layers = False,  # type: bool
             custom_conversion_functions = {}, #type: Dict[Text, Any]
             onnx_coreml_input_shape_map = {}, # type: Dict[Text, List[int,...]]
-            target_ios = '12'):
+            minimum_ios_deployment_target = '12'):
     # type: (...) -> MLModel
     """
     Convert ONNX model to CoreML.
@@ -426,12 +426,12 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         how the shape of the input is mapped to CoreML. Convention used for CoreML shapes is
         0: Sequence, 1: Batch, 2: channel, 3: height, 4: width.
         For example, an input of rank 2 could be mapped as [3,4] (i.e. H,W) or [1,2] (i.e. B,C) etc.
-        This is ignored if "target_ios" is set to 13.
-    target_ios: str
+        This is ignored if "minimum_ios_deployment_target" is set to 13.
+    minimum_ios_deployment_target: str
         Target Deployment iOS Version (default: '12')
         Supported iOS version options: '11.2', '12', '13'        
         CoreML model produced by the converter will be compatible with the iOS version specified in this argument.
-        e.g. if target_ios = '12', the converter would only utilize CoreML features released till iOS12 (equivalently macOS 10.14, watchOS 5 etc).
+        e.g. if minimum_ios_deployment_target = '12', the converter would only utilize CoreML features released till iOS12 (equivalently macOS 10.14, watchOS 5 etc).
 
         iOS 11.2 (CoreML 0.8) does not support resize_bilinear, crop_resize layers 
          - (Supported features: https://github.com/apple/coremltools/releases/tag/v0.8)
@@ -453,13 +453,13 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
             "Model must be file path to .onnx file or onnx loaded model"
         )
 
-    if not SupportedVersion.ios_support_check(target_ios):
-        raise TypeError('{} not supported. Please provide one of target iOS: {}', target_ios, SupportedVersion.get_supported_ios())
+    if not SupportedVersion.ios_support_check(minimum_ios_deployment_target):
+        raise TypeError('{} not supported. Please provide one of target iOS: {}', minimum_ios_deployment_target, SupportedVersion.get_supported_ios())
         
 
     global USE_SHAPE_MAPPING
     disable_coreml_rank5_mapping = False
-    if SupportedVersion.is_nd_array_supported(target_ios):
+    if SupportedVersion.is_nd_array_supported(minimum_ios_deployment_target):
         disable_coreml_rank5_mapping = True
     
     if disable_coreml_rank5_mapping:
@@ -551,7 +551,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
     builder = NeuralNetworkBuilder(input_features, output_features, mode=mode, disable_rank5_shape_mapping=disable_coreml_rank5_mapping)
 
     # TODO: To be removed once, auto-downgrading of spec version is enabled
-    builder.spec.specificationVersion = SupportedVersion.get_specification_version(target_ios)
+    builder.spec.specificationVersion = SupportedVersion.get_specification_version(minimum_ios_deployment_target)
 
     '''
     Set CoreML input,output types (float, double, int) same as onnx types, if supported
@@ -715,7 +715,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         builder.add_optionals(graph.optional_inputs, graph.optional_outputs)
 
     # Check for specification version and target ios compatibility
-    if target_ios == '11.2' and builder.spec.WhichOneof('Type') == 'neuralNetwork':
+    if minimum_ios_deployment_target == '11.2' and builder.spec.WhichOneof('Type') == 'neuralNetwork':
         nn_spec = builder.spec.neuralNetwork
         for layer in nn_spec.layers:
             if layer.WhichOneof('layer') == 'resizeBilinear' or layer.WhichOneof('layer') == 'cropResize':

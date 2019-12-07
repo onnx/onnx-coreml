@@ -16,20 +16,20 @@ from onnx_coreml.converter import SupportedVersion
 from coremltools.models.utils import macos_version
 
 # Default target iOS
-TARGET_IOS = '13'
+MINIMUM_IOS_DEPLOYMENT_TARGET = '13'
 
 MIN_MACOS_VERSION_10_15 = (10, 15)
 # If MACOS version is less than 10.15
 # Then force testing on CoreML 2.0
 if macos_version() < MIN_MACOS_VERSION_10_15:
-    TARGET_IOS = '12'
+    MINIMUM_IOS_DEPLOYMENT_TARGET = '12'
 
-if not SupportedVersion.ios_support_check(TARGET_IOS):
+if not SupportedVersion.ios_support_check(MINIMUM_IOS_DEPLOYMENT_TARGET):
     raise ValueError(
         "Invalid Target iOS version provided. Valid target iOS: {}".format(supported_ios_version)
     )
 
-class CoreMLTestingBackend(CoreMLBackendND if SupportedVersion.is_nd_array_supported(TARGET_IOS) else CoreMLBackend):
+class CoreMLTestingBackend(CoreMLBackendND if SupportedVersion.is_nd_array_supported(MINIMUM_IOS_DEPLOYMENT_TARGET) else CoreMLBackend):
     @classmethod
     def run_node(cls,
                  node,  # type: onnx.NodeProto
@@ -732,7 +732,7 @@ def exclude_test_cases(backend_test):
         'test_tfidfvectorizer_tf_uniandbigrams_skip5_cpu',
     ]
 
-    if SupportedVersion.is_nd_array_supported(TARGET_IOS):
+    if SupportedVersion.is_nd_array_supported(MINIMUM_IOS_DEPLOYMENT_TARGET):
         for each in unsupported_tests_coreml3:
             backend_test.exclude(each)
     else:
