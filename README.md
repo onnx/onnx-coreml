@@ -104,7 +104,9 @@ coremltools.utils.rename_feature(spec, 'old_output_name', 'new_output_name')
 coremltools.utils.save_spec(spec, 'model_new_output_name.mlmodel')
 ```
 
-For more details see coremltools [documentation](https://apple.github.io/coremltools/#).
+Please see the ONNX conversion section in the [Neural network guide](https://github.com/apple/coremltools/blob/master/docs/NeuralNetworkGuide.md) on how to use the converter.
+
+There are several [notebook examples](https://github.com/apple/coremltools/tree/master/examples/neural_network_inference/onnx_converter) as well for reference.
 
 ### Parameters
 
