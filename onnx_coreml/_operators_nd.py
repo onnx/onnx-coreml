@@ -1309,8 +1309,13 @@ def _convert_pad(builder, node, graph, err):
     '''
     mode = node.attrs.get('mode', 'constant')
 
+    try:
+        mode = mode.decode()
+    except (UnicodeDecodeError, AttributeError):
+        pass
+
     if mode == 'constant':    
-        pads = node.attrs.get('pads')
+        pads = node.attrs.get('pads', [])
         value = node.attrs.get('value', 0.0)
 
         builder.add_constant_pad(
