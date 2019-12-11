@@ -4,72 +4,30 @@
 
 This tool converts [ONNX](https://onnx.ai/) models to Apple Core ML format. To convert Core ML models to ONNX, use [ONNXMLTools](https://github.com/onnx/onnxmltools).
 
-There's a comprehensive [Tutorial](https://github.com/onnx/tutorials/tree/master/examples/CoreML/ONNXLive/README.md) showing how to convert PyTorch style transfer models through ONNX to Core ML models and run them in an iOS app. You can find example for PyTorch model conversion [here](https://github.com/onnx/onnx-coreml/tree/master/examples).
+There's a comprehensive [Tutorial](https://github.com/onnx/tutorials/tree/master/examples/CoreML/ONNXLive/README.md) showing 
+how to convert PyTorch style transfer models through ONNX to Core ML models and run them in an iOS app. 
 
-## [New] release onnx-coreml converter with Core ML 3
-
-To try out the new onnx-coreml 1.0 converter with Core ML 3 (>= iOS 13, >= macOS 15),
-install coremltools 3.0 and coremltools 1.0
+To get the latest version of `onnx-coreml` from PyPI:
 
 ```shell
-pip install coremltools==3.0
-pip install onnx-coreml==1.0
+pip install --upgrade onnx-coreml
+pip install --upgrade coremltools # onnx-coreml depends on the coremltools package
 ```
 
-Since 1.0 beta 3, the flag `disable_coreml_rank5_mapping` (which was part of beta 2) has been removed and instead replaced by
-the generic argument `minimum_ios_deployment_target` which can be used to target different versions of Core ML/iOS.
-The argument `minimum_ios_deployment_target` takes a string specifying the target deployment iOS version e.g. '11.2', '12' and '13'.
-By default, the converter uses the value of '12'.
+For the latest changes please see the [release notes](https://github.com/onnx/onnx-coreml/releases).
 
-For example:
+To get the latest version from source (master branch of this repository), please see the [installation section](#Installation).
 
-```python
-from onnx_coreml import convert
-ml_model = convert(model='my_model.onnx', minimum_ios_deployment_target='13')  # to use Core ML 3
-```
+## Usage
 
-## Installation
+Please see the ONNX conversion section in the [Neural network guide](https://github.com/apple/coremltools/blob/master/docs/NeuralNetworkGuide.md) 
+on how to use the converter. 
 
-### Install From PyPI
+There are a few [notebook examples](https://github.com/apple/coremltools/tree/master/examples/neural_network_inference) 
+as well for reference.  
 
-```bash
-pip install -U onnx-coreml
-```
 
-### Install From Source
-
-To get the latest version of the converter, install from source by cloning the repository along with its submodules and running the install.sh script. That is,
-
-```bash
-git clone --recursive https://github.com/onnx/onnx-coreml.git
-cd onnx-coreml
-./install.sh
-```
-
-### Install From Source (for contributors)
-
-To get the latest version of the converter, install from source by cloning the repository along with its submodules and running the install-develop.sh script. That is,
-
-```bash
-git clone --recursive https://github.com/onnx/onnx-coreml.git
-cd onnx-coreml
-./install-develop.sh
-```
-
-## Dependencies
-
-* click
-* numpy
-* coremltools (3.0+)
-* onnx (1.5.0+)
-
-## How to Use
-
-To convert models use single function `convert` from onnx_coreml:
-
-```python
-from onnx_coreml import convert
-```
+### Parameters
 
 ```python
 def convert(model,
@@ -84,31 +42,6 @@ def convert(model,
             custom_conversion_functions={},
             minimum_ios_deployment_target='12')
 ```
-
-The function returns a Core ML model instance that can be saved to a `.mlmodel` file, e.g.:
-
-```python
-mlmodel = convert(onnx_model)
-mlmodel.save('model.mlmodel')
-```
-
-Core ML model spec can be obtained from the model instance, which can be used to update model properties such as output names, input names etc. For e.g.:
-
-```python
-import coremltools
-from coremltools.models import MLModel
-
-spec = mlmodel.get_spec()
-new_mlmodel = MLModel(spec)
-coremltools.utils.rename_feature(spec, 'old_output_name', 'new_output_name')
-coremltools.utils.save_spec(spec, 'model_new_output_name.mlmodel')
-```
-
-Please see the ONNX conversion section in the [Neural network guide](https://github.com/apple/coremltools/blob/master/docs/NeuralNetworkGuide.md) on how to use the converter.
-
-There are several [notebook examples](https://github.com/apple/coremltools/tree/master/examples/neural_network_inference/onnx_converter) as well for reference.
-
-### Parameters
 
 ```
 __model__: ONNX model | str
@@ -195,6 +128,36 @@ convert-onnx-to-coreml [OPTIONS] ONNX_MODEL
 ```
 
 The command-line script currently doesn't support all options mentioned above. For more advanced use cases, you have to call the python function directly.
+
+
+## Installation
+
+### Install From PyPI
+
+```bash
+pip install -U onnx-coreml
+```
+
+### Install From Source
+
+To get the latest version of the converter, install from source by cloning the repository along with its submodules and running the install.sh script. That is,
+
+```bash
+git clone --recursive https://github.com/onnx/onnx-coreml.git
+cd onnx-coreml
+./install.sh
+```
+
+### Install From Source (for contributors)
+
+To get the latest version of the converter, install from source by cloning the repository along with its submodules and running the install-develop.sh script. That is,
+
+```bash
+git clone --recursive https://github.com/onnx/onnx-coreml.git
+cd onnx-coreml
+./install-develop.sh
+```
+
 
 ## Running Unit Tests
 

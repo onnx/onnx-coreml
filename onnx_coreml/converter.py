@@ -219,8 +219,9 @@ def _check_unsupported_ops(nodes, disable_coreml_rank5_mapping=False): # type: (
 
     coreml_3_rerun_message = ''
     if not disable_coreml_rank5_mapping:
-        coreml_3_rerun_message = '\nPlease try converting again with minimum_ios_deployment_target=13' \
-                                 ' and coremltools 3.0 latest beta'
+        coreml_3_rerun_message = '\nPlease try converting again by providing the additonal argument, ' \
+                                 'minimum_ios_deployment_target=13' \
+                                 ' and making sure you have the latest coremltools package'
     if len(unsupported_op_types) > 0:
         raise NotImplementedError("Unsupported ONNX ops of type: %s %s" % (
             ','.join(unsupported_op_types), coreml_3_rerun_message))
