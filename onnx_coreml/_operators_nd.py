@@ -160,10 +160,10 @@ def add_bn_with_expansion(builder, node, err, node_name, input_name, output_name
 # Helper function to convert RandomNormal, RandomUniform and it's variants
 def add_random(builder, node, graph, err, add_op_function):
     # Ignoring attribute `dtype` as CoreML internally represents tensors into 'Float'
-    mean  = node.attributes.get('mean', 0.0)
-    scale = node.attributes.get('scale', 1.0)
-    seed  = node.attributes.get('seed', -1)
-    shape = node.attributes.get('shape', None)
+    mean  = node.attrs.get('mean', 0.0)
+    scale = node.attrs.get('scale', 1.0)
+    seed  = node.attrs.get('seed', -1)
+    shape = node.attrs.get('shape', None)
     if shape is None:
         return err.unsupported_op_configuration(builder, node, graph, "Shape not provided")
     add_op_function(
@@ -1402,7 +1402,7 @@ def _convert_randomnormal(builder, node, graph, err):
     convert to CoreML Random Normal Static Layer:
     https://github.com/apple/coremltools/blob/655b3be5cc0d42c3c4fa49f0f0e4a93a26b3e492/mlmodel/format/NeuralNetwork.proto#L4457
     '''
-    add_random(builder, node, graph, err, builder.random_normal_static)
+    add_random(builder, node, graph, err, builder.add_random_normal_static)
 
 def _convert_randomnormallike(builder, node, graph, err):
     '''
