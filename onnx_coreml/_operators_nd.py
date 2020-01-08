@@ -297,7 +297,7 @@ def _convert_bn(builder, node, graph, err):
 
     epsilon = node.attrs.get("epsilon", 1e-5)
     scale_name = node.inputs[1]
-        
+
     if scale_name in node.input_tensors:
         channels = node.input_tensors[scale_name].shape
     elif scale_name in graph.shape_dict:
@@ -316,7 +316,7 @@ def _convert_bn(builder, node, graph, err):
             tensor_shape = graph.shape_dict[ip_name]
         if tensor_shape != channels:
             err.unsupported_op_configuration(builder, node, graph, "Shape mismatch between Scale, Bias, Mean and Variance")
-    
+
     scale = node.input_tensors[node.inputs[1]] if node.inputs[1] in node.input_tensors else \
             np.ones(shape=channels, dtype=np.float32)
     bias = node.input_tensors[node.inputs[2]] if node.inputs[2] in node.input_tensors else \
@@ -854,7 +854,7 @@ def _convert_gru(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
         # if input is not present in the network, load they as constant
         if node.inputs[0] not in graph.shape_dict:
             err.unsupported_op_configuration(builder, node, graph, "Input shape not represented within Graph")
-        
+
         # Input is represented as [Seq Len, Batch Size, Input Size]
         batch_size = graph.shape_dict[node.inputs[0]][1]
         builder.add_load_constant_nd(
@@ -1910,7 +1910,7 @@ def _convert_slice_ir4v9(builder, node, graph, err):
 
     default_axes = list(range(len_of_data))
     default_steps = [1] * len_of_data
-    
+
     ip_starts = node.attrs.get('starts')
     ip_ends = node.attrs.get('ends')
     axes = node.attrs.get('axes', default_axes)
@@ -1947,7 +1947,10 @@ def _convert_slice(builder, node, graph, err):
     ''' 
     if len(node.inputs) == 1:
        return _convert_slice_ir4v9(builder, node, graph, err)
-    
+
+    if node.inputs[0] not in graph.shape_dict:
+        err.unsupported_op_configuration(builder, node, graph, "Input shape not available")
+
     data_shape = graph.shape_dict[node.inputs[0]]
     len_of_data = len(data_shape)
     begin_masks = [True] * len_of_data
@@ -1955,7 +1958,7 @@ def _convert_slice(builder, node, graph, err):
 
     default_axes = list(range(len_of_data))
     default_steps = [1] * len_of_data
-    
+
     add_static_slice_layer = False
     if node.inputs[1] in node.input_tensors and node.inputs[2] in node.input_tensors:
         if len(node.inputs) > 3:
@@ -1967,7 +1970,7 @@ def _convert_slice(builder, node, graph, err):
                     add_static_slice_layer = True
         else:
             add_static_slice_layer = True
-    
+
     if add_static_slice_layer:
         ip_starts = node.input_tensors[node.inputs[1]]
         ip_ends   = node.input_tensors[node.inputs[2]]
