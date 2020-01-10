@@ -13,6 +13,7 @@ import numpy.testing as npt  # type: ignore
 from tests._test_utils import _assert_outputs
 import torch # type: ignore
 import torch.nn as nn # type: ignore
+import torch.nn.functional as F
 import shutil
 import tempfile
 import os
@@ -468,6 +469,48 @@ class OnnxModelTest(unittest.TestCase):
         torch_model.train(False)
         _test_torch_model_single_io(torch_model, (1, 16), (1, 1, 16))  # type: ignore
 
+
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_conv1d_pool1d(self, minimum_ios_deployment_target='13'):
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.conv1 = nn.Conv1d(in_channels=4,
+                                      out_channels=32, kernel_size=3, stride=1, padding=1)
+                self.conv2 = nn.Conv1d(in_channels=32,
+                                       out_channels=64, kernel_size=3, stride=1, padding=1)
+
+            def forward(self, x):
+                x = x.permute(0, 2, 1)
+                x = self.conv1(x)
+                x = F.relu(x)
+                x = F.max_pool1d(x, 2)
+                x = self.conv2(x)
+                x = F.relu(x)
+                return x
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (2, 10, 4), (2, 10, 4),
+                                    minimum_ios_deployment_target=minimum_ios_deployment_target)
+
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_slice(self, minimum_ios_deployment_target='13'):
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x = x[:5] + x[5:]
+                return x
+
+        torch_model = Net()  # type: ignore
+        torch_model.train(False)
+        _test_torch_model_single_io(torch_model, (10,), (10,),
+                                    minimum_ios_deployment_target=minimum_ios_deployment_target)
+
 class ReshapeTransposeTests(unittest.TestCase):
     '''
     tests for models that have patterns like:
@@ -774,5 +817,5 @@ class TransformationTests(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
     #suite = unittest.TestSuite()
-    #suite.addTest(OnnxModelTest("test_conv2d_stride"))
+    #suite.addTest(OnnxModelTest("test_slice"))
     #unittest.TextTestRunner().run(suite)

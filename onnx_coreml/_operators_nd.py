@@ -22,7 +22,7 @@ from ._operators import _convert_abs, _convert_relu, _convert_sqrt, _convert_exp
 
 from ._operators import _convert_pad as _convert_pad_5d
 
-INT_MAX = 2**30
+INT_MAX = 2**63 - 1
 
 ## Helper functions
 def load_input_constants(builder, node, graph, err):
@@ -55,7 +55,7 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
         )
         node.inputs[0] = node.inputs[0] + '_expanded'
         output_name = node.outputs[0]
-        node.outputs[0] = output_name + '_expanded'
+        node.outputs[0] = node.name + '_' + output_name + '_expanded'
         # Add conversion op
         get_params_func(builder, node, graph, err, params_dict, axis='width')
         add_func(node.inputs, node.outputs, params_dict=params_dict, builder=builder, node=node, graph=graph, err=err)
@@ -1923,7 +1923,10 @@ def _convert_slice_ir4v9(builder, node, graph, err):
         current_axes = axes[i]
         starts[current_axes] = ip_starts[i]
         ends[current_axes] = ip_ends[i]
-        if ends[current_axes] != INT_MAX or ends[current_axes] < data_shape[current_axes]:
+        # n <= end <= INT_MAX implies end is -1, hence end_mask should be True
+        # otherwise end_mask should be False
+        if ends[current_axes] < data_shape[current_axes]:
+            # this means end is not -1
             end_masks[current_axes] = False
 
         if starts[current_axes] != 0:
@@ -1985,7 +1988,10 @@ def _convert_slice(builder, node, graph, err):
             current_axes = axes[i]
             starts[current_axes] = ip_starts[i]
             ends[current_axes] = ip_ends[i]
-            if ends[current_axes] != INT_MAX or ends[current_axes] < data_shape[current_axes]:
+            # n <= end <= INT_MAX implies end is -1, hence end_mask should be True
+            # otherwise end_mask should be False
+            if ends[current_axes] < data_shape[current_axes]:
+                # this means end is not -1
                 end_masks[current_axes] = False
 
             if starts[current_axes] != 0:
