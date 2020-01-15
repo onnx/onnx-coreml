@@ -47,13 +47,14 @@ def _add_conv_like_op(add_func, get_params_func, params_dict,
     elif rank == 3:
         axes = [0, 3]
         # Make 5d tensor
+        expanded_node_output = node.name + '_' + node.inputs[0] + '_expanded'
         builder.add_expand_dims(
             name=node.name+'_ip_expand',
             input_name=node.inputs[0],
-            output_name=node.inputs[0]+'_expanded',
+            output_name=expanded_node_output,
             axes=axes
         )
-        node.inputs[0] = node.inputs[0] + '_expanded'
+        node.inputs[0] = expanded_node_output
         output_name = node.outputs[0]
         node.outputs[0] = node.name + '_' + output_name + '_expanded'
         # Add conversion op
@@ -126,10 +127,10 @@ def add_bn_with_expansion(builder, node, err, node_name, input_name, output_name
 
     # Expand input if needed
     if len(axes_for_expansion) != 0:
-        input_name=input_name+'_expanded'
+        input_name=node_name + '_' + input_name + '_expanded'
         output_name=output_name+'_expanded'
         builder.add_expand_dims(
-            name=node_name+'_expand',
+            name=node_name + '_expand',
             input_name=real_input_name,
             output_name=input_name,
             axes=axes_for_expansion
@@ -490,13 +491,14 @@ def _convert_conv(builder, node, graph, err):
 
         params_dict['w_shape'] = W_shape
         if W_rank == 3:
+            expanded_node_name = node.name + '_' + W_name + '_expanded'
             builder.add_expand_dims(
                 name=node.name+'_w_expand',
                 input_name=W_name,
-                output_name=W_name+'_expanded',
+                output_name=expanded_node_name,
                 axes=[-2]
             )
-            W_name = W_name + '_expanded'
+            W_name = expanded_node_name
 
         # Now Permute the W tensor
         W_transpose_axes=[2, 3, 1, 0]
@@ -872,7 +874,8 @@ def _convert_gru(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
     
     if input_rank < 5:
         add_nodes = 5 - input_rank
-        
+
+        # TODO: Add one expand instead of adding one after another for input, h
         expand_dim(node.name+'_expand_in_0', node.inputs[0], node.inputs[0]+'_expand_out_0', [input_rank])
         expand_dim(node.name+'_expand_in_h_0', input_h, input_h+'_expand_out_h_0', [input_rank])
 
@@ -1119,7 +1122,7 @@ def _convert_lstm(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
         return err.unsupported_op_configuration(builder, node, graph, "Rank unknown for input")
     if rank < 5:
         add_nodes = 5 - rank
-        
+        # TODO: Add one expand instead of adding one after another for input, h and c
         expand_dim(node.name+'_expand_in_0', node.inputs[0], node.inputs[0]+'_expand_out_0', [rank])
         expand_dim(node.name+'_expand_in_h_0', input_h, input_h+'_expand_out_h_0', [rank])
         expand_dim(node.name+'_expand_in_c_0', input_c, input_c+'_expand_out_c_0', [rank])
@@ -2041,16 +2044,16 @@ def _convert_softmax(builder, node, graph, err):
         if axis < 0:
             axis = rank + axis
         axis += len(axes)
-        input_name = node.inputs[0]
         softmax_output_name = output_name+'_expanded'
         
+        expanded_node = node.name + '_' + node.inputs[0] + '_expanded'
         builder.add_expand_dims(
             name=node.name+'_expand_dims',
             input_name=node.inputs[0],
-            output_name=node.inputs[0]+'_expanded',
+            output_name=expanded_node,
             axes=axes
         )
-        input_name += '_expanded'
+        input_name = expanded_node
         rank = 5
 
         if axis != -3 and axis != rank - softmax_axis:
