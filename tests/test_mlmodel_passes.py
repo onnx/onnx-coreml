@@ -2,7 +2,7 @@ import numpy as np
 import unittest
 import coremltools.models.datatypes as datatypes
 from coremltools.models import neural_network as neural_network
-from coremltools.converters.nnssa.coreml.graph_pass.mlmodel_passes import remove_disconnected_constants
+from coremltools.converters.nnssa.coreml.graph_pass.mlmodel_passes import remove_disconnected_layers
 
 
 class MLModelPassesTest(unittest.TestCase):
@@ -18,7 +18,7 @@ class MLModelPassesTest(unittest.TestCase):
         builder.add_load_constant_nd('const3', 'c3', constant_value=np.ones((5,)), shape=(5,))
         spec = builder.spec
         np.testing.assert_equal(5, len(spec.neuralNetwork.layers))
-        remove_disconnected_constants(spec)
+        remove_disconnected_layers(spec)
         np.testing.assert_equal(2, len(spec.neuralNetwork.layers))
 
 

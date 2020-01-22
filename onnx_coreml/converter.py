@@ -32,7 +32,7 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
     DeadCodeElimination
 
 # ML model passes
-from coremltools.converters.nnssa.coreml.graph_pass.mlmodel_passes import remove_disconnected_constants
+from coremltools.converters.nnssa.coreml.graph_pass.mlmodel_passes import remove_disconnected_layers, transform_conv_crop
 
 from ._error_utils import ErrorHandling
 from .graph_viz import plot_graph # type: ignore
@@ -723,7 +723,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
                 raise TypeError('{} not supported with target iOS 11.2 please provide higher target iOS'.format(layer.WhichOneof('layer')))
 
     # Optimize ML Model Spec
-    ml_model_passes = [remove_disconnected_constants]
+    ml_model_passes = [remove_disconnected_layers, transform_conv_crop]
     for opt in ml_model_passes:
         opt(builder.spec)
 
