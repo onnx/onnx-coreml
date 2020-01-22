@@ -40,7 +40,7 @@ def convert(model,
             predicted_feature_name='classLabel',
             add_custom_layers=False,
             custom_conversion_functions={},
-            minimum_ios_deployment_target='12')
+            minimum_ios_deployment_target='13')
 ```
 
 ```
