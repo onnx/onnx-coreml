@@ -271,7 +271,7 @@ def _convert_add(builder, node, graph, err):  # type: (NeuralNetworkBuilder, Nod
     - (S=-1,B=-1,1,1,W)
     - (S=-1,B=-1,1,H,1)
     - (S=-1,B=-1,C,1,W)
-    - (S=-1,B=-1,C,H,1)    
+    - (S=-1,B=-1,C,H,1)
     '''
     _convert_broadcast_op(builder, node, graph, err, "ADD")
 
@@ -398,7 +398,7 @@ def _add_conv(input_names, output_names, **kwargs):
 
     output_name = output_names[0]
     pre_padding_input_name = input_names[0]
-    
+
     if params_dict.get('is_post_crop', False):
         output_name += '_conv_tranpose_post_crop'
     if params_dict.get('is_pre_pad', False):
@@ -406,7 +406,7 @@ def _add_conv(input_names, output_names, **kwargs):
 
     if params_dict['W'] is None and len(node.inputs) == 1:
         return err.unsupported_op_configuration(builder, node, graph, "Kernel weight missing")
-    
+
     if params_dict['is_deconv']:
         oc = W_shape[1] * params_dict['groups']
         kc = W_shape[0]
@@ -712,7 +712,7 @@ def _convert_pool(builder, node, graph, err):  # type: (NeuralNetworkBuilder, No
 
     if 'ceil_mode' in node.attrs and node.attrs['ceil_mode'] == 1:
         return err.unsupported_op_configuration(builder, node, graph, "ceil_mod=1 not supported")
-    
+
     if 'dilations' in node.attrs:
         return err.unsupported_op_configuration(builder, node, graph, "dilations not supported")
 
@@ -1954,7 +1954,7 @@ _ONNX_NODE_REGISTRY = {
 
 _SEQUENCE_LAYERS_REGISTRY = set(["LSTM"])
 
-_CONST_INPUT_ALLOWED_LAYERS = set([ "Add", "Sum", "Mul", "Concat", "Max", "Min", "Div", "Reciprocal"])
+_CONST_INPUT_ALLOWED_LAYERS = set([ "Add", "Sub", "Sum", "Mul", "Concat", "Max", "Min", "Div", "Reciprocal"])
 
 def _get_node_converter_fn(builder, node, err):  # type: (NeuralNetworkBuilder, Node, ErrorHandling) -> Callable[[NeuralNetworkBuilder, Node, Graph, ErrorHandling], None]
     """
