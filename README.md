@@ -20,7 +20,7 @@ To get the latest version from source (master branch of this repository), please
 
 ## Usage
 
-Please see the ONNX conversion section in the [Neural network guide](https://github.com/apple/coremltools/blob/master/docs/NeuralNetworkGuide.md) 
+Please see the ONNX conversion section in the [Neural network guide](https://github.com/apple/coremltools/blob/master/examples/NeuralNetworkGuide.md) 
 on how to use the converter. 
 
 There are a few [notebook examples](https://github.com/apple/coremltools/tree/master/examples/neural_network_inference) 
