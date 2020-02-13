@@ -1963,7 +1963,6 @@ def _convert_slice(builder, node, graph, err):
     end_masks = [True] * len_of_data
 
     default_axes = list(range(len_of_data))
-    default_steps = [1] * len_of_data
 
     add_static_slice_layer = False
     if node.inputs[1] in node.input_tensors and node.inputs[2] in node.input_tensors:
@@ -1980,12 +1979,12 @@ def _convert_slice(builder, node, graph, err):
     if add_static_slice_layer:
         ip_starts = node.input_tensors[node.inputs[1]]
         ip_ends   = node.input_tensors[node.inputs[2]]
-
         axes  = node.input_tensors[node.inputs[3]] if len(node.inputs) > 3 else default_axes
-        steps = node.input_tensors[node.inputs[4]] if len(node.inputs) > 4 else default_steps
-
+        ip_steps  = node.input_tensors[node.inputs[4]] if len(node.inputs) > 4 else None
+        
         starts = [0] * len_of_data
         ends = [0] * len_of_data
+        steps = [1] * len_of_data
 
         for i in range(len(axes)):
             current_axes = axes[i]
@@ -1999,6 +1998,9 @@ def _convert_slice(builder, node, graph, err):
 
             if starts[current_axes] != 0:
                 begin_masks[current_axes] = False
+
+            if isinstance(ip_steps, list):
+                steps[current_axes] = ip_steps[i]
 
         builder.add_slice_static(
             name=node.name,

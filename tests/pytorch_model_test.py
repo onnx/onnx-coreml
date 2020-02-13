@@ -28,7 +28,7 @@ MIN_MACOS_VERSION_10_15 = (10, 15)
 
 DEBUG = False
 
-def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_shape, minimum_ios_deployment_target='12', decimal=4):
+def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_shape, minimum_ios_deployment_target='12', decimal=4, opset_version=9):
     # run torch model
     torch_input = torch.rand(*torch_input_shape)
     torch_out_raw = torch_model(torch_input)
@@ -42,7 +42,7 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
     if DEBUG:
         model_dir = '/tmp'
     onnx_file = os.path.join(model_dir, 'torch_model.onnx')
-    torch.onnx.export(torch_model, torch_input, onnx_file)
+    torch.onnx.export(torch_model, torch_input, onnx_file, opset_version=opset_version)
     onnx_model = onnx.load(onnx_file)
 
     # convert to coreml and run
@@ -503,12 +503,17 @@ class OnnxModelTest(unittest.TestCase):
                 super(Net, self).__init__()
 
             def forward(self, x):
-                x = x[:5] + x[5:]
+                x = x[:, :5] + x[:, 5:]
                 return x
 
         torch_model = Net()  # type: ignore
         torch_model.train(False)
-        _test_torch_model_single_io(torch_model, (10,), (10,),
+
+        # opset <= 9
+        _test_torch_model_single_io(torch_model, (10, 10), (10, 10),
+                                    minimum_ios_deployment_target=minimum_ios_deployment_target)
+        # opset > 9
+        _test_torch_model_single_io(torch_model, (10, 10), (10, 10), opset_version=10,
                                     minimum_ios_deployment_target=minimum_ios_deployment_target)
 
 class ReshapeTransposeTests(unittest.TestCase):
