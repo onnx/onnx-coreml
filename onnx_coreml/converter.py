@@ -29,7 +29,7 @@ from ._transformers import ConvAddFuser, DropoutRemover, \
     PixelShuffleFuser, OutputRenamer, AddModelInputsOutputs, \
     ConstantsToInitializers, ImageScalerRemover, ShapeOpRemover, ConstantRemover, \
     ConstantFillToInitializers, ReshapeTransposeReshape_pattern1, CastOpRemover, \
-    DeadCodeElimination
+    DeadCodeElimination, PaddingOpRemover
 
 # ML model passes
 from coremltools.converters.nnssa.coreml.graph_pass.mlmodel_passes import remove_disconnected_layers, transform_conv_crop
@@ -483,6 +483,7 @@ def convert(model,  # type: Union[onnx.ModelProto, Text]
         ShapeOpRemover(),
         ConstantRemover(),
         CastOpRemover(),
+        PaddingOpRemover(),
         ReshapeInitTensorFuser(),
         DropoutRemover(),
         DeadCodeElimination(),

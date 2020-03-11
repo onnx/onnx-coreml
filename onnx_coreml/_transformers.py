@@ -18,6 +18,25 @@ def _get_fully_defined_shape(shape, blob_name, graph):
     else:
         return graph.shape_dict[blob_name]
 
+def _remove_single_input_output_node(node):
+    for child in node.children:
+        for i, child_input in enumerate(child.inputs):
+            if child_input == node.outputs[0]:
+                # Pass input to child
+                child.inputs[i] = node.inputs[0]
+                # If input tensor is known, pass down the input tensor value
+                if node.inputs[0] in node.input_tensors:
+                    child.input_tensors[node.inputs[0]] = node.input_tensors[node.inputs[0]]
+                # Remove link as a parent from child node
+                child.parents.remove(node)
+                # Link current nodes parent and current child
+                for parent in node.parents:
+                    child.parents.append(parent)
+                    parent.children.append(child)
+                break
+
+    for parent in node.parents:
+        parent.children.remove(node)
 
 class NodesFuser(object):
     '''
@@ -634,25 +653,28 @@ class CastOpRemover(object):
         for node in graph.nodes:
             if node.op_type == 'Cast' and (node.name not in output_names) and node.inputs[0] in graph.shape_dict:
                 nodes_to_be_removed.append(node)
-                tensor_is_const = node.inputs[0] in node.input_tensors
-                for child in node.children:
-                    for i, child_input in enumerate(child.inputs):
-                        if child_input == node.outputs[0]:
-                            # Pass Cast operator input to child
-                            child.inputs[i] = node.inputs[0]
-                            # If input tensor is known, pass down the input tensor value
-                            if node.inputs[0] in node.input_tensors:
-                                child.input_tensors[node.inputs[0]] = node.input_tensors[node.inputs[0]]
-                            # Remove link as a parent from child node
-                            child.parents.remove(node)
-                            # Link current nodes parent and current child
-                            for parent in node.parents:
-                                child.parents.append(parent)
-                                parent.children.append(child)
-                            break
+                _remove_single_input_output_node(node)
 
-                for parent in node.parents:
-                    parent.children.remove(node)
+        transformed_nodes = []
+        for node in graph.nodes:
+            if node not in nodes_to_be_removed:
+                transformed_nodes.append(node)
+        return graph.create_graph(nodes=transformed_nodes)
+
+class PaddingOpRemover(object):
+    '''
+    Remove Pad Op if all the pad values are 0
+    '''
+    def __call__(self, graph):  # type: (Graph) -> Graph
+        global cast_i
+        nodes_to_be_removed = []
+        output_names = [str(output_[0]) for output_ in graph.outputs]
+        for node in graph.nodes:
+            if node.op_type == 'Pad' and (node.name not in output_names) and node.inputs[0] in graph.shape_dict:
+                pads = node.attrs.get('pads', [])
+                if len(pads) > 0 and sum(pads) == 0:
+                    nodes_to_be_removed.append(node)
+                    _remove_single_input_output_node(node)
 
         transformed_nodes = []
         for node in graph.nodes:

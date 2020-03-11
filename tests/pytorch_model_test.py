@@ -76,6 +76,29 @@ def _test_torch_model_single_io(torch_model, torch_input_shape, coreml_input_sha
 
 class OnnxModelTest(unittest.TestCase):
 
+    def test_functional_average_pool(self, minimum_ios_deployment_target='12'):
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                y = F.avg_pool2d(x, [15, 18], [15, 18])
+                return y
+
+        torch_model = Net()
+        torch_model.train(False)
+        if minimum_ios_deployment_target == '12':
+            coreml_shape = (1,64,64)
+        else:
+            coreml_shape = (1,1,64,64)
+        _test_torch_model_single_io(torch_model, (1, 1, 64, 64), coreml_shape,
+                                        minimum_ios_deployment_target=minimum_ios_deployment_target)
+
+    @unittest.skipIf(macos_version() < MIN_MACOS_VERSION_10_15,
+                     'macOS 10.15+ required. Skipping test.')
+    def test_functional_average_pool_disable_rank5_mapping(self):
+        self.test_functional_average_pool(minimum_ios_deployment_target='13')
+
     def test_linear_no_bias(self, minimum_ios_deployment_target='12'):  # type: () -> None
         class Net(nn.Module):
             def __init__(self):

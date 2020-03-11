@@ -46,7 +46,6 @@ def _convertAttributeProto(onnx_arg):  # type: (AttributeProto) -> AttributeValu
         return list(onnx_arg.strings)
     else:
         return None
-        #raise ValueError("Unsupported ONNX attribute: {}".format(onnx_arg))
 
 def _extract_node_names(graph): # type : (Graph) -> List[Text]
     node_names = []
