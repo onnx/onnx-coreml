@@ -714,6 +714,7 @@ class ConstantRemover(object):
     '''
     def __call__(self, graph):  # type: (Graph) -> Graph
         nodes_to_be_removed = []
+        graph_outputs = [o[0] for o in graph.outputs]
         for node in graph.nodes:
             are_all_inputs_constant = True
             for input_ in node.inputs:
@@ -723,6 +724,13 @@ class ConstantRemover(object):
 
             transformation_performed = False
             if len(node.parents) != 0 or are_all_inputs_constant == False:
+                continue
+            is_graph_out = False
+            for out_ in node.outputs:
+                if out_ in graph_outputs:
+                    is_graph_out = True
+                    break
+            if is_graph_out:
                 continue
             # TODO: Replace If -> ElIf with more general transformation block
             if node.op_type == 'Gather':
