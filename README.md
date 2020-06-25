@@ -2,34 +2,38 @@
 
 [![Build Status](https://travis-ci.org/onnx/onnx-coreml.svg?branch=master)](https://travis-ci.org/onnx/onnx-coreml)
 
-This tool converts [ONNX](https://onnx.ai/) models to Apple Core ML format. To convert Core ML models to ONNX, use [ONNXMLTools](https://github.com/onnx/onnxmltools).
+## PyTorch Models
 
-There's a comprehensive [Tutorial](https://github.com/onnx/tutorials/tree/master/examples/CoreML/ONNXLive/README.md) showing 
-how to convert PyTorch style transfer models through ONNX to Core ML models and run them in an iOS app. 
+For converting PyTorch models to CoreML format, the recommended approach is to use **new** PyTorch to Core ML converter, introduced in the [`coremltools 4.0`](https://github.com/apple/coremltools) python package.
 
-To get the latest version of `onnx-coreml` from PyPI:
+Please see the  coremltools documentation on [PyTorch conversion](https://coremltools.readme.io/docs/pytorch-conversion) for example usage.
+
+To get the latest version of coremltools:
 
 ```shell
-pip install --upgrade onnx-coreml
-pip install --upgrade coremltools # onnx-coreml depends on the coremltools package
+pip install coremltools==4.0b1
 ```
 
-For the latest changes please see the [release notes](https://github.com/onnx/onnx-coreml/releases).
+For the latest changes in coremltools, please see the [release notes](https://github.com/apple/coremltools/releases/).
 
-To get the latest version from source (master branch of this repository), please see the [installation section](#Installation).
+## ONNX Models
 
-## Usage
+Code for ONNX to Core ML conversion is now available through `coremltools` python package. For access to bug fixes, community support and requests, please use [coremltools](https://github.com/apple/coremltools) github repository. 
 
-Please see the ONNX conversion section in the [Neural network guide](https://github.com/apple/coremltools/blob/master/examples/NeuralNetworkGuide.md) 
-on how to use the converter. 
+For ONNX conversion `coremltools.converters.onnx.convert` is the only supported API.
 
-There are a few [notebook examples](https://github.com/apple/coremltools/tree/master/examples/neural_network_inference) 
-as well for reference.  
+`onnx-coreml` package will **no longer be maintained**.
+
+Note: ONNX converter is not under any active feature development.
+
+## ONNX Conversion API
 
 
 ### Parameters
 
 ```python
+from coremltools.converters.onnx import convert
+
 def convert(model,
             mode=None,
             image_input_names=[],
@@ -121,64 +125,15 @@ __minimum_ios_deployment_target__: str
 __model__: A Core ML model.
 ```
 
-### CLI
-Also you can use command-line script for simplicity:
-```
-convert-onnx-to-coreml [OPTIONS] ONNX_MODEL
-```
-
-The command-line script currently doesn't support all options mentioned above. For more advanced use cases, you have to call the python function directly.
-
 
 ## Installation
 
-### Install From PyPI
-
-```bash
-pip install -U onnx-coreml
-```
-
-### Install From Source
-
-To get the latest version of the converter, install from source by cloning the repository along with its submodules and running the install.sh script. That is,
-
-```bash
-git clone --recursive https://github.com/onnx/onnx-coreml.git
-cd onnx-coreml
-./install.sh
-```
-
-### Install From Source (for contributors)
-
-To get the latest version of the converter, install from source by cloning the repository along with its submodules and running the install-develop.sh script. That is,
-
-```bash
-git clone --recursive https://github.com/onnx/onnx-coreml.git
-cd onnx-coreml
-./install-develop.sh
-```
-
-
-## Running Unit Tests
-
-In order to run unit tests, you need `pytest`.
+To get the latest version of coremltools:
 
 ```shell
-pip install pytest
-pip install pytest-cov
+pip install coremltools==4.0b1
 ```
-
-To run all unit tests, navigate to the `tests/` folder and run
-
-```shell
-pytest
-```
-
-To run a specific unit test, for instance the custom layer test, run
-
-```shell
-pytest -s custom_layers_test.py::CustomLayerTest::test_unsupported_ops_provide_functions
-```
+For the latest changes please see the [release notes](https://github.com/apple/coremltools/releases/).
 
 ## Currently Supported
 
@@ -199,9 +154,6 @@ Models from https://github.com/onnx/models that have been tested to work with th
 - SqueezeNet
 - VGG
 - ZFNet
-
-### Examples
-You can find examples for converting a model through ONNX -> CoreML [here](https://github.com/onnx/onnx-coreml/tree/master/examples)
 
 ### Operators
 List of [ONNX operators supported in Core ML 2.0 via the converter](https://github.com/onnx/onnx-coreml/blob/4d8b1cc348e2d6a983a6d38bb6921b6b77b47e76/onnx_coreml/_operators.py#L1893)
